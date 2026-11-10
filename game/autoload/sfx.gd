@@ -24,7 +24,7 @@ func _ready() -> void:
 func play(name: String, pitch := 1.0) -> void:
 	if not _streams.has(name):
 		return
-	var vol: float = Kyber.settings.get("sfx_volume", 0.7)
+	var vol: float = Sabacc.settings.get("sfx_volume", 0.7)
 	if vol <= 0.01:
 		return
 	var p: AudioStreamPlayer = _players[_next]

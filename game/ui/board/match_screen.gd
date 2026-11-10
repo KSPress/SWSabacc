@@ -23,14 +23,14 @@ var ui_layer: Control
 var hud: Array = []                  # SideHud x2 (index = player)
 var hand: HandView
 var enemy_hand_label: Label
-var pass_btn: KyberButton
+var pass_btn: SabaccButton
 var tray: BoxContainer
 var coin: TableTokens.InitiativeCoin
 var force_orbs: Array = []
 var prompt_bar: PanelContainer
 var prompt_label: Label
-var prompt_skip: KyberButton
-var prompt_confirm: KyberButton
+var prompt_skip: SabaccButton
+var prompt_confirm: SabaccButton
 var tracker: Label
 var log_panel: PanelContainer
 var log_text: RichTextLabel
@@ -47,12 +47,15 @@ var _choice_open := false
 
 
 func _ready() -> void:
-	theme = UIKit.build_theme()
 	params = Router.params.duplicate()
 	var cfg: Dictionary = params.get("cfg", {})
 	if cfg.is_empty():
 		cfg = QuickMatch.default_config()
 		params["mode"] = "quick"
+	var player: Dictionary = cfg.get("players", [{}])[0]
+	Appearance.set_deck(player.get("leader", ""), player.get("base", ""), player.get("deck", []))
+	theme = UIKit.build_theme()
+	Appearance.changed.connect(func(): theme = UIKit.build_theme())
 	m = Match.new()
 	_build()
 	m.setup(CardDB.lib, cfg)
@@ -75,8 +78,8 @@ func _ready() -> void:
 	coin.holder = m.initiative
 	_layout()
 	tracker.text = m.objective.tracker(m)
-	Fx.banner(fx_layer, params.get("title", "Battle"), Kyber.C_KYBER, m.objective.describe())
-	await get_tree().create_timer(Kyber.anim(0.9)).timeout
+	Fx.banner(fx_layer, params.get("title", "Battle"), Appearance.color_at(0), m.objective.describe())
+	await get_tree().create_timer(Sabacc.anim(0.9)).timeout
 	_step()
 
 
@@ -109,9 +112,9 @@ func _build() -> void:
 		board_layer.add_child(l)
 		board_layer.add_child(l2)
 		_arena_labels[a] = [l, l2]
-	enemy_hand_label = UIKit.fit_label(UIKit.label("", 16, Kyber.C_DIM))
+	enemy_hand_label = UIKit.fit_label(UIKit.label("", 16, Sabacc.C_DIM))
 	ui_layer.add_child(enemy_hand_label)
-	tracker = UIKit.fit_label(UIKit.label("", 18, Kyber.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
+	tracker = UIKit.fit_label(UIKit.label("", 18, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 	tracker.add_theme_constant_override("outline_size", 6)
 	tracker.add_theme_color_override("font_outline_color", Color.BLACK)
 	ui_layer.add_child(tracker)
@@ -123,16 +126,16 @@ func _build() -> void:
 	for i in 2:
 		var orb := TableTokens.ForceOrb.new()
 		force_orbs.append(orb)
-	pass_btn = KyberButton.make("PASS", KyberButton.Style.PRIMARY, "", true)
+	pass_btn = SabaccButton.make("PASS", SabaccButton.Style.PRIMARY, "", true)
 	pass_btn.custom_minimum_size = Vector2(150, 64)
 	pass_btn.pressed.connect(_on_pass)
 	ui_layer.add_child(pass_btn)
-	var log_btn := KyberButton.make("", KyberButton.Style.GHOST, "log")
+	var log_btn := SabaccButton.make("", SabaccButton.Style.GHOST, "log")
 	log_btn.custom_minimum_size = Vector2(56, 56)
 	log_btn.name = "LogBtn"
 	log_btn.pressed.connect(_toggle_log)
 	ui_layer.add_child(log_btn)
-	var menu_btn := KyberButton.make("", KyberButton.Style.GHOST, "gear")
+	var menu_btn := SabaccButton.make("", SabaccButton.Style.GHOST, "gear")
 	menu_btn.custom_minimum_size = Vector2(56, 56)
 	menu_btn.name = "MenuBtn"
 	menu_btn.pressed.connect(_open_menu)
@@ -144,26 +147,26 @@ func _build() -> void:
 	hand.card_drag_moved.connect(_on_hand_drag_moved)
 	hand.card_dropped.connect(_on_hand_drop)
 	# prompt bar for board targeting
-	prompt_bar = UIKit.panel(Color(0.02, 0.05, 0.09, 0.92), Kyber.C_GOLD, 12, 10)
+	prompt_bar = UIKit.panel(Color(0.02, 0.05, 0.09, 0.92), Sabacc.C_GOLD, 12, 10)
 	var ph := HBoxContainer.new()
 	ph.add_theme_constant_override("separation", 10)
 	prompt_bar.add_child(ph)
-	prompt_label = UIKit.label("", 19, Kyber.C_TEXT)
+	prompt_label = UIKit.label("", 19, Sabacc.C_TEXT)
 	prompt_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	prompt_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ph.add_child(prompt_label)
-	prompt_confirm = KyberButton.make("OK", KyberButton.Style.PRIMARY)
+	prompt_confirm = SabaccButton.make("OK", SabaccButton.Style.PRIMARY)
 	prompt_confirm.custom_minimum_size = Vector2(90, 48)
 	prompt_confirm.pressed.connect(func(): _submit_targets(_target_sel))
 	ph.add_child(prompt_confirm)
-	prompt_skip = KyberButton.make("Skip", KyberButton.Style.GHOST)
+	prompt_skip = SabaccButton.make("Skip", SabaccButton.Style.GHOST)
 	prompt_skip.custom_minimum_size = Vector2(90, 48)
 	prompt_skip.pressed.connect(func(): _submit_targets([]))
 	ph.add_child(prompt_skip)
 	prompt_bar.visible = false
 	ui_layer.add_child(prompt_bar)
 	# log
-	log_panel = UIKit.panel(Color(0.02, 0.04, 0.07, 0.95), Kyber.C_LINE, 12)
+	log_panel = UIKit.panel(Color(0.02, 0.04, 0.07, 0.95), Sabacc.C_LINE, 12)
 	log_text = RichTextLabel.new()
 	log_text.scroll_following = true
 	log_text.add_theme_font_size_override("normal_font_size", 16)
@@ -292,7 +295,7 @@ func _draw_board() -> void:
 		board_layer.draw_rect(r, col)
 		board_layer.draw_rect(r, Color(1, 1, 1, 0.08), false, 2.0)
 		var y := r.position.y + r.size.y / 2.0
-		board_layer.draw_line(Vector2(r.position.x + 140, y), Vector2(r.end.x - 20, y), Color(Kyber.C_KYBER, 0.25), 2.0)
+		board_layer.draw_line(Vector2(r.position.x + 140, y), Vector2(r.end.x - 20, y), Color(Appearance.color_at(0), 0.25), 2.0)
 
 
 func _token_scale() -> float:
@@ -334,7 +337,7 @@ func _position_tokens(animate := true) -> void:
 				tok.scale = Vector2(sc, sc) if not tok._dying else tok.scale
 				tok.home_pos = Vector2(x0 + i * w, y)
 				if animate:
-					tok.create_tween().tween_property(tok, "position", tok.home_pos, Kyber.anim(0.3)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+					tok.create_tween().tween_property(tok, "position", tok.home_pos, Sabacc.anim(0.3)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 				else:
 					tok.position = tok.home_pos
 
@@ -355,14 +358,14 @@ func _step() -> void:
 		if not m.pending.is_empty():
 			var who: int = m.pending["player"]
 			if m.players[who].is_ai:
-				await get_tree().create_timer(Kyber.anim(0.3)).timeout
+				await get_tree().create_timer(Sabacc.anim(0.3)).timeout
 				AiBot.choose(m)
 				continue
 			busy = false
 			_show_pending()
 			return
 		if m.phase == "action" and m.players[m.active].is_ai:
-			await get_tree().create_timer(Kyber.anim(0.55)).timeout
+			await get_tree().create_timer(Sabacc.anim(0.55)).timeout
 			AiBot.act(m)
 			continue
 		break
@@ -400,7 +403,7 @@ func _drain() -> void:
 				await _wait(0.12)
 			"heal":
 				var hc := m.card(e["uid"])
-				Fx.float_text(fx_layer, _card_center(hc), "+%d" % int(e["n"]), Kyber.C_GOOD)
+				Fx.float_text(fx_layer, _card_center(hc), "+%d" % int(e["n"]), Sabacc.C_GOOD)
 			"shield_break":
 				Fx.shatter(fx_layer, _card_center(m.card(e["uid"])))
 				await _wait(0.15)
@@ -408,8 +411,8 @@ func _drain() -> void:
 				var tk: UnitToken = tokens.get(e["on"])
 				if tk:
 					tk.refresh()
-					tk.flash(Kyber.C_KYBER if e["kind"] == "shield" else Kyber.C_GOLD)
-					Fx.float_text(fx_layer, tk.center_global(), e["kind"].capitalize(), Kyber.C_KYBER, 26)
+					tk.flash(Appearance.color_at(0) if e["kind"] == "shield" else Sabacc.C_GOLD)
+					Fx.float_text(fx_layer, tk.center_global(), e["kind"].capitalize(), Appearance.color_at(0), 26)
 					Sfx.play("shield" if e["kind"] == "shield" else "deploy", 1.3)
 				await _wait(0.15)
 			"buff":
@@ -417,7 +420,7 @@ func _drain() -> void:
 				if bt:
 					bt.refresh()
 					var txt: String = e.get("kw", "").capitalize() if e.has("kw") else "%+d/%+d" % [int(e.get("p", 0)), int(e.get("h", 0))]
-					Fx.float_text(fx_layer, bt.center_global(), txt, Kyber.C_GOLD, 26)
+					Fx.float_text(fx_layer, bt.center_global(), txt, Sabacc.C_GOLD, 26)
 			"defeat":
 				var dt: UnitToken = tokens.get(e["uid"])
 				if dt:
@@ -437,7 +440,7 @@ func _drain() -> void:
 					et.refresh()
 			"deploy":
 				var l := m.card(e["uid"])
-				Fx.banner(fx_layer, "%s deploys" % l.name(), Kyber.C_GOLD, "deploy")
+				Fx.banner(fx_layer, "%s deploys" % l.name(), Sabacc.C_GOLD, "deploy")
 				Sfx.play("deploy")
 				await _wait(0.5)
 			"claim":
@@ -445,15 +448,15 @@ func _drain() -> void:
 				if tok_name == "initiative":
 					await coin.fly_to(coin_pos(int(e["p"])), int(e["p"]), true)
 					continue
-				Fx.float_text(fx_layer, hud[e["p"]].get_global_rect().get_center(), tok_name.capitalize().replace("_", " "), Kyber.C_GOLD, 34)
+				Fx.float_text(fx_layer, hud[e["p"]].get_global_rect().get_center(), tok_name.capitalize().replace("_", " "), Sabacc.C_GOLD, 34)
 				Sfx.play("turn")
 				await _wait(0.3)
 			"phase":
 				if e["phase"] == "action":
 					coin.flip_to(false)
-					Fx.banner(fx_layer, "Round %d" % int(e["round"]), Kyber.C_KYBER, "round")
+					Fx.banner(fx_layer, "Round %d" % int(e["round"]), Appearance.color_at(0), "round")
 				else:
-					Fx.banner(fx_layer, "Regroup", Kyber.C_GOLD, "regroup")
+					Fx.banner(fx_layer, "Regroup", Sabacc.C_GOLD, "regroup")
 				Sfx.play("turn", 0.8)
 				await _wait(0.75)
 			"turn":
@@ -461,7 +464,7 @@ func _drain() -> void:
 					Sfx.play("turn")
 			"pass":
 				if not e.get("auto", false):
-					Fx.float_text(fx_layer, hud[e["p"]].get_global_rect().get_center(), "Pass", Kyber.C_DIM, 30)
+					Fx.float_text(fx_layer, hud[e["p"]].get_global_rect().get_center(), "Pass", Sabacc.C_DIM, 30)
 			"discard":
 				pass
 			"force":
@@ -474,7 +477,7 @@ func _drain() -> void:
 			"ability":
 				var at: UnitToken = tokens.get(e["uid"])
 				if at:
-					at.flash(Kyber.C_GOLD)
+					at.flash(Sabacc.C_GOLD)
 				Sfx.play("deploy", 1.6)
 				await _wait(0.2)
 		hud[0].refresh()
@@ -482,7 +485,7 @@ func _drain() -> void:
 
 
 func _wait(t: float) -> void:
-	await get_tree().create_timer(Kyber.anim(t)).timeout
+	await get_tree().create_timer(Sabacc.anim(t)).timeout
 
 
 func _card_center(c: CardInst) -> Vector2:
@@ -514,12 +517,12 @@ func _anim_play(e: Dictionary) -> void:
 		cv.scale = Vector2(sc * 0.5, sc * 0.5)
 		cv.modulate.a = 0.0
 		var tw := cv.create_tween().set_parallel(true)
-		tw.tween_property(cv, "position", vs / 2.0 - cv.size / 2.0, Kyber.anim(0.25)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tw.tween_property(cv, "scale", Vector2(sc, sc), Kyber.anim(0.25)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(cv, "modulate:a", 1.0, Kyber.anim(0.15))
-		tw.chain().tween_interval(Kyber.anim(0.65))
-		tw.chain().tween_property(cv, "modulate:a", 0.0, Kyber.anim(0.2))
-		tw.parallel().tween_property(cv, "scale", Vector2(sc * 0.7, sc * 0.7), Kyber.anim(0.2))
+		tw.tween_property(cv, "position", vs / 2.0 - cv.size / 2.0, Sabacc.anim(0.25)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(cv, "scale", Vector2(sc, sc), Sabacc.anim(0.25)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(cv, "modulate:a", 1.0, Sabacc.anim(0.15))
+		tw.chain().tween_interval(Sabacc.anim(0.65))
+		tw.chain().tween_property(cv, "modulate:a", 0.0, Sabacc.anim(0.2))
+		tw.parallel().tween_property(cv, "scale", Vector2(sc * 0.7, sc * 0.7), Sabacc.anim(0.2))
 		tw.chain().tween_callback(cv.queue_free)
 		await _wait(0.75)
 
@@ -575,26 +578,26 @@ func _anim_saber(at: UnitToken, target: Vector2, col: Color) -> void:
 	# ignite
 	Sfx.play("saber_on")
 	var t1 := create_tween().set_parallel(true)
-	t1.tween_property(blade, "length", 1.0, Kyber.anim(0.26)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	t1.tween_property(at, "scale", s0 * 1.12, Kyber.anim(0.26)).set_trans(Tween.TRANS_BACK)
+	t1.tween_property(blade, "length", 1.0, Sabacc.anim(0.26)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	t1.tween_property(at, "scale", s0 * 1.12, Sabacc.anim(0.26)).set_trans(Tween.TRANS_BACK)
 	await t1.finished
 	# dash in
 	var t2 := create_tween()
-	t2.tween_property(at, "position", _token_pos_for(target - dir * 75.0 * s0.x), Kyber.anim(0.2)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	t2.tween_property(at, "position", _token_pos_for(target - dir * 75.0 * s0.x), Sabacc.anim(0.2)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
 	await t2.finished
 	# swing through the target
 	Sfx.play("swing")
 	var base_a := dir.angle()
 	blade.angle = base_a - 2.3 * side
 	var t3 := create_tween().set_parallel(true)
-	t3.tween_property(blade, "angle", base_a + 1.3 * side, Kyber.anim(0.2)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	t3.tween_property(at, "rotation", 0.25 * side, Kyber.anim(0.2))
+	t3.tween_property(blade, "angle", base_a + 1.3 * side, Sabacc.anim(0.2)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	t3.tween_property(at, "rotation", 0.25 * side, Sabacc.anim(0.2))
 	var lit := func(_v):
 		if is_instance_valid(blade):
 			var tip := blade.global_position + Vector2(cos(blade.angle), sin(blade.angle)) * blade.blade_px * 0.7
 			Fx.light_at(tip, col, 170.0, 1.0)
-	t3.tween_method(lit, 0.0, 1.0, Kyber.anim(0.2))
-	get_tree().create_timer(Kyber.anim(0.11)).timeout.connect(func():
+	t3.tween_method(lit, 0.0, 1.0, Sabacc.anim(0.2))
+	get_tree().create_timer(Sabacc.anim(0.11)).timeout.connect(func():
 		Fx.punch(fx_layer, target, col, 1.2, at.center_global())
 		Sfx.play("hit", 0.8)
 		Fx.shake(board_layer, 7.0, 0.2))
@@ -602,10 +605,10 @@ func _anim_saber(at: UnitToken, target: Vector2, col: Color) -> void:
 	await _wait(0.08)
 	# retract and return
 	var t4 := create_tween().set_parallel(true)
-	t4.tween_property(blade, "length", 0.0, Kyber.anim(0.18))
-	t4.tween_property(at, "position", start, Kyber.anim(0.3)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t4.tween_property(at, "scale", s0, Kyber.anim(0.3))
-	t4.tween_property(at, "rotation", _rest_rot(at), Kyber.anim(0.3))
+	t4.tween_property(blade, "length", 0.0, Sabacc.anim(0.18))
+	t4.tween_property(at, "position", start, Sabacc.anim(0.3)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t4.tween_property(at, "scale", s0, Sabacc.anim(0.3))
+	t4.tween_property(at, "rotation", _rest_rot(at), Sabacc.anim(0.3))
 	await t4.finished
 	blade.queue_free()
 
@@ -618,11 +621,11 @@ func _anim_ranged(at: UnitToken, target: Vector2, col: Color, heavy: bool) -> vo
 	var dir := (target - at.center_global()).normalized()
 	var ready_pos := start + dir * 18.0
 	var t1 := create_tween().set_parallel(true)
-	t1.tween_property(at, "scale", s0 * 1.1, Kyber.anim(0.15)).set_trans(Tween.TRANS_BACK)
-	t1.tween_property(at, "position", ready_pos, Kyber.anim(0.15))
+	t1.tween_property(at, "scale", s0 * 1.1, Sabacc.anim(0.15)).set_trans(Tween.TRANS_BACK)
+	t1.tween_property(at, "position", ready_pos, Sabacc.anim(0.15))
 	await t1.finished
 	var shots := 3 if heavy else clampi(2 + at.inst.power(true), 3, 6)
-	var gap := Kyber.anim(0.15 if heavy else 0.08)
+	var gap := Sabacc.anim(0.15 if heavy else 0.08)
 	var muzzle_at := at.center_global() + dir * 50.0 * s0.x
 	var dur := Fx.volley(fx_layer, muzzle_at, target, col, shots, gap, 1.9 if heavy else 1.15, 22.0 if heavy else 14.0)
 	var rec := create_tween()
@@ -630,12 +633,12 @@ func _anim_ranged(at: UnitToken, target: Vector2, col: Color, heavy: bool) -> vo
 		rec.tween_property(at, "position", ready_pos - dir * (11.0 if heavy else 6.0), gap * 0.4)
 		rec.tween_property(at, "position", ready_pos, gap * 0.6)
 	if heavy:
-		get_tree().create_timer(Kyber.anim(0.2)).timeout.connect(func(): Fx.shake(board_layer, 9.0, 0.35))
+		get_tree().create_timer(Sabacc.anim(0.2)).timeout.connect(func(): Fx.shake(board_layer, 9.0, 0.35))
 	await get_tree().create_timer(dur).timeout
 	Fx.punch(fx_layer, target, col, 1.25 if heavy else 1.0, at.center_global())
 	var t2 := create_tween().set_parallel(true)
-	t2.tween_property(at, "position", start, Kyber.anim(0.25)).set_trans(Tween.TRANS_BACK)
-	t2.tween_property(at, "scale", s0, Kyber.anim(0.25))
+	t2.tween_property(at, "position", start, Sabacc.anim(0.25)).set_trans(Tween.TRANS_BACK)
+	t2.tween_property(at, "scale", s0, Sabacc.anim(0.25))
 	await t2.finished
 
 
@@ -648,9 +651,9 @@ func _anim_ship(at: UnitToken, target: Vector2, col: Color) -> void:
 	Sfx.play("whoosh", 1.4)
 	var t1 := create_tween().set_parallel(true)
 	var gap_px := (target - at.center_global()).length()
-	t1.tween_property(at, "position", start + dir * minf(90.0, gap_px * 0.3) + side * 40.0, Kyber.anim(0.22)).set_trans(Tween.TRANS_SINE)
-	t1.tween_property(at, "rotation", 0.3 * signf(side.x + 0.01), Kyber.anim(0.22))
-	t1.tween_property(at, "scale", s0 * 1.15, Kyber.anim(0.22))
+	t1.tween_property(at, "position", start + dir * minf(90.0, gap_px * 0.3) + side * 40.0, Sabacc.anim(0.22)).set_trans(Tween.TRANS_SINE)
+	t1.tween_property(at, "rotation", 0.3 * signf(side.x + 0.01), Sabacc.anim(0.22))
+	t1.tween_property(at, "scale", s0 * 1.15, Sabacc.anim(0.22))
 	await t1.finished
 	var c := at.center_global()
 	var off := side * 14.0 * s0.x
@@ -662,9 +665,9 @@ func _anim_ship(at: UnitToken, target: Vector2, col: Color) -> void:
 	Fx.punch(fx_layer, target, col, 1.0, c)
 	Fx.shake(board_layer, 6.0, 0.18)
 	var t2 := create_tween().set_parallel(true)
-	t2.tween_property(at, "position", start, Kyber.anim(0.32)).set_trans(Tween.TRANS_SINE)
-	t2.tween_property(at, "rotation", _rest_rot(at), Kyber.anim(0.32))
-	t2.tween_property(at, "scale", s0, Kyber.anim(0.32))
+	t2.tween_property(at, "position", start, Sabacc.anim(0.32)).set_trans(Tween.TRANS_SINE)
+	t2.tween_property(at, "rotation", _rest_rot(at), Sabacc.anim(0.32))
+	t2.tween_property(at, "scale", s0, Sabacc.anim(0.32))
 	await t2.finished
 
 
@@ -675,15 +678,15 @@ func _anim_melee(at: UnitToken, target: Vector2) -> void:
 	var start := at.position
 	Sfx.play("whoosh", 0.8)
 	var t1 := create_tween().set_parallel(true)
-	t1.tween_property(at, "position", start + Vector2(0, -80.0 * s0.y), Kyber.anim(0.26)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t1.tween_property(at, "scale", s0 * 1.35, Kyber.anim(0.26)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t1.tween_property(at, "rotation", -0.25, Kyber.anim(0.26))
+	t1.tween_property(at, "position", start + Vector2(0, -80.0 * s0.y), Sabacc.anim(0.26)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t1.tween_property(at, "scale", s0 * 1.35, Sabacc.anim(0.26)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t1.tween_property(at, "rotation", -0.25, Sabacc.anim(0.26))
 	await t1.finished
 	await _wait(0.06)
 	var t2 := create_tween().set_parallel(true)
-	t2.tween_property(at, "position", _token_pos_for(target), Kyber.anim(0.15)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
-	t2.tween_property(at, "scale", s0 * 1.05, Kyber.anim(0.15))
-	t2.tween_property(at, "rotation", 0.12, Kyber.anim(0.15))
+	t2.tween_property(at, "position", _token_pos_for(target), Sabacc.anim(0.15)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	t2.tween_property(at, "scale", s0 * 1.05, Sabacc.anim(0.15))
+	t2.tween_property(at, "rotation", 0.12, Sabacc.anim(0.15))
 	await t2.finished
 	Fx.shockwave(fx_layer, target)
 	Fx.punch(fx_layer, target, Color(1, 0.8, 0.45), 1.35, at.center_global() + Vector2(0, -120))
@@ -691,9 +694,9 @@ func _anim_melee(at: UnitToken, target: Vector2) -> void:
 	Fx.shake(board_layer, 12.0, 0.3)
 	await _wait(0.08)
 	var t3 := create_tween().set_parallel(true)
-	t3.tween_property(at, "position", start, Kyber.anim(0.35)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t3.tween_property(at, "scale", s0, Kyber.anim(0.35))
-	t3.tween_property(at, "rotation", _rest_rot(at), Kyber.anim(0.35))
+	t3.tween_property(at, "position", start, Sabacc.anim(0.35)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t3.tween_property(at, "scale", s0, Sabacc.anim(0.35))
+	t3.tween_property(at, "rotation", _rest_rot(at), Sabacc.anim(0.35))
 	await t3.finished
 
 
@@ -732,7 +735,7 @@ func _ensure_token(c: CardInst, animate: bool) -> UnitToken:
 	tok.scale = Vector2(sc, sc)
 	if animate:
 		tok.pop_in()
-		create_tween().tween_property(tok, "scale", Vector2(sc, sc), Kyber.anim(0.4)).set_trans(Tween.TRANS_BACK)
+		create_tween().tween_property(tok, "scale", Vector2(sc, sc), Sabacc.anim(0.4)).set_trans(Tween.TRANS_BACK)
 	return tok
 
 
@@ -826,7 +829,7 @@ func _rebuild_tray(legal: Array) -> void:
 			tb.pressed.connect(func(): _act({"a": "claim", "token": tid}))
 			tray.add_child(tb)
 			continue
-		var b := KyberButton.make(tk.get("name", tk["id"]), KyberButton.Style.GOLD, tk.get("icon", "initiative"), false)
+		var b := SabaccButton.make(tk.get("name", tk["id"]), SabaccButton.Style.GOLD, tk.get("icon", "initiative"), false)
 		b.custom_minimum_size = Vector2(150 if portrait else 0, 52)
 		b.add_theme_font_size_override("font_size", 16)
 		b.disabled = not claimable
@@ -864,13 +867,13 @@ func _on_hand_drop(card: CardView, at: Vector2) -> void:
 		if removed:
 			# fly into the arena then vanish; the token/event animation takes over
 			var tw := removed.create_tween().set_parallel(true)
-			tw.tween_property(removed, "scale", removed.scale * 0.4, Kyber.anim(0.18))
-			tw.tween_property(removed, "modulate:a", 0.0, Kyber.anim(0.18))
+			tw.tween_property(removed, "scale", removed.scale * 0.4, Sabacc.anim(0.18))
+			tw.tween_property(removed, "modulate:a", 0.0, Sabacc.anim(0.18))
 			tw.chain().tween_callback(removed.queue_free)
 		_act({"a": "play", "uid": uid})
 	else:
 		if at.y < _hand_top - 30 and not card.playable:
-			Fx.float_text(fx_layer, at, "Can't play that now", Kyber.C_EMPIRE, 24)
+			Fx.float_text(fx_layer, at, "Can't play that now", Sabacc.C_EMPIRE, 24)
 		card.spring_home()
 
 
@@ -925,7 +928,7 @@ func _try_attack(tok: UnitToken, target_uid: int) -> void:
 	if target_uid in m.attack_targets(tok.inst):
 		_act({"a": "attack", "uid": tok.inst.uid, "target": target_uid})
 	else:
-		Fx.float_text(fx_layer, tok.center_global(), "Invalid target", Kyber.C_EMPIRE, 24)
+		Fx.float_text(fx_layer, tok.center_global(), "Invalid target", Sabacc.C_EMPIRE, 24)
 		_clear_selection()
 
 
@@ -935,7 +938,7 @@ func _on_token_drag_start(tok: UnitToken) -> void:
 	_select_attacker(tok)
 	_arrow.from = tok.center_global()
 	_arrow.to = tok.center_global()
-	_arrow.color = Kyber.C_EMPIRE
+	_arrow.color = Sabacc.C_EMPIRE
 	_arrow.visible = true
 
 
@@ -943,7 +946,7 @@ func _on_token_drag_moved(tok: UnitToken, at: Vector2) -> void:
 	if _arrow.visible and _selected == tok:
 		_arrow.from = tok.center_global()
 		_arrow.to = at
-		_arrow.color = Kyber.C_GOLD if _target_at(at) >= 0 else Kyber.C_EMPIRE
+		_arrow.color = Sabacc.C_GOLD if _target_at(at) >= 0 else Sabacc.C_EMPIRE
 
 
 func _on_token_drag_released(tok: UnitToken, at: Vector2) -> void:
@@ -1060,7 +1063,7 @@ func _on_resources_pressed(h: SideHud) -> void:
 			var c := m.card(a["uid"])
 			opts.append(["Smuggle %s (%d)" % [c.name(), m.play_cost(HUMAN, c, true)], a])
 	if opts.is_empty():
-		Fx.float_text(fx_layer, h.res_view.get_global_rect().get_center(), "%d ready / %d resources" % [m.players[HUMAN].ready_resources(), m.players[HUMAN].resources.size()], Kyber.C_COST, 22)
+		Fx.float_text(fx_layer, h.res_view.get_global_rect().get_center(), "%d ready / %d resources" % [m.players[HUMAN].ready_resources(), m.players[HUMAN].resources.size()], Sabacc.C_COST, 22)
 		return
 	_popup_menu(h.res_view.get_global_rect(), opts)
 
@@ -1079,7 +1082,7 @@ func _unit_menu(tok: UnitToken, can_attack: bool, abilities: Array) -> void:
 func _popup_menu(anchor: Rect2, opts: Array) -> void:
 	if menu_popup:
 		menu_popup.queue_free()
-	menu_popup = UIKit.panel(Color(0.03, 0.06, 0.1, 0.97), Kyber.C_GOLD, 12, 12)
+	menu_popup = UIKit.panel(Color(0.03, 0.06, 0.1, 0.97), Sabacc.C_GOLD, 12, 12)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	menu_popup.add_child(v)
@@ -1087,7 +1090,7 @@ func _popup_menu(anchor: Rect2, opts: Array) -> void:
 	for o in opts:
 		var why: String = o[2] if o.size() > 2 else ""
 		var label := str(o[0]) if why == "" else "%s\n(%s)" % [o[0], why]
-		var b := KyberButton.make(label, KyberButton.Style.GOLD if not o[1].has("inspect") else KyberButton.Style.GHOST)
+		var b := SabaccButton.make(label, SabaccButton.Style.GOLD if not o[1].has("inspect") else SabaccButton.Style.GHOST)
 		b.disabled = why != ""
 		b.add_theme_font_size_override("font_size", 17)
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1104,7 +1107,7 @@ func _popup_menu(anchor: Rect2, opts: Array) -> void:
 			else:
 				_act(act))
 		v.add_child(b)
-	var cancel := KyberButton.make("Cancel", KyberButton.Style.GHOST)
+	var cancel := SabaccButton.make("Cancel", SabaccButton.Style.GHOST)
 	cancel.pressed.connect(func():
 		menu_popup.queue_free()
 		menu_popup = null)
@@ -1198,7 +1201,7 @@ func _open_menu() -> void:
 	# Re-wire the concede button (popup handles actions generically).
 	await get_tree().process_frame
 	if menu_popup:
-		var first: KyberButton = menu_popup.get_child(0).get_child(0)
+		var first: SabaccButton = menu_popup.get_child(0).get_child(0)
 		for c in first.pressed.get_connections():
 			first.pressed.disconnect(c["callable"])
 		first.pressed.connect(func():
@@ -1234,10 +1237,10 @@ func _game_over() -> void:
 	UIKit.fill_rect(v)
 	root.add_child(v)
 	v.add_child(UIKit.aurebesh("victory" if won else "defeat", 30))
-	var t := UIKit.title("Victory" if won else ("Draw" if m.winner == 2 else "Defeat"), 72, Kyber.C_GOLD if won else Kyber.C_EMPIRE)
+	var t := UIKit.title("Victory" if won else ("Draw" if m.winner == 2 else "Defeat"), 72, Sabacc.C_GOLD if won else Sabacc.C_EMPIRE)
 	v.add_child(t)
 	UIKit.pop_in(t)
-	v.add_child(UIKit.label(m.log_lines.back() if not m.log_lines.is_empty() else "", 20, Kyber.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	v.add_child(UIKit.label(m.log_lines.back() if not m.log_lines.is_empty() else "", 20, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 16)
@@ -1248,18 +1251,18 @@ func _game_over() -> void:
 	Save.write()
 	if params.get("mode", "quick") == "spotlight":
 		var sres := SpotlightFlow.on_match_end(params, m)
-		var scont := KyberButton.make("Continue", KyberButton.Style.PRIMARY, "play", true)
+		var scont := SabaccButton.make("Continue", SabaccButton.Style.PRIMARY, "play", true)
 		scont.custom_minimum_size.x = 260
 		scont.pressed.connect(func(): SpotlightFlow.after_match(sres))
 		row.add_child(scont)
 	elif params.get("mode", "quick") == "campaign":
 		var res := CampaignFlow.on_match_end(params, m)
-		var cont := KyberButton.make("Continue", KyberButton.Style.PRIMARY, "play", true)
+		var cont := SabaccButton.make("Continue", SabaccButton.Style.PRIMARY, "play", true)
 		cont.custom_minimum_size.x = 260
 		cont.pressed.connect(func(): CampaignFlow.after_match(res))
 		row.add_child(cont)
 	else:
-		var again := KyberButton.make("Rematch", KyberButton.Style.PRIMARY, "play", true)
+		var again := SabaccButton.make("Rematch", SabaccButton.Style.PRIMARY, "play", true)
 		again.custom_minimum_size.x = 220
 		again.pressed.connect(func():
 			# fresh shuffle and fresh bot decks for the rematch
@@ -1274,7 +1277,7 @@ func _game_over() -> void:
 				p2["cfg"] = cfg
 			Router.go("match", p2))
 		row.add_child(again)
-		var menu := KyberButton.make("Menu", KyberButton.Style.GHOST, "back")
+		var menu := SabaccButton.make("Menu", SabaccButton.Style.GHOST, "back")
 		menu.custom_minimum_size.x = 180
 		menu.pressed.connect(func(): Router.go("menu"))
 		row.add_child(menu)
@@ -1300,4 +1303,4 @@ func _on_coin_pressed() -> void:
 		_act({"a": "claim", "token": "initiative"})
 		return
 	var why := "Initiative already claimed this round" if m.tokens_claimed.has("initiative") else "Wait for your action"
-	Fx.float_text(fx_layer, coin.get_global_rect().get_center() + Vector2(0, -50), why, Kyber.C_GOLD, 20)
+	Fx.float_text(fx_layer, coin.get_global_rect().get_center() + Vector2(0, -50), why, Sabacc.C_GOLD, 20)

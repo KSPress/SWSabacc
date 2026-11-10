@@ -33,7 +33,7 @@ func build() -> void:
 		_grid.add_child(tile)
 		UIKit.pop_in(tile, i * 0.04)
 		i += 1
-	_detail = UIKit.panel(Color(Kyber.C_PANEL, 0.95), Kyber.C_KYBER, 14, 8)
+	_detail = UIKit.panel(Color(Sabacc.C_PANEL, 0.95), Sabacc.C_ACCENT, 14, 8)
 	_detail_box = VBoxContainer.new()
 	_detail_box.add_theme_constant_override("separation", 10)
 	_detail.add_child(_detail_box)
@@ -43,7 +43,7 @@ func build() -> void:
 
 func _tile(e: Array) -> Control:
 	var playable := CardDB.episodes.has(e[0])
-	var b := KyberButton.make("", KyberButton.Style.PRIMARY if playable else KyberButton.Style.GHOST, "" if playable else "lock")
+	var b := SabaccButton.make("", SabaccButton.Style.PRIMARY if playable else SabaccButton.Style.GHOST, "" if playable else "lock")
 	b.custom_minimum_size = Vector2(0, 92)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.text = "EPISODE %s\n%s" % [e[1], e[2]]
@@ -60,10 +60,10 @@ func _show_episode(ep: int) -> void:
 	var data := CampaignFlow.episode_data(ep)
 	if data.is_empty():
 		return
-	var t := UIKit.title("Episode %s: %s" % [data.get("roman", ""), data.get("title", "")], 28, Kyber.C_GOLD)
+	var t := UIKit.title("Episode %s: %s" % [data.get("roman", ""), data.get("title", "")], 28, Sabacc.C_GOLD)
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_detail_box.add_child(t)
-	var crawl := UIKit.label(data.get("crawl", ""), 17, Kyber.C_GOLD.darkened(0.15), HORIZONTAL_ALIGNMENT_CENTER)
+	var crawl := UIKit.label(data.get("crawl", ""), 17, Sabacc.C_GOLD.darkened(0.15), HORIZONTAL_ALIGNMENT_CENTER)
 	crawl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_detail_box.add_child(crawl)
 	var run := Save.run()
@@ -72,7 +72,7 @@ func _show_episode(ep: int) -> void:
 		var cleared := Save.is_cleared(ch["id"])
 		var active: bool = run.get("chapter", "") == ch["id"] and run.get("status", "") == "active"
 		var label := "Chapter %d · %s%s%s" % [int(ch["number"]), ch["title"], "  ✓" if cleared else "", "  (run in progress)" if active else ""]
-		var b := KyberButton.make(label, KyberButton.Style.REBEL if unlocked else KyberButton.Style.GHOST, "play" if unlocked else "lock", active)
+		var b := SabaccButton.make(label, SabaccButton.Style.REBEL if unlocked else SabaccButton.Style.GHOST, "play" if unlocked else "lock", active)
 		b.disabled = not unlocked
 		b.add_theme_font_size_override("font_size", 20)
 		var cid: String = ch["id"]

@@ -2,9 +2,9 @@ class_name ReleaseInfo
 extends RefCounted
 ## Validate the release manifest before trusting an APK URL or allocating disk.
 
-const VERSION_CODE := 2
-const VERSION_NAME := "0.1.1"
-const DOWNLOAD_PREFIX := "https://github.com/KSPress/SWU-Kyber/releases/download/"
+const VERSION_CODE := 3
+const VERSION_NAME := "0.2.0"
+const DOWNLOAD_PREFIX := "https://github.com/KSPress/SWSabacc/releases/download/"
 const MAX_APK_BYTES := 512 * 1024 * 1024
 
 
@@ -22,9 +22,9 @@ static func parse(value: Variant) -> Dictionary:
 		if not d.get(key) is String or d[key].is_empty():
 			return {}
 	var url: String = d["apk_url"]
-	if not url.begins_with(DOWNLOAD_PREFIX) or not url.ends_with("/swu_kyber.apk"):
+	if not url.begins_with(DOWNLOAD_PREFIX) or not url.ends_with("/swu_sabacc.apk"):
 		return {}
-	var tag := url.trim_prefix(DOWNLOAD_PREFIX).trim_suffix("/swu_kyber.apk")
+	var tag := url.trim_prefix(DOWNLOAD_PREFIX).trim_suffix("/swu_sabacc.apk")
 	if tag.is_empty() or "/" in tag or "?" in tag or "#" in tag or "%" in tag or ".." in tag:
 		return {}
 	var digest: String = d["sha256"].to_lower()

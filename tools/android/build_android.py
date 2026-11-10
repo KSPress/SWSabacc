@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the signed Android app: build/android/swu_kyber.apk (private: contains card art).
+"""Builds the signed offline Android app: build/android/swu_sabacc.apk.
 
   python -I tools/android/build_android.py [path/to/godot]
 
@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 TC = ROOT / "tools" / "android-sdk"
 GODOT = sys.argv[1] if len(sys.argv) > 1 else r"E:\godot-windows-64-stable\Godot_v4.7.2-stable_win64_console.exe"
-OUT = ROOT / "build" / "android" / "swu_kyber.apk"
+OUT = ROOT / "build" / "android" / "swu_sabacc.apk"
 
 for need in ("jdk17", "sdk", "kyber-release.keystore", "release-keystore.pass"):
     if not (TC / need).exists():
@@ -92,10 +92,16 @@ with OUT.open("rb") as apk_file:
         apk_hash.update(chunk)
 manifest = {
     "version_code": version_code, "version_name": version_name,
-    "apk_url": f"https://github.com/KSPress/SWU-Kyber/releases/download/v{version_name}/swu_kyber.apk",
+    "apk_url": f"https://github.com/KSPress/SWSabacc/releases/download/v{version_name}/swu_sabacc.apk",
     "size": OUT.stat().st_size,
     "sha256": apk_hash.hexdigest(),
 }
-(OUT.parent / "update.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+(OUT.parent / "sabacc-update.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+# v0.1.1 validates the old URL prefix and filename before downloading. GitHub
+# redirects the former repo name; retain a bridge manifest and APK alias so those
+# installed clients can discover this rename without uninstalling the game.
+legacy = dict(manifest, apk_url=f"https://github.com/KSPress/SWU-Kyber/releases/download/v{version_name}/swu_kyber.apk")
+(OUT.parent / "update.json").write_text(json.dumps(legacy, indent=2) + "\n", encoding="utf-8")
+shutil.copy2(OUT, OUT.parent / "swu_kyber.apk")
 print(f"APK: {OUT} ({OUT.stat().st_size / 1e6:.0f} MB)")
-print(f"Release v{version_name}: upload swu_kyber.apk and update.json together.")
+print(f"Release v{version_name}: upload both APK names and both update manifests together.")

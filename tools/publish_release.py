@@ -17,16 +17,16 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO = "KSPress/SWU-Kyber"
+REPO = "KSPress/SWSabacc"
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--publish", action="store_true", help="Publish after all uploads complete")
     args = parser.parse_args()
-    manifest_path = ROOT / "build/android/update.json"
+    manifest_path = ROOT / "build/android/sabacc-update.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    apk = ROOT / "build/android/swu_kyber.apk"
+    apk = ROOT / "build/android/swu_sabacc.apk"
     with apk.open("rb") as stream:
         digest = hashlib.sha256()
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -34,13 +34,24 @@ def main():
     if apk.stat().st_size != manifest["size"] or digest.hexdigest() != manifest["sha256"]:
         sys.exit("APK does not match update.json; rebuild before releasing.")
     tag = "v" + manifest["version_name"]
-    expected_url = f"https://github.com/{REPO}/releases/download/{tag}/swu_kyber.apk"
+    expected_url = f"https://github.com/{REPO}/releases/download/{tag}/swu_sabacc.apk"
     if manifest["apk_url"] != expected_url:
         sys.exit("Manifest URL does not match this release.")
-    files = [apk, manifest_path, ROOT / "build/SWU-Kyber-windows.zip"]
+    files = [apk, manifest_path, ROOT / "build/SWSabacc-windows.zip",
+             ROOT / "build/android/update.json", ROOT / "build/android/swu_kyber.apk"]
     for path in files:
         if not path.is_file():
             sys.exit(f"Missing release file: {path.name}")
+    legacy = json.loads((ROOT / "build/android/update.json").read_text(encoding="utf-8"))
+    legacy_url = f"https://github.com/KSPress/SWU-Kyber/releases/download/{tag}/swu_kyber.apk"
+    if legacy != dict(manifest, apk_url=legacy_url):
+        sys.exit("Legacy updater bridge does not match the new manifest.")
+    with (ROOT / "build/android/swu_kyber.apk").open("rb") as stream:
+        legacy_digest = hashlib.sha256()
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            legacy_digest.update(chunk)
+    if legacy_digest.hexdigest() != manifest["sha256"]:
+        sys.exit("Legacy APK alias differs from the tested APK.")
     git = lambda *a: subprocess.run(["git", "-C", str(ROOT), *a], check=True, capture_output=True, text=True).stdout.strip()
     if git("status", "--porcelain", "--untracked-files=no"):
         sys.exit("Commit the tested source changes before releasing.")
@@ -58,7 +69,7 @@ def main():
         payload = json.dumps(data).encode() if isinstance(data, dict) else data
         request = urllib.request.Request(url, data=payload, method=method, headers={
             "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json",
-            "User-Agent": "SWU-Kyber-release", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": content_type})
+            "User-Agent": "SWSabacc-release", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": content_type})
         with urllib.request.urlopen(request, timeout=300) as response:
             return json.load(response)
 
@@ -70,7 +81,7 @@ def main():
             raise
         notes = (ROOT / "docs/RELEASE_NOTES.md").read_text(encoding="utf-8")
         release = api(f"/repos/{REPO}/releases", "POST", {
-            "tag_name": tag, "target_commitish": revision, "name": f"SWU Kyber {tag}",
+            "tag_name": tag, "target_commitish": revision, "name": f"SWU Sabacc {tag}",
             "body": notes, "draft": True, "prerelease": False})
     if not release["draft"]:
         sys.exit("This release is already published; use a new version instead of replacing it.")

@@ -44,7 +44,7 @@ func _build() -> void:
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UIKit.fill_rect(dim)
 	add_child(dim)
-	create_tween().tween_property(dim, "color:a", 0.88, Kyber.anim(0.2))
+	create_tween().tween_property(dim, "color:a", 0.88, Sabacc.anim(0.2))
 	for id in CardDB.lib.cards:
 		var c: Dictionary = CardDB.lib.cards[id]
 		if c.get("custom", false) or c.get("type", "") != kind:
@@ -55,9 +55,9 @@ func _build() -> void:
 			continue
 		_all.append(id)
 	_all.sort_custom(func(a, b): return CardDB.card(a).get("name", "") < CardDB.card(b).get("name", ""))
-	_title = UIKit.title("Choose a %s" % kind, 28, Kyber.C_GOLD)
+	_title = UIKit.title("Choose a %s" % kind, 28, Sabacc.C_GOLD)
 	add_child(_title)
-	_count = UIKit.label("", 15, Kyber.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
+	_count = UIKit.label("", 15, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
 	add_child(_count)
 	_top = _aspect_row(["vigilance", "command", "aggression"])
 	_bottom = _aspect_row(["cunning", "heroism", "villainy"])
@@ -69,7 +69,7 @@ func _build() -> void:
 	_grid = Control.new()
 	_grid.mouse_filter = Control.MOUSE_FILTER_PASS
 	_scroll.add_child(_grid)
-	var close := KyberButton.make("", KyberButton.Style.GHOST, "back")
+	var close := SabaccButton.make("", SabaccButton.Style.GHOST, "back")
 	close.custom_minimum_size = Vector2(60, 56)
 	close.name = "Close"
 	close.pressed.connect(close_picker)
@@ -183,10 +183,10 @@ func _place(animate: bool, from := Vector2.ZERO) -> void:
 			cv.modulate.a = 0.0
 			var delay := minf(d / 2600.0, 0.45)
 			var tw: Tween = cv.create_tween().set_parallel(true)
-			tw.tween_property(cv, "position", slot, Kyber.anim(0.38)).set_delay(delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			tw.tween_property(cv, "scale", Vector2(sc, sc), Kyber.anim(0.38)).set_delay(delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			tw.tween_property(cv, "rotation", 0.0, Kyber.anim(0.38)).set_delay(delay)
-			tw.tween_property(cv, "modulate:a", 1.0, Kyber.anim(0.15)).set_delay(delay)
+			tw.tween_property(cv, "position", slot, Sabacc.anim(0.38)).set_delay(delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			tw.tween_property(cv, "scale", Vector2(sc, sc), Sabacc.anim(0.38)).set_delay(delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			tw.tween_property(cv, "rotation", 0.0, Sabacc.anim(0.38)).set_delay(delay)
+			tw.tween_property(cv, "modulate:a", 1.0, Sabacc.anim(0.15)).set_delay(delay)
 		else:
 			cv.position = slot
 			cv.scale = Vector2(sc, sc)
@@ -211,10 +211,10 @@ func close_picker() -> void:
 	var local := _origin - _grid.global_position
 	for cv in _cards:
 		var tw: Tween = cv.create_tween().set_parallel(true)
-		tw.tween_property(cv, "position", local, Kyber.anim(0.2)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.tween_property(cv, "scale", cv.scale * 0.1, Kyber.anim(0.2))
+		tw.tween_property(cv, "position", local, Sabacc.anim(0.2)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_property(cv, "scale", cv.scale * 0.1, Sabacc.anim(0.2))
 	var t2 := create_tween()
-	t2.tween_property(self, "modulate:a", 0.0, Kyber.anim(0.22))
+	t2.tween_property(self, "modulate:a", 0.0, Sabacc.anim(0.22))
 	await t2.finished
 	if is_instance_valid(_layer):
 		_layer.queue_free()

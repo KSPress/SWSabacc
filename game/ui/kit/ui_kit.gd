@@ -24,37 +24,37 @@ static func chamfer(bg: Color, border: Color, cut := 10, border_w := 2, glow := 
 
 static func build_theme() -> Theme:
 	var t := Theme.new()
-	t.default_font = Kyber.font_title
+	t.default_font = Sabacc.font_title
 	t.default_font_size = 22
-	var base := chamfer(Color(Kyber.C_PANEL, 0.92), Kyber.C_LINE, 10, 2)
+	var base := chamfer(Color(Sabacc.C_PANEL, 0.92), Sabacc.C_LINE, 10, 2)
 	t.set_stylebox("panel", "Panel", base)
 	t.set_stylebox("panel", "PanelContainer", base)
-	t.set_color("font_color", "Label", Kyber.C_TEXT)
-	t.set_color("font_color", "Button", Kyber.C_TEXT)
+	t.set_color("font_color", "Label", Sabacc.C_TEXT)
+	t.set_color("font_color", "Button", Sabacc.C_TEXT)
 	t.set_color("font_hover_color", "Button", Color.WHITE)
-	t.set_color("font_pressed_color", "Button", Kyber.C_KYBER)
-	t.set_color("font_disabled_color", "Button", Color(Kyber.C_DIM, 0.6))
-	t.set_stylebox("normal", "Button", chamfer(Color(Kyber.C_PANEL, 0.95), Kyber.C_REBEL, 10, 2, 6))
-	t.set_stylebox("hover", "Button", chamfer(Kyber.C_PANEL_HI, Kyber.C_KYBER, 10, 2, 12))
-	t.set_stylebox("pressed", "Button", chamfer(Color("0a2233"), Kyber.C_KYBER, 10, 3, 16))
-	t.set_stylebox("disabled", "Button", chamfer(Color(Kyber.C_PANEL, 0.6), Color(Kyber.C_LINE, 0.6), 10, 2))
+	t.set_color("font_pressed_color", "Button", Appearance.color_at(0))
+	t.set_color("font_disabled_color", "Button", Color(Sabacc.C_DIM, 0.6))
+	t.set_stylebox("normal", "Button", chamfer(Color(Sabacc.C_PANEL, 0.95), Appearance.color_at(1), 10, 2, 6))
+	t.set_stylebox("hover", "Button", chamfer(Sabacc.C_PANEL_HI, Appearance.color_at(0), 10, 2, 12))
+	t.set_stylebox("pressed", "Button", chamfer(Color("0a2233"), Appearance.color_at(0), 10, 3, 16))
+	t.set_stylebox("disabled", "Button", chamfer(Color(Sabacc.C_PANEL, 0.6), Color(Sabacc.C_LINE, 0.6), 10, 2))
 	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
-	var le := chamfer(Color("070d14"), Kyber.C_LINE, 8, 2)
+	var le := chamfer(Color("070d14"), Sabacc.C_LINE, 8, 2)
 	t.set_stylebox("normal", "LineEdit", le)
-	t.set_stylebox("focus", "LineEdit", chamfer(Color("070d14"), Kyber.C_KYBER, 8, 2, 6))
-	t.set_color("font_color", "LineEdit", Kyber.C_TEXT)
+	t.set_stylebox("focus", "LineEdit", chamfer(Color("070d14"), Appearance.color_at(0), 8, 2, 6))
+	t.set_color("font_color", "LineEdit", Sabacc.C_TEXT)
 	t.set_stylebox("panel", "PopupMenu", base)
-	t.set_stylebox("grabber", "VScrollBar", chamfer(Kyber.C_LINE, Kyber.C_LINE, 3, 0))
+	t.set_stylebox("grabber", "VScrollBar", chamfer(Sabacc.C_LINE, Sabacc.C_LINE, 3, 0))
 	t.set_stylebox("scroll", "VScrollBar", StyleBoxEmpty.new())
-	t.set_color("font_color", "RichTextLabel", Kyber.C_TEXT)
-	t.set_color("default_color", "RichTextLabel", Kyber.C_TEXT)
+	t.set_color("font_color", "RichTextLabel", Sabacc.C_TEXT)
+	t.set_color("default_color", "RichTextLabel", Sabacc.C_TEXT)
 	t.set_font_size("normal_font_size", "RichTextLabel", 20)
-	t.set_font("normal_font", "RichTextLabel", Kyber.font_body)
-	t.set_stylebox("slider", "HSlider", chamfer(Color("070d14"), Kyber.C_LINE, 4, 1))
+	t.set_font("normal_font", "RichTextLabel", Sabacc.font_body)
+	t.set_stylebox("slider", "HSlider", chamfer(Color("070d14"), Sabacc.C_LINE, 4, 1))
 	return t
 
 
-static func label(text: String, size := 22, color := Kyber.C_TEXT, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+static func label(text: String, size := 22, color := Sabacc.C_TEXT, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
@@ -64,23 +64,25 @@ static func label(text: String, size := 22, color := Kyber.C_TEXT, align := HORI
 	return l
 
 
-static func title(text: String, size := 40, color := Kyber.C_TEXT) -> Label:
+static func title(text: String, size := 40, color := Sabacc.C_TEXT) -> Label:
 	var l := label(text.to_upper(), size, color, HORIZONTAL_ALIGNMENT_CENTER)
-	l.add_theme_font_override("font", Kyber.font_title)
+	l.add_theme_font_override("font", Sabacc.font_title)
 	l.add_theme_constant_override("outline_size", 6)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	return l
 
 
 ## Decorative Aurebesh line (never used for rules text).
-static func aurebesh(text: String, size := 18, color := Color(Kyber.C_KYBER, 0.55)) -> Label:
+static func aurebesh(text: String, size := 18, color := Color.TRANSPARENT) -> Label:
+	if color.a == 0.0:
+		color = Color(Appearance.color_at(), 0.55)
 	var l := label(text, size, color, HORIZONTAL_ALIGNMENT_CENTER)
-	l.add_theme_font_override("font", Kyber.font_aurebesh)
-	l.visible = Kyber.settings.get("show_aurebesh", true)
+	l.add_theme_font_override("font", Sabacc.font_aurebesh)
+	l.visible = Sabacc.settings.get("show_aurebesh", true)
 	return l
 
 
-static func panel(bg := Color(Kyber.C_PANEL, 0.94), border := Kyber.C_LINE, cut := 12, glow := 0.0) -> PanelContainer:
+static func panel(bg := Color(Sabacc.C_PANEL, 0.94), border := Sabacc.C_LINE, cut := 12, glow := 0.0) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", chamfer(bg, border, cut, 2, glow))
 	return p
@@ -104,8 +106,8 @@ static func pop_in(c: Control, delay := 0.0) -> void:
 	c.scale = target * 0.6
 	c.modulate.a = 0.0
 	var tw := c.create_tween().set_parallel(true)
-	tw.tween_property(c, "scale", target, Kyber.anim(0.35)).set_delay(delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(c, "modulate:a", 1.0, Kyber.anim(0.2)).set_delay(delay)
+	tw.tween_property(c, "scale", target, Sabacc.anim(0.35)).set_delay(delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(c, "modulate:a", 1.0, Sabacc.anim(0.2)).set_delay(delay)
 
 
 static func type_label(t: String) -> String:

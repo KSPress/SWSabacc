@@ -1,5 +1,5 @@
 @echo off
-rem Starts a local web server for the SWU Kyber browser build and opens it.
+rem Starts a local web server for the SWU Sabacc browser build and opens it.
 cd /d "%~dp0"
 where py >nul 2>nul && (py -3 play.py & goto :eof)
 where python >nul 2>nul && (python play.py & goto :eof)

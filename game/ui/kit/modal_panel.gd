@@ -16,7 +16,7 @@ var _scroll: ScrollContainer
 var _layer: CanvasLayer
 
 
-static func open(host: Node, p_max_width := 640.0, border := Kyber.C_GOLD, p_full := false) -> ModalPanel:
+static func open(host: Node, p_max_width := 640.0, border := Sabacc.C_GOLD, p_full := false) -> ModalPanel:
 	var m := ModalPanel.new()
 	m.max_width = p_max_width
 	m.full = p_full
@@ -49,7 +49,7 @@ func _build(border: Color) -> void:
 	get_viewport().size_changed.connect(_fit)
 	_fit.call_deferred()
 	modulate.a = 0.0
-	create_tween().tween_property(self, "modulate:a", 1.0, Kyber.anim(0.18))
+	create_tween().tween_property(self, "modulate:a", 1.0, Sabacc.anim(0.18))
 
 
 func _fit() -> void:
@@ -68,7 +68,7 @@ func _fit() -> void:
 
 
 ## Word-wrapped label helper sized for this panel.
-func text(t: String, size := 18, color := Kyber.C_TEXT, align := HORIZONTAL_ALIGNMENT_CENTER) -> Label:
+func text(t: String, size := 18, color := Sabacc.C_TEXT, align := HORIZONTAL_ALIGNMENT_CENTER) -> Label:
 	var l := UIKit.label(t, size, color, align)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -92,7 +92,7 @@ func _gui_input(ev: InputEvent) -> void:
 func close() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tw := create_tween()
-	tw.tween_property(self, "modulate:a", 0.0, Kyber.anim(0.12))
+	tw.tween_property(self, "modulate:a", 0.0, Sabacc.anim(0.12))
 	await tw.finished
 	closed.emit()
 	if is_instance_valid(_layer):

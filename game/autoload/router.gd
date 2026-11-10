@@ -44,12 +44,12 @@ func go(screen: String, p := {}) -> void:
 	Sfx.play("whoosh")
 	_fade.mouse_filter = Control.MOUSE_FILTER_STOP
 	var tw := create_tween()
-	tw.tween_property(_fade, "color:a", 1.0, Kyber.anim(0.18))
+	tw.tween_property(_fade, "color:a", 1.0, Sabacc.anim(0.18))
 	await tw.finished
 	get_tree().change_scene_to_file(path)
 	await get_tree().process_frame
 	var tw2 := create_tween()
-	tw2.tween_property(_fade, "color:a", 0.0, Kyber.anim(0.25))
+	tw2.tween_property(_fade, "color:a", 0.0, Sabacc.anim(0.25))
 	await tw2.finished
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_busy = false

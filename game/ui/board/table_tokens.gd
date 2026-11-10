@@ -58,15 +58,15 @@ class InitiativeCoin extends Control:
 				draw_line(Vector2(g * w * 0.5 - w * 0.12, -h * 0.4), Vector2(g * w * 0.5 + w * 0.12, h * 0.4), Color(1, 1, 0.9, 0.28 * (1.0 - absf(g))), 7.0)
 		draw_set_transform_matrix(Transform2D.IDENTITY)
 		var label := "CLAIMED" if face_claimed else ("TAP TO CLAIM" if claimable else "INITIATIVE")
-		UIKit.draw_fit(self, Kyber.font_title, Vector2(-14, size.y + 12), label, HORIZONTAL_ALIGNMENT_CENTER, size.x + 28, 12,
-			Kyber.C_GOLD if not face_claimed else Kyber.C_DIM)
+		UIKit.draw_fit(self, Sabacc.font_title, Vector2(-14, size.y + 12), label, HORIZONTAL_ALIGNMENT_CENTER, size.x + 28, 12,
+			Sabacc.C_GOLD if not face_claimed else Sabacc.C_DIM)
 
 	## Flip to the other face with a squash animation.
 	func flip_to(p_claimed: bool) -> void:
 		if p_claimed == claimed:
 			return
 		var tw := create_tween()
-		tw.tween_property(self, "_flip", -1.0, Kyber.anim(0.3)).from(1.0).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(self, "_flip", -1.0, Sabacc.anim(0.3)).from(1.0).set_trans(Tween.TRANS_SINE)
 		tw.tween_callback(func():
 			claimed = p_claimed
 			_flip = 1.0)
@@ -88,10 +88,10 @@ class InitiativeCoin extends Control:
 			var a := start.lerp(peak, k)
 			var b := peak.lerp(dest, k)
 			position = a.lerp(b, k)
-			scale = Vector2.ONE * (1.0 + 0.45 * sin(k * PI)), 0.0, 1.0, Kyber.anim(0.75)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			scale = Vector2.ONE * (1.0 + 0.45 * sin(k * PI)), 0.0, 1.0, Sabacc.anim(0.75)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		# spin: several flips in the air, landing on the right face
 		tw.tween_method(func(k: float):
-			_flip = cos(k * TAU * 3.0), 0.0, 1.0, Kyber.anim(0.75))
+			_flip = cos(k * TAU * 3.0), 0.0, 1.0, Sabacc.anim(0.75))
 		await tw.finished
 		claimed = p_claimed
 		_flip = 1.0
@@ -126,12 +126,12 @@ class ForceOrb extends Control:
 	func _process(dt: float) -> void:
 		_t += dt
 		if _gather >= 0.0:
-			_gather += dt / Kyber.anim(0.9)
+			_gather += dt / Sabacc.anim(0.9)
 			if _gather >= 1.0:
 				_gather = -1.0
 				_motes.clear()
 		if _burst >= 0.0:
-			_burst += dt / Kyber.anim(0.6)
+			_burst += dt / Sabacc.anim(0.6)
 			if _burst >= 1.0:
 				_burst = -1.0
 				if not active:
@@ -147,7 +147,7 @@ class ForceOrb extends Control:
 		_motes.clear()
 		var vs := get_viewport_rect().size
 		var me := global_position + size / 2.0
-		for i in (10 if Kyber.perf() else 28):
+		for i in (10 if Sabacc.perf() else 28):
 			var a := randf() * TAU
 			var d := randf_range(0.35, 0.8) * maxf(vs.x, vs.y)
 			_motes.append({"from": me + Vector2(cos(a), sin(a)) * d - me, "delay": randf() * 0.35})
@@ -236,8 +236,8 @@ class TokenButton extends Control:
 		var lift := Vector2(0, -3) if _hover and claimable else Vector2.ZERO
 		draw_texture_rect(tex, Rect2(r.position + Vector2(2, 4), r.size), false, Color(0, 0, 0, 0.45))
 		draw_texture_rect(tex, Rect2(r.position + lift, r.size), false, Color.WHITE if claimable else Color(0.45, 0.45, 0.5, 0.85))
-		UIKit.draw_fit(self, Kyber.font_title, Vector2(0, s.y - 4), ("%s ✓" % label) if claimed else label.to_upper(),
-			HORIZONTAL_ALIGNMENT_CENTER, s.x, 12, Kyber.C_GOLD if claimable else Kyber.C_DIM)
+		UIKit.draw_fit(self, Sabacc.font_title, Vector2(0, s.y - 4), ("%s ✓" % label) if claimed else label.to_upper(),
+			HORIZONTAL_ALIGNMENT_CENTER, s.x, 12, Sabacc.C_GOLD if claimable else Sabacc.C_DIM)
 
 	func _gui_input(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:

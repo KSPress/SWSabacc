@@ -37,7 +37,7 @@ func _ready() -> void:
 	res_view = ResourceView.new()
 	res_view.pressed.connect(func(): resources_pressed.emit(self))
 	add_child(res_view)
-	info = UIKit.fit_label(UIKit.label("", 16, Kyber.C_DIM))
+	info = UIKit.fit_label(UIKit.label("", 16, Sabacc.C_DIM))
 	add_child(info)
 
 
@@ -161,10 +161,10 @@ class BaseView extends Control:
 		if inst == null:
 			return
 		var r := Rect2(Vector2.ZERO, size)
-		var side := Kyber.C_REBEL if friendly else Kyber.C_EMPIRE
+		var side := Appearance.color_at(1) if friendly else Sabacc.C_EMPIRE
 		if targetable:
 			var k := 0.5 + 0.5 * sin(_t * 5.0)
-			draw_rect(r.grow(5 + k * 3), Color(Kyber.C_EMPIRE, 0.5 + 0.4 * k), false, 4.0)
+			draw_rect(r.grow(5 + k * 3), Color(Sabacc.C_EMPIRE, 0.5 + 0.4 * k), false, 4.0)
 		draw_rect(r, Color("0a0f16"))
 		if _tex and _tex != Art.placeholder:
 			# landscape base render: crop the art band
@@ -184,7 +184,7 @@ class BaseView extends Control:
 			for i in 8:
 				var k := i / 8.0
 				draw_rect(Rect2(Vector2(0, r.size.y * k), Vector2(r.size.x, r.size.y / 8.0 + 1)), side.darkened(0.55 + k * 0.35))
-			UIKit.draw_fit(self, Kyber.font_aurebesh, Vector2(0, r.size.y * 0.42), str(inst.data.get("name", "")).to_lower(), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(r.size.y * 0.22), Color(1, 1, 1, 0.12))
+			UIKit.draw_fit(self, Sabacc.font_aurebesh, Vector2(0, r.size.y * 0.42), str(inst.data.get("name", "")).to_lower(), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(r.size.y * 0.22), Color(1, 1, 1, 0.12))
 		draw_rect(Rect2(Vector2(0, r.size.y * 0.55), Vector2(r.size.x, r.size.y * 0.45)), Color(0, 0, 0, 0.55))
 		if _flash > 0:
 			draw_rect(r, Color(1, 0.2, 0.1, _flash * 0.45))
@@ -193,20 +193,20 @@ class BaseView extends Control:
 		var frac := clampf(_shown_hp / maxf(1.0, maxhp), 0.0, 1.0)
 		var bar := Rect2(Vector2(8, r.size.y - 14), Vector2(r.size.x - 16, 8))
 		draw_rect(bar, Color(0.1, 0.1, 0.12))
-		var bc := Kyber.C_GOOD if frac > 0.5 else (Kyber.C_GOLD if frac > 0.25 else Kyber.C_EMPIRE)
+		var bc := Sabacc.C_GOOD if frac > 0.5 else (Sabacc.C_GOLD if frac > 0.25 else Sabacc.C_EMPIRE)
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), bc)
 		var fs := int(clampf(r.size.y * 0.38, 18, 52))
 		var hp_txt := str(roundi(_shown_hp))
-		var hp_w := Kyber.font_title.get_string_size(hp_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		UIKit.draw_fit(self, Kyber.font_title, Vector2(10, r.size.y - 22), hp_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+		var hp_w := Sabacc.font_title.get_string_size(hp_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		UIKit.draw_fit(self, Sabacc.font_title, Vector2(10, r.size.y - 22), hp_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 		var max_txt := "/ %d" % maxhp
 		var max_fs := int(fs * 0.45)
-		var max_w := Kyber.font_body.get_string_size(max_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, max_fs).x
-		UIKit.draw_fit(self, Kyber.font_body, Vector2(14 + hp_w, r.size.y - 22), max_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, max_fs, Kyber.C_DIM)
+		var max_w := Sabacc.font_body.get_string_size(max_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, max_fs).x
+		UIKit.draw_fit(self, Sabacc.font_body, Vector2(14 + hp_w, r.size.y - 22), max_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, max_fs, Sabacc.C_DIM)
 		# name gets only the space to the right of the HP readout
 		var name_x := 24.0 + hp_w + max_w
 		var nm: String = inst.data.get("name", "")
-		UIKit.draw_fit(self, Kyber.font_title, Vector2(name_x, r.size.y - 22), nm.to_upper(), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - name_x - 8, int(clampf(r.size.y * 0.16, 12, 20)), Kyber.C_TEXT)
+		UIKit.draw_fit(self, Sabacc.font_title, Vector2(name_x, r.size.y - 22), nm.to_upper(), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - name_x - 8, int(clampf(r.size.y * 0.16, 12, 20)), Sabacc.C_TEXT)
 		_light_overlay()
 
 	func _gui_input(ev: InputEvent) -> void:
@@ -287,7 +287,7 @@ class LeaderView extends Control:
 		var r := Rect2(Vector2.ZERO, size)
 		if actionable:
 			var k := 0.5 + 0.5 * sin(_t * 4.0)
-			draw_rect(r.grow(4 + 3 * k), Color(Kyber.C_GOLD, 0.45 + 0.4 * k), false, 4.0)
+			draw_rect(r.grow(4 + 3 * k), Color(Sabacc.C_GOLD, 0.45 + 0.4 * k), false, 4.0)
 		var tint := Color(0.5, 0.5, 0.55) if (inst.exhausted or inst.deployed) else Color.WHITE
 		if _tex and _tex != Art.placeholder:
 			var ts := _tex.get_size()
@@ -305,7 +305,7 @@ class LeaderView extends Control:
 			draw_texture_rect_region(_tex, r, src, tint)
 		else:
 			draw_rect(r, Color("1a2636"))
-		draw_rect(r, Kyber.C_GOLD, false, 3.0)
+		draw_rect(r, Sabacc.C_GOLD, false, 3.0)
 		var strip := Rect2(Vector2(0, r.size.y - 22), Vector2(r.size.x, 22))
 		draw_rect(strip, Color(0, 0, 0, 0.7))
 		var label := inst.name()
@@ -313,7 +313,7 @@ class LeaderView extends Control:
 			label = "DEPLOYED"
 		elif inst.exhausted:
 			label = "EXHAUSTED"
-		UIKit.draw_fit(self, Kyber.font_title, strip.position + Vector2(0, 16), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 14, Kyber.C_GOLD if actionable else Kyber.C_TEXT)
+		UIKit.draw_fit(self, Sabacc.font_title, strip.position + Vector2(0, 16), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 14, Sabacc.C_GOLD if actionable else Sabacc.C_TEXT)
 		_light_overlay()
 
 	func _gui_input(ev: InputEvent) -> void:
@@ -342,7 +342,7 @@ class ResourceView extends Control:
 	func _draw() -> void:
 		var n := maxi(total, 1)
 		var pip := clampf(minf(size.x / (minf(n, 8) * 1.15 + 2.5), size.y * 0.75), 12.0, 34.0)
-		UIKit.draw_fit(self, Kyber.font_title, Vector2(0, pip * 0.8), "%d/%d" % [ready_n, total], HORIZONTAL_ALIGNMENT_LEFT, -1, int(pip * 0.8), Kyber.C_COST)
+		UIKit.draw_fit(self, Sabacc.font_title, Vector2(0, pip * 0.8), "%d/%d" % [ready_n, total], HORIZONTAL_ALIGNMENT_LEFT, -1, int(pip * 0.8), Sabacc.C_COST)
 		var x0 := pip * 2.6
 		for i in total:
 			var row := i / 8
@@ -353,7 +353,7 @@ class ResourceView extends Control:
 				var a := PI / 6 + k * PI / 3.0
 				hexp.append(c + Vector2(cos(a), sin(a)) * pip * 0.5)
 			var is_ready := i < ready_n
-			draw_colored_polygon(hexp, Kyber.C_COST if is_ready else Color(0.25, 0.22, 0.12))
+			draw_colored_polygon(hexp, Sabacc.C_COST if is_ready else Color(0.25, 0.22, 0.12))
 			hexp.append(hexp[0])
 			draw_polyline(hexp, Color(1, 0.95, 0.7, 0.9 if is_ready else 0.3), 1.5, true)
 

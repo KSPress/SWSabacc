@@ -1,5 +1,5 @@
 extends Control
-## Splash: animated kyber crystal, then the main menu. Explains how to import
+## Splash: animated logo, then the main menu. Explains how to import
 ## card data if it's missing (the repo ships without IP).
 
 
@@ -22,10 +22,10 @@ func _ready() -> void:
 	v.add_child(logo)
 	logo.modulate.a = 0.0
 	create_tween().tween_property(logo, "modulate:a", 1.0, 0.4)
-	v.add_child(UIKit.title(Kyber.GAME_TITLE, 56, Kyber.C_TEXT))
-	v.add_child(UIKit.aurebesh("kyber", 26))
+	v.add_child(UIKit.title(Sabacc.GAME_TITLE, 56, Sabacc.C_TEXT))
+	v.add_child(UIKit.aurebesh("sabacc", 26))
 	if not CardDB.loaded:
-		var msg := UIKit.label("No card database found.\nRun:  python -I tools/import_cards.py\nthen the art converter (see README).", 20, Kyber.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+		var msg := UIKit.label("No card database found.\nRun:  python -I tools/import_cards.py\nthen the art converter (see README).", 20, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 		v.add_child(msg)
 		return
 	var tw := create_tween()

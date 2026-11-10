@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SWU Kyber card importer.
+"""SWU Sabacc card importer.
 
 Reads the raw SWU-DB dump (swu_data/cards_all.json), keeps one entry per unique
 printed card (VariantType == "Normal"), normalises it to the game schema

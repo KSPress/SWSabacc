@@ -1,4 +1,4 @@
-# SWU KYBER (working title) — Build Specification for Claude Code
+# SWU SABACC (working title) — Build Specification for Claude Code
 
 > Working title only. The final name is deliberately undecided (owner will pick later). "Skirmish", "Companion" and "Wayfinder" are already used by existing SWU fan tools — avoid them. Keep the title in ONE config constant (`GAME_TITLE`) so it can be renamed trivially.
 

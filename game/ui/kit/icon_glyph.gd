@@ -7,7 +7,7 @@ var glyph := "dot":
 	set(v):
 		glyph = v
 		queue_redraw()
-var color := Kyber.C_KYBER:
+var color := Sabacc.C_ACCENT:
 	set(v):
 		color = v
 		queue_redraw()

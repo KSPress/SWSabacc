@@ -32,7 +32,7 @@ func build() -> void:
 	_filters.add_theme_constant_override("separation", 6)
 	body.add_child(_filters)
 	for t in [["All", ""], ["Units", "unit"], ["Events", "event"], ["Upgrades", "upgrade"], ["Leaders", "leader"], ["Bases", "base"]]:
-		var b := KyberButton.make(t[0], KyberButton.Style.GHOST)
+		var b := SabaccButton.make(t[0], SabaccButton.Style.GHOST)
 		b.toggle_mode = true
 		b.custom_minimum_size = Vector2(0, 46)
 		b.add_theme_font_size_override("font_size", 16)
@@ -68,7 +68,7 @@ func build() -> void:
 		_set_opt.add_item(s)
 	_set_opt.item_selected.connect(func(i): _set = "" if i == 0 else _set_opt.get_item_text(i); _page = 0; _refresh())
 	_aspects.add_child(_set_opt)
-	var unl := KyberButton.make("Unlocked only", KyberButton.Style.GOLD)
+	var unl := SabaccButton.make("Unlocked only", SabaccButton.Style.GOLD)
 	unl.toggle_mode = true
 	unl.custom_minimum_size = Vector2(0, 46)
 	unl.add_theme_font_size_override("font_size", 16)
@@ -81,16 +81,16 @@ func build() -> void:
 	_pager = HBoxContainer.new()
 	_pager.alignment = BoxContainer.ALIGNMENT_CENTER
 	_pager.add_theme_constant_override("separation", 16)
-	var prev := KyberButton.make("‹ Prev", KyberButton.Style.GHOST)
+	var prev := SabaccButton.make("‹ Prev", SabaccButton.Style.GHOST)
 	prev.pressed.connect(func(): _page = maxi(0, _page - 1); _show_page())
-	var nxt := KyberButton.make("Next ›", KyberButton.Style.GHOST)
+	var nxt := SabaccButton.make("Next ›", SabaccButton.Style.GHOST)
 	nxt.pressed.connect(func(): _page = mini(_pages() - 1, _page + 1); _show_page())
-	_page_label = UIKit.label("", 18, Kyber.C_DIM)
+	_page_label = UIKit.label("", 18, Sabacc.C_DIM)
 	_pager.add_child(prev)
 	_pager.add_child(_page_label)
 	_pager.add_child(nxt)
 	body.add_child(_pager)
-	_count = UIKit.label("", 15, Kyber.C_DIM)
+	_count = UIKit.label("", 15, Sabacc.C_DIM)
 	body.add_child(_count)
 	_refresh()
 
@@ -209,7 +209,7 @@ class AspectChip extends Control:
 		var box := Rect2((size - Vector2(s * 0.91, s)) / 2.0, Vector2(s * 0.91, s))
 		var tex := AspectIcon.texture(aspect)
 		if on:
-			draw_rect(box.grow(3), Color(Kyber.C_GOLD, 0.8), false, 3.0)
+			draw_rect(box.grow(3), Color(Sabacc.C_GOLD, 0.8), false, 3.0)
 		if tex:
 			draw_texture_rect(tex, box, false, Color.WHITE if on else Color(0.5, 0.5, 0.55, 0.6))
 

@@ -22,34 +22,34 @@ func build() -> void:
 	banner.name = "Logo"
 	banner.pivot_offset = Vector2(0, 75)
 	_title_box.add_child(banner)
-	var t := UIKit.title(Kyber.GAME_TITLE, 48, Kyber.C_TEXT)
+	var t := UIKit.title(Sabacc.GAME_TITLE, 48, Sabacc.C_TEXT)
 	t.name = "Title"
 	_title_box.add_child(t)
-	_title_box.add_child(UIKit.aurebesh("kyber", 30))
-	_title_box.add_child(UIKit.label(Kyber.GAME_SUBTITLE, 18, Kyber.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	_title_box.add_child(UIKit.aurebesh("sabacc", 30))
+	_title_box.add_child(UIKit.label(Sabacc.GAME_SUBTITLE, 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	_buttons = GridContainer.new()
 	_buttons.add_theme_constant_override("h_separation", 16)
 	_buttons.add_theme_constant_override("v_separation", 14)
 	body.add_child(_buttons)
 	var items := [
-		["Saga Campaign", KyberButton.Style.PRIMARY, "boss", func(): Router.go("episodes"), true],
-		["Spotlight Campaign", KyberButton.Style.PRIMARY, "star", func(): Router.go("spotlight"), false],
-		["Standard Battle", KyberButton.Style.REBEL, "fight", func(): Router.go("quick", {"format": 0}), false],
-		["Quick Battle", KyberButton.Style.REBEL, "ground", func(): Router.go("quick", {"format": 1}), false],
-		["Deck Builder", KyberButton.Style.GOLD, "deck", func(): Router.go("decks"), false],
-		["Collection Vault", KyberButton.Style.GOLD, "collection", func(): Router.go("collection"), false],
-		["Settings", KyberButton.Style.GHOST, "gear", func(): Router.go("settings"), false],
+		["Saga Campaign", SabaccButton.Style.PRIMARY, "boss", func(): Router.go("episodes"), true],
+		["Spotlight Campaign", SabaccButton.Style.PRIMARY, "star", func(): Router.go("spotlight"), false],
+		["Standard Battle", SabaccButton.Style.REBEL, "fight", func(): Router.go("quick", {"format": 0}), false],
+		["Quick Battle", SabaccButton.Style.REBEL, "ground", func(): Router.go("quick", {"format": 1}), false],
+		["Deck Builder", SabaccButton.Style.GOLD, "deck", func(): Router.go("decks"), false],
+		["Collection Vault", SabaccButton.Style.GOLD, "collection", func(): Router.go("collection"), false],
+		["Settings", SabaccButton.Style.GHOST, "gear", func(): Router.go("settings"), false],
 	]
 	var i := 0
 	for it in items:
-		var b := KyberButton.make(it[0], it[1], it[2], it[4])
+		var b := SabaccButton.make(it[0], it[1], it[2], it[4])
 		b.custom_minimum_size = Vector2(320, 72)
 		b.add_theme_font_size_override("font_size", 26)
 		b.pressed.connect(it[3])
 		_buttons.add_child(b)
 		UIKit.pop_in(b, 0.15 + i * 0.07)
 		i += 1
-	_foot = UIKit.label("v%s · Unofficial, non-commercial fan project. Star Wars and SWU are © Lucasfilm Ltd. / Fantasy Flight Games." % Kyber.VERSION, 13, Color(Kyber.C_DIM, 0.8), HORIZONTAL_ALIGNMENT_CENTER)
+	_foot = UIKit.label("v%s · Unofficial, non-commercial fan project. Star Wars and SWU are © Lucasfilm Ltd. / Fantasy Flight Games." % Sabacc.VERSION, 13, Color(Sabacc.C_DIM, 0.8), HORIZONTAL_ALIGNMENT_CENTER)
 	_foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(_foot)
 	_spawn_floaters()
@@ -100,6 +100,10 @@ func _process(dt: float) -> void:
 
 func relayout(p: bool, r: Rect2) -> void:
 	_buttons.columns = 1 if p else 2
+	_title_box.get_node("Logo").custom_minimum_size.y = 150 if p else 72
+	_title_box.get_node("Title").add_theme_font_size_override("font_size", 48 if p else 38)
+	_title_box.get_child(2).add_theme_font_size_override("font_size", 30 if p else 20)
+	_title_box.get_child(3).add_theme_font_size_override("font_size", 18 if p else 16)
 	_title_box.position = Vector2(0, r.size.y * (0.04 if p else 0.0))
 	_title_box.size = Vector2(r.size.x, 0)
 	await get_tree().process_frame

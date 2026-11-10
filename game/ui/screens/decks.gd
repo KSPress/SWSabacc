@@ -23,7 +23,7 @@ func build() -> void:
 func _fill() -> void:
 	for c in _grid.get_children():
 		c.queue_free()
-	var new_btn := KyberButton.make("New deck", KyberButton.Style.PRIMARY, "play", true)
+	var new_btn := SabaccButton.make("New deck", SabaccButton.Style.PRIMARY, "play", true)
 	new_btn.custom_minimum_size = DeckTile.SIZE
 	new_btn.add_theme_font_size_override("font_size", 24)
 	new_btn.pressed.connect(_new_deck)
@@ -44,17 +44,17 @@ func _fill() -> void:
 
 
 func _new_deck() -> void:
-	var mp := ModalPanel.open(self, 560.0, Kyber.C_KYBER)
+	var mp := ModalPanel.open(self, 560.0, Sabacc.C_ACCENT)
 	mp.dismiss_on_backdrop = true
-	mp.text("NEW DECK", 28, Kyber.C_KYBER)
-	var blank := KyberButton.make("Blank deck", KyberButton.Style.PRIMARY, "play")
+	mp.text("NEW DECK", 28, Sabacc.C_ACCENT)
+	var blank := SabaccButton.make("Blank deck", SabaccButton.Style.PRIMARY, "play")
 	blank.pressed.connect(func():
 		mp.close()
 		Router.go("deck_editor", {"deck_id": ""}))
 	mp.add(blank)
-	mp.text("…or start from a Spotlight deck", 16, Kyber.C_DIM)
+	mp.text("…or start from a Spotlight deck", 16, Sabacc.C_DIM)
 	for sd in CardDB.spotlight_for_mode("traditional") + CardDB.spotlight_for_mode("space"):
-		var b := KyberButton.make(sd["name"], KyberButton.Style.GHOST, sd.get("icon", "star"))
+		var b := SabaccButton.make(sd["name"], SabaccButton.Style.GHOST, sd.get("icon", "star"))
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.add_theme_font_size_override("font_size", 17)
 		b.pressed.connect(func():
@@ -64,31 +64,31 @@ func _new_deck() -> void:
 			mp.close()
 			Router.go("deck_editor", {"deck_id": d["id"]}))
 		mp.add(b)
-	var cancel := KyberButton.make("Cancel", KyberButton.Style.GHOST)
+	var cancel := SabaccButton.make("Cancel", SabaccButton.Style.GHOST)
 	cancel.pressed.connect(mp.close)
 	mp.add(cancel)
 
 
 func _actions(d: Dictionary) -> void:
-	var mp := ModalPanel.open(self, 520.0, Kyber.C_GOLD)
+	var mp := ModalPanel.open(self, 520.0, Sabacc.C_GOLD)
 	mp.dismiss_on_backdrop = true
-	mp.text(d.get("name", "Deck").to_upper(), 26, Kyber.C_GOLD)
+	mp.text(d.get("name", "Deck").to_upper(), 26, Sabacc.C_GOLD)
 	var row := AspectIcon.row_for(d.get("leader", ""), d.get("base", ""), 34.0)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	mp.add(row)
-	var edit := KyberButton.make("Edit", KyberButton.Style.PRIMARY, "gear")
+	var edit := SabaccButton.make("Edit", SabaccButton.Style.PRIMARY, "gear")
 	edit.pressed.connect(func():
 		mp.close()
 		Router.go("deck_editor", {"deck_id": d["id"]}))
 	mp.add(edit)
-	var mark := KyberButton.make("Unmark" if d.get("marked", false) else "Mark as favourite", KyberButton.Style.GOLD, "star")
+	var mark := SabaccButton.make("Unmark" if d.get("marked", false) else "Mark as favourite", SabaccButton.Style.GOLD, "star")
 	mark.pressed.connect(func():
 		d["marked"] = not d.get("marked", false)
 		Save.save_deck(d)
 		mp.close()
 		_fill())
 	mp.add(mark)
-	var dup := KyberButton.make("Duplicate", KyberButton.Style.REBEL, "deck")
+	var dup := SabaccButton.make("Duplicate", SabaccButton.Style.REBEL, "deck")
 	dup.pressed.connect(func():
 		var c := d.duplicate(true)
 		c["id"] = ""
@@ -97,7 +97,7 @@ func _actions(d: Dictionary) -> void:
 		mp.close()
 		_fill())
 	mp.add(dup)
-	var del := KyberButton.make("Delete", KyberButton.Style.EMPIRE)
+	var del := SabaccButton.make("Delete", SabaccButton.Style.EMPIRE)
 	del.pressed.connect(func():
 		if del.text != "Tap again to delete":
 			del.text = "Tap again to delete"
@@ -106,7 +106,7 @@ func _actions(d: Dictionary) -> void:
 		mp.close()
 		_fill())
 	mp.add(del)
-	var cancel := KyberButton.make("Close", KyberButton.Style.GHOST)
+	var cancel := SabaccButton.make("Close", SabaccButton.Style.GHOST)
 	cancel.pressed.connect(mp.close)
 	mp.add(cancel)
 

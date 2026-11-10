@@ -10,11 +10,11 @@ GODOT = sys.argv[1] if len(sys.argv) > 1 else r"E:\godot-windows-64-stable\Godot
 out = ROOT / "build/windows"
 out.mkdir(parents=True, exist_ok=True)
 subprocess.run([GODOT, "--headless", "--path", str(ROOT / "game"), "--log-file", str(out / "export.log"),
-                "--export-release", "Windows Desktop", str(out / "SWU_Kyber.exe")], check=True)
-for name in ("SWU_Kyber.exe", "SWU_Kyber.pck"):
+                "--export-release", "Windows Desktop", str(out / "SWU_Sabacc.exe")], check=True)
+for name in ("SWU_Sabacc.exe", "SWU_Sabacc.pck"):
     if not (out / name).is_file():
         sys.exit(f"Missing Windows build output: {name}")
-with zipfile.ZipFile(ROOT / "build/SWU-Kyber-windows.zip", "w", zipfile.ZIP_DEFLATED) as archive:
-    for name in ("SWU_Kyber.exe", "SWU_Kyber.pck"):
+with zipfile.ZipFile(ROOT / "build/SWSabacc-windows.zip", "w", zipfile.ZIP_DEFLATED) as archive:
+    for name in ("SWU_Sabacc.exe", "SWU_Sabacc.pck"):
         archive.write(out / name, name)
-print("Windows: build/SWU-Kyber-windows.zip (extract both files together)")
+print("Windows: build/SWSabacc-windows.zip (extract both files together)")

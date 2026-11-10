@@ -62,7 +62,7 @@ static func of(c: CardInst) -> Dictionary:
 		var sc: String = ov.get("saber", data.get("saber", ""))
 		if sc == "":
 			sc = "red" if "villainy" in aspects else ("green" if name.find("yoda") >= 0 else "blue")
-		col = Kyber.SABER_COLORS.get(sc, Color(0.35, 0.65, 1.0))
+		col = Sabacc.SABER_COLORS.get(sc, Color(0.35, 0.65, 1.0))
 	elif "heroism" in aspects:
 		col = Color(1.0, 0.18, 0.12)      # Rebel/Republic red bolts
 	elif "villainy" in aspects:

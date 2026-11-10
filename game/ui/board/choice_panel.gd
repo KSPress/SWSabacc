@@ -10,7 +10,7 @@ var pending: Dictionary
 var m: Match
 var _sel: Array = []
 var _views: Dictionary = {}
-var _confirm: KyberButton
+var _confirm: SabaccButton
 var _count: Label
 
 
@@ -41,10 +41,10 @@ func _build() -> void:
 	get_viewport().size_changed.connect(_fit)
 	v.add_child(UIKit.aurebesh("choose", 22))
 	var kind: String = pending.get("kind", "")
-	var title := UIKit.title(_title_for(kind), 34, Kyber.C_KYBER)
+	var title := UIKit.title(_title_for(kind), 34, Sabacc.C_ACCENT)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(title)
-	var prompt := UIKit.label(pending.get("prompt", ""), 20, Kyber.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	var prompt := UIKit.label(pending.get("prompt", ""), 20, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 	prompt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(prompt)
 	var buttons := HBoxContainer.new()
@@ -59,22 +59,22 @@ func _build() -> void:
 		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var labels: Array = pending.get("labels", [])
 		for i in labels.size():
-			var b := KyberButton.make(str(labels[i]), KyberButton.Style.PRIMARY if i == 0 else KyberButton.Style.GOLD)
+			var b := SabaccButton.make(str(labels[i]), SabaccButton.Style.PRIMARY if i == 0 else SabaccButton.Style.GOLD)
 			b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			var idx: int = i
 			b.pressed.connect(func(): _submit([idx]))
 			col.add_child(b)
 		if int(pending.get("min", 1)) == 0:
-			var skip := KyberButton.make("Skip", KyberButton.Style.GHOST)
+			var skip := SabaccButton.make("Skip", SabaccButton.Style.GHOST)
 			skip.pressed.connect(func(): _submit([]))
 			col.add_child(skip)
 		v.add_child(col)
 	elif kind in ["yesno", "mulligan"]:
 		if kind == "mulligan":
 			_add_cards(v, _hand_uids(), false)
-		var yes := KyberButton.make("Mulligan" if kind == "mulligan" else "Yes", KyberButton.Style.GOLD if kind == "mulligan" else KyberButton.Style.PRIMARY)
-		var no := KyberButton.make("Keep hand" if kind == "mulligan" else "No", KyberButton.Style.PRIMARY if kind == "mulligan" else KyberButton.Style.GHOST, "", kind == "mulligan")
+		var yes := SabaccButton.make("Mulligan" if kind == "mulligan" else "Yes", SabaccButton.Style.GOLD if kind == "mulligan" else SabaccButton.Style.PRIMARY)
+		var no := SabaccButton.make("Keep hand" if kind == "mulligan" else "No", SabaccButton.Style.PRIMARY if kind == "mulligan" else SabaccButton.Style.GHOST, "", kind == "mulligan")
 		yes.custom_minimum_size.x = 220
 		no.custom_minimum_size.x = 220
 		yes.pressed.connect(func(): _submit([1]))
@@ -84,16 +84,16 @@ func _build() -> void:
 	else:
 		var shown: Array = pending.get("reveal", pending.get("options", []))
 		_add_cards(v, shown, true)
-		_count = UIKit.label("", 18, Kyber.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
+		_count = UIKit.label("", 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
 		v.add_child(_count)
-		_confirm = KyberButton.make("Confirm", KyberButton.Style.PRIMARY, "", true)
+		_confirm = SabaccButton.make("Confirm", SabaccButton.Style.PRIMARY, "", true)
 		_confirm.custom_minimum_size.x = 240
 		_confirm.pressed.connect(func(): _submit(_sel))
 		buttons.add_child(_confirm)
 		_update()
 	v.add_child(buttons)
 	modulate.a = 0.0
-	create_tween().tween_property(self, "modulate:a", 1.0, Kyber.anim(0.2))
+	create_tween().tween_property(self, "modulate:a", 1.0, Sabacc.anim(0.2))
 
 
 func _fit() -> void:
@@ -198,7 +198,7 @@ func _toggle(uid: int) -> void:
 		var cv: CardView = _views[k]
 		cv.selected = k in _sel
 		var target := Vector2(0, -8 if k in _sel else 10)
-		cv.create_tween().tween_property(cv, "position", target, Kyber.anim(0.15)).set_trans(Tween.TRANS_BACK)
+		cv.create_tween().tween_property(cv, "position", target, Sabacc.anim(0.15)).set_trans(Tween.TRANS_BACK)
 	_update()
 
 
@@ -218,7 +218,7 @@ func _update() -> void:
 func _submit(sel: Array) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tw := create_tween()
-	tw.tween_property(self, "modulate:a", 0.0, Kyber.anim(0.15))
+	tw.tween_property(self, "modulate:a", 0.0, Sabacc.anim(0.15))
 	await tw.finished
 	submitted.emit(sel)
 	get_parent().queue_free()

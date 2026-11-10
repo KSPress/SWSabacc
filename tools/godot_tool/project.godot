@@ -1,4 +1,4 @@
 config_version=5
 
 [application]
-config/name="kyber-tools"
+config/name="sabacc-tools"

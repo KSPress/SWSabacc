@@ -1,16 +1,36 @@
-# SWU Kyber (working title)
+# SWU Sabacc (working title)
 
 A fan-made, non-commercial digital version of **Star Wars: Unlimited** with a
 Hearthstone-style mobile/desktop/browser presentation and a roguelike campaign
 through the Skywalker saga. Built with **Godot 4.7** (GL Compatibility renderer).
 
-- Build spec: [`SWU_KYBER_BUILD_SPEC.md`](SWU_KYBER_BUILD_SPEC.md)
+- Build spec: [`SWU_SABACC_BUILD_SPEC.md`](SWU_SABACC_BUILD_SPEC.md)
 - Research & design notes: [`docs/DESIGN.md`](docs/DESIGN.md)
 - Card engine coverage: `docs/coverage_report.md` (generated)
 
 > Star Wars, Star Wars: Unlimited, card names, text and art belong to Lucasfilm Ltd.
 > and Fantasy Flight Games. This repo's code is IP-free; all IP-bearing assets are
 > generated locally into the git-ignored `game/ip/` folder.
+
+## Themes and card inspection
+Settings → Appearance offers ten offline themes: Deep Orbit, Violet Nebula,
+Hyperspace, Tatooine, Dathomir, Coruscant, Death Star, and Imperial/Republic/Outer
+Rim datapads. Choosing a deck tints buttons and outlines using up to three unique
+aspects. Datapad orbital lines, scan beam and targeting rings use those same
+colours. Damage, healing, enemy warnings and printed aspect icons keep their
+usual meaning.
+
+Inspecting a card flies it to the screen centre, blurs the surrounding game and
+opens four connected dossiers: card profile, printed ability, keyword/timing
+explanations, and live state/engine support. Dossiers scroll when needed. Flip
+leaders to inspect both sides; close or press Escape to return. Performance mode
+uses a dim backdrop and still linework instead of blur and rotation.
+
+The game is now **SWU Sabacc**, hosted at **KSPress/SWSabacc**. Android keeps its
+existing package ID/signing key so updates retain progress. Existing desktop and
+Android saves migrate automatically. The legacy-named APK and `update.json` release
+assets are compatibility bridges for v0.1.1; new versions use `swu_sabacc.apk` and
+`sabacc-update.json`.
 
 ## What works now (foundation)
 - **Rules engine** (pure GDScript, headless-testable): rounds, strict alternating actions, pass/initiative, regroup, resources and aspect penalties, ground/space arenas, combat, Shield/Experience tokens, leaders (actions + Epic Action deploy), upgrades, events, Smuggle, and the keywords Sentinel, Shielded, Grit, Saboteur, Ambush, Overwhelm, Raid, Restore, Hidden. Data-driven claimable tokens (Initiative, Blast, Plan, Krayt Call, Alarm), objectives (standard, survive N rounds, defend a unit, hunt, attrition) and turn modes (alternating / burst).
@@ -53,17 +73,16 @@ python -I tools/web/publish_pages.py
 > Disney and/or Fantasy Flight Games.
 
 ## Android app
-`python -I tools/android/build_android.py` builds a signed `build/android/swu_kyber.apk`
+`python -I tools/android/build_android.py` builds a signed `build/android/swu_sabacc.apk`
 (ARM64, plays offline with all local card art). It needs a local JDK 17 +
 Android SDK in the git-ignored `tools/android-sdk/` (see the script). Sideload it:
-copy it to the phone, or run the web launcher with `--lan` and open
-`http://<PC address>:8060/SWU-Kyber.apk` on the phone, then allow
+copy it to the phone or download the APK from GitHub Releases, then allow
 "install unknown apps" for your browser. Keep `kyber-release.keystore`: updates
 must be signed with the same key. Public builds are distributed through
-[GitHub Releases](https://github.com/KSPress/SWU-Kyber/releases/latest).
+[GitHub Releases](https://github.com/KSPress/SWSabacc/releases/latest).
 
 Android automatically checks the latest release at startup and downloads a newer
-APK in the background. Its size and SHA-256 digest must match `update.json` before
+APK in the background. Its size and SHA-256 digest must match `sabacc-update.json` before
 it can be installed. The menu offers installation after the download; Settings
 also provides **Check for updates / Install update** and an automatic-download
 toggle. Android asks you to allow this app to install updates and confirm the
@@ -75,14 +94,14 @@ To ship the next update: increase `VERSION_CODE` and `VERSION_NAME` in
 `game/engine/release_info.gd`, match the Android preset versions, run the tests,
 build both platforms, commit/push the tested source, and run
 `python -I tools/publish_release.py --publish`. This uploads the APK, matching
-manifest, and Windows ZIP to one public release. Without `--publish`, it prepares
+manifests, compatibility APK alias, and Windows ZIP to one public release. Without `--publish`, it prepares
 a draft. Use the same keystore for every release. A Git commit alone does not
 publish an update; the signed builds must be released.
 
 ## Windows app
 
-`python -I tools/build_windows.py` produces `build/SWU-Kyber-windows.zip`.
-Extract it and launch `SWU_Kyber.exe`, keeping `SWU_Kyber.pck` alongside it.
+`python -I tools/build_windows.py` produces `build/SWSabacc-windows.zip`.
+Extract it and launch `SWU_Sabacc.exe`, keeping `SWU_Sabacc.pck` alongside it.
 Card data and art are bundled; no browser or network connection is required.
 
 The verification results and remaining gaps are recorded in

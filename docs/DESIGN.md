@@ -1,6 +1,6 @@
-# SWU Kyber — Design Notes (foundation pass)
+# SWU Sabacc — Design Notes (foundation pass)
 
-Companion to `SWU_KYBER_BUILD_SPEC.md`. This file records the research behind the
+Companion to `SWU_SABACC_BUILD_SPEC.md`. This file records the research behind the
 foundation, how Star Wars: Unlimited (SWU) rules map onto a Hearthstone-style
 digital frame, and the decisions made (with what is still open).
 
@@ -8,7 +8,7 @@ digital frame, and the decisions made (with what is still open).
 
 ## 1. What we borrowed from other digital CCGs
 
-| Game | Pattern | How SWU Kyber uses it |
+| Game | Pattern | How SWU Sabacc uses it |
 |---|---|---|
 | **Hearthstone** | Fanned hand at the bottom; drag a card upward onto the board to play it; hover/long-press enlarges a card; minions are compact tokens (stats only), full card on inspect; red targeting arrow when attacking; big glowing end-turn button; every action is a short, readable animation (lunge, hit, number pop, death burst); board art with small interactive "toys". | Same hand fan + drag-to-play (`ui/board/hand_view.gd`, `ui/cards/card_view.gd`). Units are **hex tokens** with power/HP badges (`ui/board/unit_token.gd`). Drag a unit → curved targeting arrow (`Fx.TargetArrow`). Event queue → sequential animations (`match_screen.gd::_drain`). PASS button breathes when it's your action. Themed animated boards (`board_theme.gd`). |
 | **Hearthstone Dungeon Run / Monster Hunt** | Short runs, small starter decks, pick 1 of 3 after each win, rare "treasures", full reset on loss, final boss. | Chapter = run. 15-card starters, 1-of-3 card rewards, treasures after elite/objective fights, chapter reset on loss (`engine/campaign_run.gd`). |
@@ -66,7 +66,7 @@ All effects are procedural `_draw` nodes or tweens (no textures, no shaders) so 
 stay cheap on low-end phones and in WebGL: lightsaber arc in the character's colour
 (`saber` field from the importer), blaster bolts (green for you, red for the
 enemy), impact rings with sparks, shield shatter shards, damage/heal numbers, banners.
-`Kyber.anim()` scales every duration (Settings → Animation speed); Performance mode
+`Sabacc.anim()` scales every duration (Settings → Animation speed); Performance mode
 freezes backgrounds and drops sparks.
 
 ---
@@ -78,7 +78,7 @@ tools/            import_cards.py (DB → normalised JSON + DSL), godot_tool/con
                   assign_cards.py (tag cards to films/chapters)
 game/engine/      PURE LOGIC, no Nodes: Match, Effects (DSL interpreter), CardInst, PlayerState,
                   RuleSet, Objective plug-ins, Tokens, AiBot, DeckBuilder, CampaignRun, CardLibrary
-game/autoload/    Kyber (config/palette/settings), CardDB, Art (lazy WebP streaming + LRU), Save, Router, Sfx
+game/autoload/    Sabacc (config/palette/settings), CardDB, Art (lazy WebP streaming + LRU), Save, Router, Sfx
 game/ui/          kit (theme, buttons, vector icons, starfield), cards (CardView, InspectOverlay),
                   board (match screen, tokens, HUD, hand, FX, choices, themes), screens
 game/data/        campaign JSON (IP-free ids only), custom KYB_ cards

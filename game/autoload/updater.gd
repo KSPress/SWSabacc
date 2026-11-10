@@ -4,10 +4,10 @@ extends Node
 
 signal status_changed
 
-const MANIFEST_URL := "https://github.com/KSPress/SWU-Kyber/releases/latest/download/update.json"
+const MANIFEST_URL := "https://github.com/KSPress/SWSabacc/releases/latest/download/sabacc-update.json"
 const DIR := "user://updates"
 const PART := DIR + "/download.part"
-const APK := DIR + "/swu_kyber.apk"
+const APK := DIR + "/swu_sabacc.apk"
 
 var status := "Updates are available on Android."
 var busy := false
@@ -27,7 +27,7 @@ func _ready() -> void:
 	Router.screen_changed.connect(_screen_changed)
 	if OS.has_feature("android"):
 		_set_status("Updates checked automatically when online.")
-		if Kyber.settings.get("auto_update", true) and not OS.has_feature("editor"):
+		if Sabacc.settings.get("auto_update", true) and not OS.has_feature("editor"):
 			await get_tree().create_timer(2.0).timeout
 			check()
 
@@ -47,7 +47,7 @@ func check() -> void:
 	_http.timeout = 15.0
 	_http.body_size_limit = 16384
 	_set_status("Checking for updates…")
-	if _http.request(MANIFEST_URL, ["User-Agent: SWU-Kyber/" + ReleaseInfo.VERSION_NAME]) != OK:
+	if _http.request(MANIFEST_URL, ["User-Agent: SWSabacc/" + ReleaseInfo.VERSION_NAME]) != OK:
 		_fail("Could not check for updates. You can keep playing offline.")
 
 

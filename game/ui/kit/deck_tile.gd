@@ -43,19 +43,19 @@ func _ready() -> void:
 	_icon = IconGlyph.new()
 	_icon.glyph = deck.get("icon", "star")
 	_icon.frame = true
-	_icon.color = Kyber.C_GOLD if deck.get("marked", false) else Kyber.C_KYBER
+	_icon.color = Sabacc.C_GOLD if deck.get("marked", false) else Sabacc.C_ACCENT
 	_icon.custom_minimum_size = Vector2(48, 48)
 	_icon.position = Vector2(10, 10)
 	_icon.size = Vector2(48, 48)
 	add_child(_icon)
-	_name = UIKit.label(deck.get("name", "Untitled deck"), 20, Kyber.C_TEXT)
+	_name = UIKit.label(deck.get("name", "Untitled deck"), 20, Sabacc.C_TEXT)
 	_name.add_theme_constant_override("outline_size", 6)
 	_name.add_theme_color_override("font_outline_color", Color.BLACK)
 	_name.position = Vector2(66, 12)
 	_name.size = Vector2(SIZE.x - 76, 28)
 	_name.clip_text = true
 	add_child(_name)
-	_sub = UIKit.label(subtitle if subtitle != "" else CardDB.card(lid).get("name", "No leader"), 14, Kyber.C_DIM)
+	_sub = UIKit.label(subtitle if subtitle != "" else CardDB.card(lid).get("name", "No leader"), 14, Sabacc.C_DIM)
 	_sub.position = Vector2(66, 40)
 	_sub.size = Vector2(SIZE.x - 76, 20)
 	_sub.clip_text = true
@@ -91,13 +91,13 @@ func _draw() -> void:
 		for i in 12:
 			var x := SIZE.x * 0.38 + i * 6.0
 			draw_rect(Rect2(Vector2(x, 0), Vector2(6, SIZE.y)), Color(0.043, 0.075, 0.114, 1.0 - i / 12.0))
-	draw_rect(r, Kyber.C_GOLD if deck.get("marked", false) else Kyber.C_LINE, false, 2.0)
+	draw_rect(r, Sabacc.C_GOLD if deck.get("marked", false) else Sabacc.C_LINE, false, 2.0)
 	if selected:
 		var k2 := 0.5 + 0.5 * sin(_t * 4.0)
-		draw_rect(r.grow(-3.0), Color(Kyber.C_KYBER, 0.6 + 0.4 * k2), false, 5.0)
+		draw_rect(r.grow(-3.0), Color(Sabacc.C_ACCENT, 0.6 + 0.4 * k2), false, 5.0)
 	var n := int(deck.get("count", Save.deck_size(deck)))
 	var ok := n >= 50
-	UIKit.draw_fit(self, Kyber.font_title, Vector2(SIZE.x - 90, SIZE.y - 14), "%d cards" % n, HORIZONTAL_ALIGNMENT_RIGHT, 80, 16, Kyber.C_GOOD if ok else Kyber.C_GOLD)
+	UIKit.draw_fit(self, Sabacc.font_title, Vector2(SIZE.x - 90, SIZE.y - 14), "%d cards" % n, HORIZONTAL_ALIGNMENT_RIGHT, 80, 16, Sabacc.C_GOOD if ok else Sabacc.C_GOLD)
 	if deck.get("marked", false):
 		_star(Vector2(SIZE.x - 22, 22), 12.0)
 
@@ -107,7 +107,7 @@ func _star(c: Vector2, r: float) -> void:
 	for k in 10:
 		var a := -PI / 2 + k * PI / 5.0
 		sp.append(c + Vector2(cos(a), sin(a)) * r * (1.0 if k % 2 == 0 else 0.45))
-	draw_colored_polygon(sp, Kyber.C_GOLD)
+	draw_colored_polygon(sp, Sabacc.C_GOLD)
 
 
 func _gui_input(ev: InputEvent) -> void:

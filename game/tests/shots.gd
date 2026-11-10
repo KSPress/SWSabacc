@@ -23,7 +23,7 @@ func _ready() -> void:
 		get_tree().current_scene = dummy
 		reparent.call_deferred(get_tree().root)
 		await get_tree().process_frame
-	Kyber.settings["anim_speed"] = 2.0
+	Sabacc.settings["anim_speed"] = 2.0
 	await _run()
 	get_tree().quit()
 
@@ -272,7 +272,7 @@ func _input_test() -> void:
 ## Plays whole matches through the real UI (bot on both sides), rotating the
 ## window every few actions, to shake out crashes.
 func _soak(games: int) -> void:
-	Kyber.settings["anim_speed"] = 2.5
+	Sabacc.settings["anim_speed"] = 2.5
 	for g in games:
 		await _go("match")
 		await _wait(1.5)
@@ -400,7 +400,7 @@ const ANIM_CASES := [
 
 
 func _anims() -> void:
-	Kyber.settings["anim_speed"] = 1.0
+	Sabacc.settings["anim_speed"] = 1.0
 	await _size(540, 960)
 	for case in ANIM_CASES:
 		await _go("match")
@@ -493,7 +493,7 @@ func _new_screens() -> void:
 
 
 func _tokens_shots() -> void:
-	Kyber.settings["anim_speed"] = 1.0
+	Sabacc.settings["anim_speed"] = 1.0
 	for sz in [[540, 960, "p"], [1280, 720, "l"]]:
 		await _size(sz[0], sz[1])
 		await _go("match")
@@ -633,7 +633,7 @@ func _spotlight_e2e() -> void:
 	await _wait(1.5)
 	await _shot("e2e_victory")
 	for c in get_tree().root.find_children("*", "", true, false):
-		if c is KyberButton and c.text == "Continue":
+		if c is SabaccButton and c.text == "Continue":
 			c.pressed.emit()
 	await _wait(2.5)
 	await _shot("e2e_reward")

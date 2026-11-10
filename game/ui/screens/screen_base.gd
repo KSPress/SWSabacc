@@ -25,6 +25,7 @@ func _ready() -> void:
 	add_child(header)
 	get_viewport().size_changed.connect(_on_resize)
 	build()
+	Appearance.changed.connect(func(): theme = UIKit.build_theme())
 	_on_resize()
 
 
@@ -43,15 +44,15 @@ func set_header(text: String, back_to := "menu") -> void:
 	for c in header.get_children():
 		c.queue_free()
 	if back_to != "":
-		var b := KyberButton.make("", KyberButton.Style.GHOST, "back")
+		var b := SabaccButton.make("", SabaccButton.Style.GHOST, "back")
 		b.custom_minimum_size = Vector2(60, 56)
 		b.pressed.connect(func(): Router.go(_back_target))
 		header.add_child(b)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", -4)
-	title_label = UIKit.fit_label(UIKit.label(text.to_upper(), 30, Kyber.C_TEXT))
+	title_label = UIKit.fit_label(UIKit.label(text.to_upper(), 30, Sabacc.C_TEXT))
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_label.add_theme_font_override("font", Kyber.font_title)
+	title_label.add_theme_font_override("font", Sabacc.font_title)
 	v.add_child(title_label)
 	var au := UIKit.aurebesh(text.to_lower(), 14)
 	au.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT

@@ -29,7 +29,7 @@ CDN = "https://cdn.starwarsunlimited.com/"
 def get(page: int) -> dict:
     for attempt in range(5):
         try:
-            req = urllib.request.Request(API.format(page=page), headers={"User-Agent": "swu-kyber-art-map"})
+            req = urllib.request.Request(API.format(page=page), headers={"User-Agent": "swu-sabacc-art-map"})
             with urllib.request.urlopen(req, timeout=120) as r:
                 return json.load(r)
         except Exception as e:  # noqa: BLE001 - retry anything network-ish

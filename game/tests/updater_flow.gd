@@ -23,8 +23,8 @@ func _write(path: String, bytes: PackedByteArray) -> void:
 func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(Updater.DIR)
 	var bytes := "APK test fixture".to_utf8_buffer()
-	var manifest := {"version_code": 3, "version_name": "0.1.2", "size": bytes.size(),
-		"apk_url": ReleaseInfo.DOWNLOAD_PREFIX + "v0.1.2/swu_kyber.apk", "sha256": "APK test fixture".sha256_text()}
+	var manifest := {"version_code": ReleaseInfo.VERSION_CODE + 1, "version_name": "0.3.0", "size": bytes.size(),
+		"apk_url": ReleaseInfo.DOWNLOAD_PREFIX + "v0.3.0/swu_sabacc.apk", "sha256": "APK test fixture".sha256_text()}
 	Updater.busy = true
 	Updater._completed(HTTPRequest.RESULT_CANT_CONNECT, 0, PackedStringArray(), PackedByteArray())
 	check(not Updater.busy and not Updater.update_ready, "offline failure is nonblocking")

@@ -13,8 +13,8 @@ func check(ok: bool, description: String) -> void:
 
 
 func _init() -> void:
-	var valid := {"version_code": 3, "version_name": "0.1.2", "size": 170000000,
-		"apk_url": ReleaseInfo.DOWNLOAD_PREFIX + "v0.1.2/swu_kyber.apk", "sha256": "a".repeat(64)}
+	var valid := {"version_code": ReleaseInfo.VERSION_CODE + 1, "version_name": "0.3.0", "size": 170000000,
+		"apk_url": ReleaseInfo.DOWNLOAD_PREFIX + "v0.3.0/swu_sabacc.apk", "sha256": "a".repeat(64)}
 	check(not ReleaseInfo.parse(valid).is_empty(), "accept newer release")
 	check(ReleaseInfo.parse(valid)["version_code"] > ReleaseInfo.VERSION_CODE, "numeric upgrade comparison")
 	var old := valid.duplicate()
@@ -24,9 +24,9 @@ func _init() -> void:
 		var missing := valid.duplicate()
 		missing.erase(key)
 		check(ReleaseInfo.parse(missing).is_empty(), "reject missing " + key)
-	for url in ["http://github.com/KSPress/SWU-Kyber/releases/download/v1/swu_kyber.apk",
-		"https://example.com/swu_kyber.apk", ReleaseInfo.DOWNLOAD_PREFIX + "../swu_kyber.apk",
-		ReleaseInfo.DOWNLOAD_PREFIX + "v1/%2e%2e/swu_kyber.apk", ReleaseInfo.DOWNLOAD_PREFIX + "v1/other.apk"]:
+	for url in ["http://github.com/KSPress/SWSabacc/releases/download/v1/swu_sabacc.apk",
+		"https://example.com/swu_sabacc.apk", ReleaseInfo.DOWNLOAD_PREFIX + "../swu_sabacc.apk",
+		ReleaseInfo.DOWNLOAD_PREFIX + "v1/%2e%2e/swu_sabacc.apk", ReleaseInfo.DOWNLOAD_PREFIX + "v1/other.apk"]:
 		var bad := valid.duplicate()
 		bad["apk_url"] = url
 		check(ReleaseInfo.parse(bad).is_empty(), "reject untrusted APK URL")

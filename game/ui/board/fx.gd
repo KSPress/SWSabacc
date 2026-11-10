@@ -22,7 +22,7 @@ static func light_at(pos: Vector2, col: Color, radius: float, strength: float) -
 
 static func float_text(layer: Control, at: Vector2, text: String, col: Color, size := 40) -> void:
 	var l := UIKit.label(text, size, col, HORIZONTAL_ALIGNMENT_CENTER)
-	l.add_theme_font_override("font", Kyber.font_title)
+	l.add_theme_font_override("font", Sabacc.font_title)
 	l.add_theme_constant_override("outline_size", 8)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	l.size = Vector2(160, 60)
@@ -31,10 +31,10 @@ static func float_text(layer: Control, at: Vector2, text: String, col: Color, si
 	l.global_position = at - l.size / 2.0
 	l.scale = Vector2(0.4, 0.4)
 	var tw := l.create_tween()
-	tw.tween_property(l, "scale", Vector2(1.25, 1.25), Kyber.anim(0.14)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(l, "scale", Vector2.ONE, Kyber.anim(0.1))
-	tw.parallel().tween_property(l, "position:y", l.position.y - 70, Kyber.anim(0.9)).set_delay(Kyber.anim(0.1))
-	tw.tween_property(l, "modulate:a", 0.0, Kyber.anim(0.3))
+	tw.tween_property(l, "scale", Vector2(1.25, 1.25), Sabacc.anim(0.14)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(l, "scale", Vector2.ONE, Sabacc.anim(0.1))
+	tw.parallel().tween_property(l, "position:y", l.position.y - 70, Sabacc.anim(0.9)).set_delay(Sabacc.anim(0.1))
+	tw.tween_property(l, "modulate:a", 0.0, Sabacc.anim(0.3))
 	tw.tween_callback(l.queue_free)
 
 
@@ -59,13 +59,13 @@ static func banner(layer: Control, text: String, col: Color, sub := "") -> void:
 	bar.modulate.a = 0.0
 	box.position.x = -vs.x * 0.3
 	var tw := box.create_tween().set_parallel(true)
-	tw.tween_property(box, "position:x", 0.0, Kyber.anim(0.25)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(box, "modulate:a", 1.0, Kyber.anim(0.2))
-	tw.tween_property(bar, "modulate:a", 1.0, Kyber.anim(0.2))
-	tw.chain().tween_interval(Kyber.anim(0.6))
-	tw.chain().tween_property(box, "position:x", vs.x * 0.3, Kyber.anim(0.25)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	tw.parallel().tween_property(box, "modulate:a", 0.0, Kyber.anim(0.25))
-	tw.parallel().tween_property(bar, "modulate:a", 0.0, Kyber.anim(0.25))
+	tw.tween_property(box, "position:x", 0.0, Sabacc.anim(0.25)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(box, "modulate:a", 1.0, Sabacc.anim(0.2))
+	tw.tween_property(bar, "modulate:a", 1.0, Sabacc.anim(0.2))
+	tw.chain().tween_interval(Sabacc.anim(0.6))
+	tw.chain().tween_property(box, "position:x", vs.x * 0.3, Sabacc.anim(0.25)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(box, "modulate:a", 0.0, Sabacc.anim(0.25))
+	tw.parallel().tween_property(bar, "modulate:a", 0.0, Sabacc.anim(0.25))
 	tw.chain().tween_callback(func():
 		box.queue_free()
 		bar.queue_free())
@@ -113,7 +113,7 @@ static func shatter(layer: Control, at: Vector2) -> void:
 class TargetArrow extends Node2D:
 	var from := Vector2.ZERO
 	var to := Vector2.ZERO
-	var color := Kyber.C_EMPIRE
+	var color := Sabacc.C_EMPIRE
 	var _t := 0.0
 
 	func _process(dt: float) -> void:
@@ -153,7 +153,7 @@ class FxImpact extends Node2D:
 	var _sparks: Array = []
 
 	func _ready() -> void:
-		var n := 0 if Kyber.perf() else (14 if big else 8)
+		var n := 0 if Sabacc.perf() else (14 if big else 8)
 		for i in n:
 			var a := randf() * TAU
 			_sparks.append({"v": Vector2(cos(a), sin(a)) * randf_range(120, 380), "p": Vector2.ZERO})
@@ -312,7 +312,7 @@ class FxShockwave extends Node2D:
 	var _rocks: Array = []
 
 	func _ready() -> void:
-		var n := 0 if Kyber.perf() else 12
+		var n := 0 if Sabacc.perf() else 12
 		for i in n:
 			var a := randf() * TAU
 			_rocks.append({"p": Vector2.ZERO, "v": Vector2(cos(a), sin(a) * 0.6) * randf_range(160, 420), "s": randf_range(3, 7)})
@@ -410,7 +410,7 @@ static func shockwave(layer: Control, at: Vector2) -> void:
 
 ## Shakes a control around its current position.
 static func shake(c: Control, amount := 10.0, dur := 0.25) -> void:
-	if Kyber.perf() or c == null:
+	if Sabacc.perf() or c == null:
 		return
 	var base := c.position
 	var tw := c.create_tween()
@@ -448,7 +448,7 @@ class FxPunch extends Node2D:
 	const LIFE := 0.6
 
 	func _ready() -> void:
-		var perf := Kyber.perf()
+		var perf := Sabacc.perf()
 		var n := 6 if perf else int(10 + 10 * power)
 		for i in n:
 			var a := randf() * TAU
