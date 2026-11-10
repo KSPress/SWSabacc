@@ -105,12 +105,17 @@ func relayout(p: bool, r: Rect2) -> void:
 	await get_tree().process_frame
 	var bs := _buttons.get_combined_minimum_size()
 	_buttons.size = bs
-	_buttons.position = Vector2((r.size.x - bs.x) / 2.0, r.size.y * (0.52 if p else 0.5))
+	# Reserve space for every button and the footer before placing the showcase.
+	# Seven portrait buttons used to extend below the window on a 16:9 phone.
+	var button_top := minf(r.size.y * (0.52 if p else 0.5), r.size.y - 70.0 - bs.y)
+	_buttons.position = Vector2((r.size.x - bs.x) / 2.0, button_top)
 	_foot.position = Vector2(0, r.size.y - 50)
 	_foot.size = Vector2(r.size.x, 40)
 	# Landscape: cards live in the side gutters left/right of the button grid.
 	var gutter := (r.size.x - bs.x) / 2.0 - 20.0
-	var fsc := clampf(r.size.y * 0.16 / CardView.PORTRAIT.y, 0.3, 1.0) if p else clampf(minf(r.size.y * 0.34 / CardView.PORTRAIT.y, gutter * 0.75 / CardView.LANDSCAPE.x), 0.25, 1.0)
+	var showcase_top := _title_box.position.y + _title_box.get_combined_minimum_size().y + 22.0
+	var showcase_height := maxf(0.0, button_top - showcase_top - 22.0)
+	var fsc := minf(r.size.y * 0.16, showcase_height * 0.8) / CardView.PORTRAIT.y if p else clampf(minf(r.size.y * 0.34 / CardView.PORTRAIT.y, gutter * 0.75 / CardView.LANDSCAPE.x), 0.25, 1.0)
 	for i in _floaters.size():
 		var cv: CardView = _floaters[i]
 		cv.home_scale = Vector2(fsc, fsc)
@@ -118,7 +123,10 @@ func relayout(p: bool, r: Rect2) -> void:
 		var hp: Vector2
 		if p:
 			var cw := cv.size.x * fsc
-			hp = Vector2(r.size.x * (0.5 + (i - 1) * 0.31) - cw / 2.0, r.size.y * 0.27)
+			hp = Vector2(r.size.x * (0.5 + (i - 1) * 0.31) - cw / 2.0, showcase_top)
+			# CardView scales about its centre, so compensate its pivot to place
+			# the visible top edge inside the showcase instead of over a button.
+			hp -= cv.pivot_offset * (1.0 - fsc)
 		else:
 			var left := i < 2
 			var x := gutter * 0.15 if left else r.size.x - gutter * 0.25 - cv.size.x * fsc

@@ -14,7 +14,7 @@ through the Skywalker saga. Built with **Godot 4.7** (GL Compatibility renderer)
 
 ## What works now (foundation)
 - **Rules engine** (pure GDScript, headless-testable): rounds, strict alternating actions, pass/initiative, regroup, resources and aspect penalties, ground/space arenas, combat, Shield/Experience tokens, leaders (actions + Epic Action deploy), upgrades, events, Smuggle, and the keywords Sentinel, Shielded, Grit, Saboteur, Ambush, Overwhelm, Raid, Restore, Hidden. Data-driven claimable tokens (Initiative, Blast, Plan, Krayt Call, Alarm), objectives (standard, survive N rounds, defend a unit, hunt, attrition) and turn modes (alternating / burst).
-- **Card pipeline**: 2,588 unique cards imported; ability text compiled to an effect DSL (879 full, 601 partial); 2,760 art renders converted for streaming.
+- **Card pipeline**: 2,588 unique cards imported; ability text compiled to an effect DSL (979 full, 574 partial, 1,035 needing custom logic); 2,760 art renders bundled in native builds. This foundation does **not yet implement every SWU card ability or the complete official rules**.
 - **Bot AI** with aggressive / tempo / defensive profiles (~0.7 ms per decision).
 - **Formats**: *Standard Battle* = traditional SWU (Premier: 50-card decks, printed base HP, both arenas with Ground nearest you, aspect penalties, 3-copy limit) using your saved decks, a Spotlight deck, or an auto-built deck. *Quick Battle* = Expansion Spotlight decks with 20-HP bases in the mode chosen in Settings: **One Lane** (space units fight in the ground lane), **Traditional** (two arenas), **Ground Only** or **Space Only** (balanced single-arena decks; pilot leaders only in Space Only).
 - **Spotlight Campaign**: an endless roguelike per Spotlight deck. Start with its leader, base and 20 of its 50 cards (30-HP base, 20 credits); win battles to earn the rest of the list plus loot in your aspects. Each sector is a random branching map of battles, missions (hold the line / hunt a target / supply raid), elites, events, black markets, safe houses and hidden caches, ending in a boss (another Spotlight deck). Edit your deck between nodes, upgrade cards with permanent Experience/Shield, collect perks; damage carries over until your base falls. Every Spotlight deck keeps its own record (runs, best sector, most wins, bosses, last 10 runs).
@@ -54,12 +54,39 @@ python -I tools/web/publish_pages.py
 
 ## Android app
 `python -I tools/android/build_android.py` builds a signed `build/android/swu_kyber.apk`
-(Android 7.0+, 64-bit, no permissions, plays offline). It needs a local JDK 17 +
+(ARM64, plays offline with all local card art). It needs a local JDK 17 +
 Android SDK in the git-ignored `tools/android-sdk/` (see the script). Sideload it:
 copy it to the phone, or run the web launcher with `--lan` and open
 `http://<PC address>:8060/SWU-Kyber.apk` on the phone, then allow
 "install unknown apps" for your browser. Keep `kyber-release.keystore`: updates
-must be signed with the same key. The APK contains card art, so keep it private.
+must be signed with the same key. Public builds are distributed through
+[GitHub Releases](https://github.com/KSPress/SWU-Kyber/releases/latest).
+
+Android automatically checks the latest release at startup and downloads a newer
+APK in the background. Its size and SHA-256 digest must match `update.json` before
+it can be installed. The menu offers installation after the download; Settings
+also provides **Check for updates / Install update** and an automatic-download
+toggle. Android asks you to allow this app to install updates and confirm the
+installation. This is not silent installation. Keep the existing app installed
+to preserve progress. Internet and request-install-packages are the only requested
+permissions; an unavailable update server never blocks offline gameplay.
+
+To ship the next update: increase `VERSION_CODE` and `VERSION_NAME` in
+`game/engine/release_info.gd`, match the Android preset versions, run the tests,
+build both platforms, commit/push the tested source, and run
+`python -I tools/publish_release.py --publish`. This uploads the APK, matching
+manifest, and Windows ZIP to one public release. Without `--publish`, it prepares
+a draft. Use the same keystore for every release. A Git commit alone does not
+publish an update; the signed builds must be released.
+
+## Windows app
+
+`python -I tools/build_windows.py` produces `build/SWU-Kyber-windows.zip`.
+Extract it and launch `SWU_Kyber.exe`, keeping `SWU_Kyber.pck` alongside it.
+Card data and art are bundled; no browser or network connection is required.
+
+The verification results and remaining gaps are recorded in
+[`docs/QA_REPORT.md`](docs/QA_REPORT.md).
 
 ## Setup
 Requirements: Godot 4.7 (tested 4.7.2, with export templates for web builds), Python 3.9+ (stdlib only).

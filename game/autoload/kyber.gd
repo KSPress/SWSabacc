@@ -3,7 +3,7 @@ extends Node
 
 const GAME_TITLE := "SWU Kyber"
 const GAME_SUBTITLE := "A Star Wars: Unlimited fan project"
-const VERSION := "0.1.0-foundation"
+const VERSION := ReleaseInfo.VERSION_NAME
 
 # Palette — dark HUD with Rebel blue / Imperial red / kyber cyan accents.
 const C_BG := Color("05080d")
@@ -43,6 +43,7 @@ const SABER_COLORS := {
 signal settings_changed
 
 var settings := {
+	"auto_update": true,
 	"perf_mode": false,        # fewer particles, static backgrounds
 	"anim_speed": 1.0,
 	"text_scale": 1.0,

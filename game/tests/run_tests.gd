@@ -22,6 +22,7 @@ func _init() -> void:
 		return
 	test_aspect_penalty()
 	test_combat_and_shield()
+	test_attachment_lifetime()
 	test_sentinel_and_saboteur()
 	test_overwhelm_raid_grit()
 	test_alternating_and_initiative()
@@ -95,6 +96,23 @@ func test_combat_and_shield() -> void:
 	check(d.in_play() and d.damage == 0 and d.shield_count() == 0, "shield absorbs the attack")
 	check(a.damage == 3 or not a.in_play(), "defender deals damage back")
 	check(not a.in_play(), "3 damage defeats a 3-HP attacker")
+
+
+func test_attachment_lifetime() -> void:
+	print("attachment lifetime")
+	var m := blank_match()
+	var unit := add_unit(m, 0, "SOR_095")
+	m.attach_token(unit, "experience")
+	m.attach_token(unit, "shield")
+	var attachment: CardInst = unit.upgrades[0]
+	check(attachment.attached_to == unit, "upgrade resolves its living host")
+	var unit_ref: WeakRef = weakref(unit)
+	var attachment_ref: WeakRef = weakref(attachment)
+	unit = null
+	attachment = null
+	m = null
+	check(unit_ref.get_ref() == null, "unit is released after match")
+	check(attachment_ref.get_ref() == null, "attached tokens are released after match")
 
 
 func test_sentinel_and_saboteur() -> void:

@@ -12,7 +12,14 @@ var zone := "deck"          # deck hand discard resource ground space base leade
 var exhausted := false
 var damage := 0
 var upgrades: Array = []    # CardInst attached to this unit
-var attached_to: CardInst = null
+# The unit owns its upgrades. A strong reference back to the unit forms a
+# RefCounted cycle and leaks the whole attachment group after every match.
+var _attached_to: WeakRef
+var attached_to: CardInst:
+	get:
+		return _attached_to.get_ref() if _attached_to != null else null
+	set(value):
+		_attached_to = weakref(value) if value != null else null
 var deployed := false       # leader is on its unit side
 var epic_used := false
 var entered_phase := -1     # phase serial when it entered play (Hidden)

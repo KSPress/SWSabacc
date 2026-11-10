@@ -45,6 +45,24 @@ func build() -> void:
 	orient.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	orient.item_selected.connect(func(i): Kyber.set_setting("orientation", ["auto", "portrait", "landscape"][i]))
 	_box.add_child(orient)
+	if OS.has_feature("android"):
+		_toggle("Download game updates automatically", "auto_update")
+		var update_status := UIKit.label(Updater.status, 17, Kyber.C_DIM)
+		update_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_box.add_child(update_status)
+		var update_button := KyberButton.make("Check for updates", KyberButton.Style.GHOST)
+		_box.add_child(update_button)
+		var refresh := func():
+			update_status.text = Updater.status
+			update_button.text = "Install update" if Updater.update_ready else "Check for updates"
+			update_button.disabled = Updater.busy
+		Updater.status_changed.connect(refresh)
+		update_button.pressed.connect(func():
+			if Updater.update_ready:
+				Updater.install()
+			else:
+				Updater.check())
+		refresh.call()
 	var stats: Dictionary = Save.data.get("stats", {})
 	_box.add_child(UIKit.label("Matches %d · Wins %d · Vault %d cards" % [int(stats.get("matches", 0)), int(stats.get("wins", 0)), Save.data.get("vault", []).size()], 18, Kyber.C_DIM))
 	var reset := KyberButton.make("Reset all progress", KyberButton.Style.EMPIRE)

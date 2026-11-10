@@ -21,6 +21,7 @@ Art="*res://autoload/art.gd"
 Save="*res://autoload/save.gd"
 Router="*res://autoload/router.gd"
 Sfx="*res://autoload/sfx.gd"
+Updater="*res://autoload/updater.gd"
 
 [display]
 

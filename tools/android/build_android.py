@@ -11,7 +11,10 @@ Expects the local toolchain in tools/android-sdk/ (git-ignored):
 Godot's editor settings must point export/android/java_sdk_path and
 android_sdk_path at those folders.
 """
+import hashlib
+import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -25,12 +28,23 @@ for need in ("jdk17", "sdk", "kyber-release.keystore", "release-keystore.pass"):
     if not (TC / need).exists():
         sys.exit(f"missing tools/android-sdk/{need} - see the docstring")
 OUT.parent.mkdir(parents=True, exist_ok=True)
+version_source = (ROOT / "game/engine/release_info.gd").read_text(encoding="utf-8")
+version_code = int(re.search(r'const VERSION_CODE := (\d+)', version_source)[1])
+version_name = re.search(r'const VERSION_NAME := "([^"]+)"', version_source)[1]
+presets = (ROOT / "game/export_presets.cfg").read_text(encoding="utf-8")
+if f'version/code={version_code}\n' not in presets or f'version/name="{version_name}"' not in presets:
+    sys.exit("Android preset version must match game/engine/release_info.gd")
 env = dict(os.environ,
            JAVA_HOME=str(TC / "jdk17"),
            GODOT_ANDROID_KEYSTORE_RELEASE_PATH=str(TC / "kyber-release.keystore"),
            GODOT_ANDROID_KEYSTORE_RELEASE_USER="kyber",
            GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=(TC / "release-keystore.pass").read_text().strip())
-r = subprocess.run([GODOT, "--headless", "--path", str(ROOT / "game"), "--export-release", "Android", str(OUT)], env=env)
+# Import new scripts/resources before exporting; keep logs in the build folder.
+log = str(OUT.parent / "export.log")
+subprocess.run([GODOT, "--headless", "--path", str(ROOT / "game"), "--log-file", log, "--import"], env=env, check=True)
+if OUT.exists():
+    OUT.unlink()  # never mistake a stale APK for a successful export
+r = subprocess.run([GODOT, "--headless", "--path", str(ROOT / "game"), "--log-file", log, "--export-release", "Android", str(OUT)], env=env)
 if r.returncode != 0 or not OUT.exists():
     sys.exit("Android export failed")
 
@@ -68,4 +82,20 @@ subprocess.run([str(BT / "zipalign.exe"), "-c", "-P", "16", "4", str(OUT)], chec
 badging = subprocess.run([str(BT / "aapt2.exe"), "dump", "badging", str(OUT)], capture_output=True, text=True)
 if "no such path exists" in badging.stderr or badging.returncode != 0:
     sys.exit("APK still has broken resources: " + badging.stderr)
+for expected in (f"versionCode='{version_code}'", f"versionName='{version_name}'",
+                 "org.fanproject.swukyber", "android.permission.INTERNET", "android.permission.REQUEST_INSTALL_PACKAGES"):
+    if expected not in badging.stdout:
+        sys.exit("APK verification missing: " + expected)
+with OUT.open("rb") as apk_file:
+    apk_hash = hashlib.sha256()
+    for chunk in iter(lambda: apk_file.read(1024 * 1024), b""):
+        apk_hash.update(chunk)
+manifest = {
+    "version_code": version_code, "version_name": version_name,
+    "apk_url": f"https://github.com/KSPress/SWU-Kyber/releases/download/v{version_name}/swu_kyber.apk",
+    "size": OUT.stat().st_size,
+    "sha256": apk_hash.hexdigest(),
+}
+(OUT.parent / "update.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 print(f"APK: {OUT} ({OUT.stat().st_size / 1e6:.0f} MB)")
+print(f"Release v{version_name}: upload swu_kyber.apk and update.json together.")
