@@ -4,6 +4,7 @@ extends Node
 signal screen_changed(path: String)
 
 const SCREENS := {
+	"customization": "res://ui/screens/customization.tscn",
 	"menu": "res://ui/screens/main_menu.tscn",
 	"episodes": "res://ui/screens/episode_select.tscn",
 	"chapter": "res://ui/screens/chapter_map.tscn",
@@ -36,6 +37,8 @@ func _ready() -> void:
 
 
 func go(screen: String, p := {}) -> void:
+	if screen != "match":
+		Appearance.end_match()
 	if _busy:
 		return
 	_busy = true

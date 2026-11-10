@@ -27,6 +27,8 @@ func _ready() -> void:
 
 
 func _process(dt: float) -> void:
+	if Appearance.preset()["kind"] == "planet":
+		return
 	if Sabacc.perf() and hyperspace <= 0.0:
 		return
 	_t += dt

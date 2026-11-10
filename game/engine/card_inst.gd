@@ -26,6 +26,8 @@ var entered_phase := -1     # phase serial when it entered play (Hidden)
 var mods: Array = []        # lasting effects: {p, h, kw, v, lose_kw, dur, serial}
 var flags: Dictionary = {}  # campaign/scenario flags: protected, cannot_attack, ...
 var is_token := false
+var battle: WeakRef
+var _calculating_aura := false
 
 
 func _init(p_uid := 0, p_id := "", p_data := {}, p_owner := 0) -> void:
@@ -138,6 +140,10 @@ func kw(k: String) -> int:
 			return 0
 	var total := 0
 	var found := false
+	var aura := _continuous("kw", k)
+	if aura > 0:
+		found = true
+		total += aura
 	for e in _printed_keywords():
 		if e.get("k", "") == k:
 			found = true
@@ -180,6 +186,7 @@ func shield_count() -> int:
 
 func power(attacking := false) -> int:
 	var p := printed_power()
+	p += _continuous("p")
 	for u in upgrades:
 		if u.data.get("name", "") != "Shield":
 			p += int(u.data.get("power", 0))
@@ -194,12 +201,25 @@ func power(attacking := false) -> int:
 
 func max_hp() -> int:
 	var h := printed_hp()
+	h += _continuous("h")
 	for u in upgrades:
 		if u.data.get("name", "") != "Shield":
 			h += int(u.data.get("hp", 0))
 	for m in mods:
 		h += int(m.get("h", 0))
 	return h
+
+
+func _continuous(field: String, keyword := "") -> int:
+	if battle == null or _calculating_aura:
+		return 0
+	var m: Match = battle.get_ref()
+	if m == null or not in_play():
+		return 0
+	_calculating_aura = true
+	var result := m.continuous_bonus(self, field, keyword)
+	_calculating_aura = false
+	return result
 
 
 func remaining_hp() -> int:

@@ -126,7 +126,7 @@ def parse_target(phrase: str) -> dict | None:
             return None
     # words before "unit"
     m2 = re.match(r"^((?:other |enemy |friendly |non-leader |damaged |exhausted |ready |non-unique |unique |"
-                  r"ground |space |non-vehicle |vehicle |[a-z]+ )*)(units?|bases?|units? or bases?)(.*)$", rest)
+                  r"ground |space |non-vehicle |vehicle |[a-z]+ )*)(units? or bases?|units?|bases?|upgrades?)(.*)$", rest)
     if not m2:
         return None
     adjs, noun, tail = m2.group(1).split(), m2.group(2), m2.group(3).strip()
@@ -145,6 +145,8 @@ def parse_target(phrase: str) -> dict | None:
         return None
     if noun.startswith("base"):
         t["kind"] = "base"
+    elif noun.startswith("upgrade"):
+        t["kind"] = "upgrade"
     elif "or base" in noun:
         t["kind"] = "unit_or_base"
     for a in adjs:
@@ -219,6 +221,9 @@ def compile_sentence(s: str) -> list | None:
             if "t" in eff and eff["t"].get("s") == "choose":
                 eff["t"]["opt"] = True
         return [eff]
+
+    if low == "a friendly unit captures an enemy non-leader unit in the same arena":
+        return wrap({"op": "capture"})
 
     m = re.match(r"^deal (\d+) damage to (.+)$", low)
     if m and parse_target(m.group(2)):
@@ -611,8 +616,28 @@ def compile_text(text: str, keywords: list) -> tuple[list, list, str]:
         if not line:
             continue
         low = line.lower()
+        constant = compile_continuous(line)
+        if constant is not None:
+            abilities.append(constant)
+            parsed += 1
+            continue
         # keyword lines are handled natively
         first = re.split(r"[\s\[\-]", low, maxsplit=1)[0]
+        bounty = re.fullmatch(r"bounty\s*-\s*(.+)", line, re.I)
+        if bounty:
+            effects, complete = compile_body(bounty.group(1))
+            if effects and complete:
+                abilities.append({"trigger": "bounty", "effects": [{"op": "choose_one", "optional": True,
+                    "options": [{"label": "Collect bounty", "effects": effects}]}], "text": line})
+                parsed += 1
+            else:
+                unparsed.append(line)
+            continue
+        if first in ("piloting", "support"):
+            # Listed keywords are not implementation. Keep unimplemented
+            # mechanics visible in coverage until their engine path exists.
+            unparsed.append(line)
+            continue
         if first in NATIVE_KEYWORDS and (len(line.split()) <= 3 or first in ("smuggle", "piloting", "bounty", "coordinate", "exploit")):
             if first in ("bounty", "coordinate"):
                 unparsed.append(line)  # their sub-abilities are not compiled yet
@@ -620,7 +645,15 @@ def compile_text(text: str, keywords: list) -> tuple[list, list, str]:
                 parsed += 1
             continue
         if low.startswith("attach to"):
-            parsed += 1
+            phrase = low.removeprefix("attach to ").rstrip(".")
+            target = parse_target(phrase)
+            if phrase == "a capital ship or transport unit":
+                target = {"s": "choose", "kind": "unit", "side": "any", "traits_any": ["capital ship", "transport"]}
+            if target:
+                abilities.append({"trigger": "attach_restriction", "target": target, "text": line})
+                parsed += 1
+            else:
+                unparsed.append(line)
             continue
         m = re.match(r"^action \[([^\]]*)\]:\s*(.+)$", line, re.I)
         if m:
@@ -631,7 +664,7 @@ def compile_text(text: str, keywords: list) -> tuple[list, list, str]:
                 eff = [] if inert(eff, ok) else eff
             (parsed := parsed + 1) if ok and eff else unparsed.append(line)
             continue
-        m = re.match(r"^attached unit gains:?\s*\"?(.+?)\"?$", line, re.I)
+        m = re.match(r"^attached (?:unit|base) gains:?\s*\"?(.+?)\"?$", line.rstrip("."), re.I)
         if m:
             inner = m.group(1).strip().strip('"')
             sub, _, sub_status = compile_text(inner, [])
@@ -691,14 +724,65 @@ def compile_text(text: str, keywords: list) -> tuple[list, list, str]:
     return abilities, unparsed, status
 
 
+def compile_continuous(line: str):
+    """Only exact recognized ongoing rules; never guess unknown text."""
+    text = line.lower().rstrip(".").strip()
+    if text == "while attacking, this unit deals combat damage before the defender":
+        return {"trigger": "constant", "flag": "first_strike", "text": line}
+    condition = {}
+    for pattern, value in [
+        (r"^while you have the initiative, (.+)$", {"initiative": True}),
+        (r"^while this unit is upgraded, (.+)$", {"upgraded": True}),
+        (r"^while this unit is damaged, (.+)$", {"damaged": True}),
+        (r"^coordinate\s*-\s*(.+)$", {"units_min": 3}),
+    ]:
+        match = re.fullmatch(pattern, text)
+        if match:
+            condition, text = value, match.group(1)
+            break
+    match = re.fullmatch(r"while you control (\d+) or more resources, (.+)", text)
+    if match:
+        condition, text = {"resources_min": int(match.group(1))}, match.group(2)
+    target, other, trait = "self", False, ""
+    match = re.fullmatch(r"each (other )?friendly (?:(\w+) )?unit (.+)", text)
+    if match:
+        target, other, trait, text = "friendly", bool(match.group(1)), match.group(2) or "", match.group(3)
+    else:
+        text = re.sub(r"^(this unit|he|she) ", "", text)
+    match = re.fullmatch(r"gets? ([+-]\d+)/([+-]\d+)", text)
+    result = {"trigger": "continuous", "target": target, "other": other, "trait": trait,
+              "condition": condition, "text": line}
+    if match:
+        result.update(p=int(match.group(1)), h=int(match.group(2)))
+        return result
+    match = re.fullmatch(r"gains? (sentinel|grit|saboteur|overwhelm|raid|restore)(?: (\d+))?", text)
+    if match:
+        result.update(kw=match.group(1), v=int(match.group(2) or 1))
+        return result
+    if not condition and target == "self" and text == "can't attack":
+        return {"trigger": "constant", "flag": "cannot_attack", "text": line}
+    if line.lower().rstrip(".") == "this unit enters play ready":
+        return {"trigger": "constant", "flag": "enters_ready", "text": line}
+    return None
+
+
 def parse_keywords(card: dict, text: str) -> list:
     out, seen = [], set()
     text = norm_text(text or "")
-    listed = [k.lower() for k in card.get("Keywords") or []]
+    # The source DB's Keywords index also lists keywords mentioned in conditional
+    # abilities and attached-unit text. It is a search index, not a list of
+    # unconditional abilities. Only standalone printed keyword lines grant one.
+    listed = []
+    for raw in text.split("\n"):
+        printed = strip_reminders(raw).strip().rstrip(".").lower()
+        for part in re.split(r",\s*|\s+and\s+", printed):
+            match = re.fullmatch(r"([a-z]+)(?:\s+\d+)?(?:\s*\[[^\]]+\])?", part.strip())
+            if match and match.group(1) in NATIVE_KEYWORDS and match.group(1) not in listed:
+                listed.append(match.group(1))
     # The DB sometimes omits keywords from its list; bare keyword lines in the text count too.
     for line in text.split("\n"):
         m = re.match(r"^\s*([A-Za-z]+)(?:\s+\d+)?\s*(?:\(|$|\[|-)", strip_reminders(line) + "\n" if False else line)
-        if m and m.group(1).lower() in NATIVE_KEYWORDS and m.group(1).lower() not in listed:
+        if m and m.group(1).lower() in ("bounty", "coordinate") and m.group(1).lower() not in listed:
             listed.append(m.group(1).lower())
     for kw in listed:
         k = kw.lower()

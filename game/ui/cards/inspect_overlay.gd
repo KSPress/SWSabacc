@@ -91,6 +91,7 @@ func _build(from_rect: Rect2) -> void:
 	close.custom_minimum_size.x = 160
 	close.pressed.connect(close_overlay)
 	_actions.add_child(close)
+	_add_live_actions()
 	_make_card()
 	_make_panels()
 	_layout()
@@ -102,6 +103,36 @@ func _build(from_rect: Rect2) -> void:
 func _set_blur(value: float) -> void:
 	if _blur:
 		_blur.set_shader_parameter("amount", value)
+
+
+func _add_live_actions() -> void:
+	if _inst == null or _inst.battle == null:
+		return
+	var match_state: Match = _inst.battle.get_ref()
+	var host := get_parent().get_parent()
+	if match_state == null or not host.has_method("_act") or _inst.controller != 0:
+		return
+	var ids: Array = [_inst.uid]
+	for upgrade in _inst.upgrades:
+		ids.append(upgrade.uid)
+	var available: Array = []
+	for action in match_state.legal_actions(0):
+		if action["a"] == "ability" and action["uid"] in ids:
+			available.append(action)
+	if available.is_empty():
+		return
+	var options := OptionButton.new()
+	options.add_item("Card actions…")
+	options.custom_minimum_size = Vector2(190, 56)
+	for action in available:
+		var source := match_state.card(action["uid"])
+		options.add_item(source.name() + " · Action %d" % (int(action["idx"]) + 1))
+	options.item_selected.connect(func(i):
+		if i > 0:
+			await close_overlay()
+			if is_instance_valid(host):
+				host._act(available[i - 1]))
+	_actions.add_child(options)
 
 
 func _make_card() -> void:
@@ -185,6 +216,9 @@ func _make_panels() -> void:
 		if _inst.in_play():
 			_text(status, "Power %d · HP %d / %d · Damage %d" % [_inst.power(), _inst.remaining_hp(), _inst.max_hp(), _inst.damage])
 			_text(status, "Attached upgrades / tokens: %d" % _inst.upgrades.size())
+			var held: Array = _inst.flags.get("captives", [])
+			if not held.is_empty():
+				_text(status, "Guarding %d captured unit(s). They return exhausted when this guard leaves play." % held.size())
 	else:
 		_text(status, "Collection preview. Live match modifiers appear here during a battle.", Sabacc.C_DIM)
 	var support: String = d.get("implemented", "manual")

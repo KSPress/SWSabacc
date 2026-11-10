@@ -21,6 +21,7 @@ Art="*res://autoload/art.gd"
 Save="*res://autoload/save.gd"
 Router="*res://autoload/router.gd"
 Sfx="*res://autoload/sfx.gd"
+Cosmetics="*res://autoload/cosmetics.gd"
 Appearance="*res://autoload/appearance.gd"
 Updater="*res://autoload/updater.gd"
 

@@ -15,6 +15,8 @@ var leader_view: LeaderView
 var res_view: ResourceView
 var info: Label
 var _ps: PlayerState
+var deck_back: TextureRect
+var profile_badge: ProfileBadge
 
 
 func _init(idx: int, p_friendly: bool) -> void:
@@ -39,6 +41,15 @@ func _ready() -> void:
 	add_child(res_view)
 	info = UIKit.fit_label(UIKit.label("", 16, Sabacc.C_DIM))
 	add_child(info)
+	deck_back = TextureRect.new()
+	deck_back.texture = Cosmetics.texture("cardback") if friendly else Art.card_back
+	deck_back.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	deck_back.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	deck_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(deck_back)
+	if friendly:
+		profile_badge = ProfileBadge.new()
+		add_child(profile_badge)
 
 
 func bind(ps: PlayerState) -> void:
@@ -62,6 +73,11 @@ func refresh() -> void:
 func arrange(r: Rect2, horizontal: bool) -> void:
 	position = r.position
 	size = r.size
+	deck_back.size = Vector2(32, 45)
+	deck_back.position = Vector2(r.size.x - 38, r.size.y - 47)
+	if profile_badge:
+		profile_badge.size = Vector2(40, 40)
+		profile_badge.position = Vector2(r.size.x - 84, r.size.y - 44)
 	if horizontal:
 		var h := r.size.y
 		var lw := minf(h * 1.4, r.size.x * 0.24)
@@ -74,6 +90,7 @@ func arrange(r: Rect2, horizontal: bool) -> void:
 		res_view.size = Vector2(r.size.x - lw - bw - 24, h * 0.5)
 		info.position = Vector2(lw + bw + 20, h * 0.55)
 		info.size = Vector2(r.size.x - lw - bw - 24, 24)
+		info.size.x = maxf(20, info.size.x - 82)
 	else:
 		var w := r.size.x
 		leader_view.position = Vector2(0, 0)
@@ -84,6 +101,7 @@ func arrange(r: Rect2, horizontal: bool) -> void:
 		res_view.size = Vector2(w, r.size.y * 0.16)
 		info.position = Vector2(0, r.size.y * 0.9)
 		info.size = Vector2(w, 24)
+		info.size.x = maxf(20, w - 82)
 	leader_view.queue_redraw()
 	base_view.queue_redraw()
 

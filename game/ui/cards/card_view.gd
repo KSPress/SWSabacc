@@ -130,7 +130,7 @@ func _draw() -> void:
 			draw_rect(r.grow(g), Color(gc, 0.16 - i * 0.03), false, 3.0)
 		draw_rect(r.grow(2), Color(gc, 0.9), false, 2.5)
 	if face_down:
-		var back: Texture2D = Art.card_back
+		var back: Texture2D = Cosmetics.texture("cardback")
 		draw_texture_rect(back, r, false)
 		return
 	if _tex and _tex != Art.placeholder:

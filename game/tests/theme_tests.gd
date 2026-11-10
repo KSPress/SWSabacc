@@ -27,24 +27,22 @@ func _run() -> void:
 	check(Appearance.deck_aspects == ["aggression", "vigilance", "villainy"], "match palette comes from selected leader and base")
 	check(primary_button.get_theme_stylebox("normal").border_color != before, "existing button retints on deck change")
 	Appearance.set_deck("SOR_017", "HMW_019")
-	for id in Appearance.PRESETS:
-		Sabacc.set_setting("theme", id)
+	Cosmetics.set_gm(true)
+	for id in ["datapad", "emblem", "tatooine", "dathomir", "coruscant", "deathstar"]:
+		Cosmetics.equip("background", id)
 		await _size(1280, 720)
 		await _go("menu")
 		var menu := get_tree().current_scene
 		check(menu._buttons.position.y >= menu._title_box.position.y + menu._title_box.get_combined_minimum_size().y, "menu title avoids buttons " + id)
 		await _shot("theme_" + id)
-		check(Appearance.preset()["name"] == Appearance.PRESETS[id]["name"], "selected preset " + id)
-	Sabacc.set_setting("theme", "datapad_imperial")
+		check(Cosmetics.equipped("background") == id, "selected background " + id)
 	Save.load_save()
-	check(Save.data["settings"]["theme"] == "datapad_imperial", "theme persists to save")
+	check(Cosmetics.equipped("background") == "deathstar", "background persists to save")
 	await _size(540, 960)
 	await _go("settings")
 	await _shot("theme_settings_portrait")
-	var picker := get_tree().current_scene.find_child("ThemeSelector", true, false) as OptionButton
-	check(picker != null and picker.item_count == 10, "all themes exposed in Options")
-	picker.item_selected.emit(Appearance.PRESETS.keys().find("planet_tatooine"))
-	check(Sabacc.settings["theme"] == "planet_tatooine", "selector changes the actual setting")
+	check(get_tree().current_scene.find_child("GMButton", true, false) != null, "GM access exposed in Options")
+	Cosmetics.equip("background", "datapad")
 	# A complete legacy save should migrate, including decks and settings.
 	var original := Save.data.duplicate(true)
 	var legacy := Save.default_data()

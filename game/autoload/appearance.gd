@@ -18,29 +18,77 @@ const PRESETS := {
 }
 
 var deck_aspects: Array[String] = []
+var _friendly: Array[String] = []
+var _enemy: Array[String] = []
+var _enemy_mix := 0.0
+var _fade: Tween
 
 
 func preset() -> Dictionary:
-	return PRESETS.get(Sabacc.settings.get("theme", "space_deep"), PRESETS["space_deep"])
+	var background := Cosmetics.background()
+	if background in ["datapad", "emblem"]:
+		return {"name": "Emblem hologram" if background == "emblem" else "Datapad", "kind": "datapad", "accent": Color("9fdcff"), "base": Color("06101b"), "emblem": background == "emblem"}
+	return PRESETS.get("planet_" + background, PRESETS["datapad_republic"])
 
 
 func _ready() -> void:
 	Sabacc.settings_changed.connect(func(): changed.emit())
+	Cosmetics.changed.connect(func(): changed.emit())
 
 
 func color_at(index: int = 0) -> Color:
 	if deck_aspects.is_empty():
 		return preset()["accent"]
-	var aspect := deck_aspects[posmod(index, deck_aspects.size())]
+	return _aspect_color(deck_aspects[posmod(index, deck_aspects.size())])
+
+
+func _aspect_color(aspect: String) -> Color:
 	# Black-on-black outlines vanish. Lift only the decorative Villainy tint;
 	# the printed black aspect icon remains untouched.
 	return Color("9ca4b6") if aspect == "villainy" else Sabacc.aspect_color(aspect).lightened(0.12)
 
 
+func line_color(index: int = 0) -> Color:
+	var friendly := color_at(index)
+	if _enemy.is_empty():
+		return friendly
+	return friendly.lerp(_aspect_color(_enemy[posmod(index, _enemy.size())]), _enemy_mix)
+
+
+func begin_match(players: Array) -> void:
+	_friendly = aspects_for([CardDB.card(players[0].get("leader", "")), CardDB.card(players[0].get("base", ""))])
+	_enemy = aspects_for([CardDB.card(players[1].get("leader", "")), CardDB.card(players[1].get("base", ""))])
+	deck_aspects = _friendly.duplicate()
+	_enemy_mix = 0.0
+	changed.emit()
+
+
+func set_acting_player(player: int) -> void:
+	var target := 1.0 if player == 1 else 0.0
+	if _fade and _fade.is_valid() and _fade.get_meta("side", -1) == player:
+		return
+	if Sabacc.perf():
+		_enemy_mix = target
+		changed.emit()
+		return
+	if _fade and _fade.is_valid():
+		_fade.kill()
+	_fade = create_tween()
+	_fade.set_meta("side", player)
+	_fade.tween_property(self, "_enemy_mix", target, 1.2)
+
+
+func end_match() -> void:
+	if _fade and _fade.is_valid():
+		_fade.kill()
+	_enemy.clear()
+	_enemy_mix = 0.0
+
+
 func set_deck(leader: String, base: String, cards: Array = []) -> void:
 	var definitions: Array = [CardDB.card(leader), CardDB.card(base)]
-	for id in cards:
-		definitions.append(CardDB.card(str(id)))
+	# Match and datapad identity is defined by the leader and base, never by
+	# an off-aspect card that happens to be in the deck.
 	var next := aspects_for(definitions)
 	if next != deck_aspects:
 		deck_aspects = next

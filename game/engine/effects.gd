@@ -26,6 +26,8 @@ static func exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		return _choose_one(m, e, ctx)
 	if op == "play_from_hand":
 		return _play_from_hand(m, e, ctx)
+	if op == "capture":
+		return _capture(m, e, ctx)
 	if op == "use_force" and not m.players[ctx.get("ctl", 0)].force_token:
 		ctx["did"] = false
 		return DONE
@@ -193,6 +195,47 @@ static func _targets(m: Match, e: Dictionary, ctx: Dictionary):
 	return null
 
 
+static func _capture(m: Match, e: Dictionary, ctx: Dictionary) -> int:
+	var controller: int = ctx.get("ctl", 0)
+	if not ctx.has("_captor"):
+		if ctx.has("_choice"):
+			var selection: Array = ctx["_choice"]
+			ctx.erase("_choice")
+			if selection.is_empty():
+				ctx["did"] = false
+				return DONE
+			ctx["_captor"] = selection[0]
+		else:
+			var hosts: Array = []
+			for unit in m.players[controller].units:
+				for enemy in m.players[m.opp(controller)].units:
+					if not enemy.is_leader() and enemy.zone == unit.zone:
+						hosts.append(unit.uid)
+						break
+			if hosts.is_empty():
+				ctx["did"] = false
+				return DONE
+			_ask(m, ctx, "target", "Choose the friendly guarding unit", hosts, 0 if e.get("optional", false) else 1, 1, e)
+			return SUSPEND
+	var host := m.card(ctx["_captor"])
+	if ctx.has("_choice"):
+		var enemy := m.card(ctx["_choice"][0])
+		ctx.erase("_choice")
+		ctx.erase("_captor")
+		ctx["did"] = m.capture(host, enemy)
+		return DONE
+	var targets: Array = []
+	for enemy in m.players[m.opp(controller)].units:
+		if not enemy.is_leader() and enemy.zone == host.zone:
+			targets.append(enemy.uid)
+	if targets.is_empty():
+		ctx.erase("_captor")
+		ctx["did"] = false
+		return DONE
+	_ask(m, ctx, "target", "Choose the enemy unit to capture", targets, 1, 1, {"op": "defeat"})
+	return SUSPEND
+
+
 static func candidates(m: Match, t: Dictionary, ctx: Dictionary) -> Array:
 	var out: Array = []
 	var pool: Array = []
@@ -202,6 +245,10 @@ static func candidates(m: Match, t: Dictionary, ctx: Dictionary) -> Array:
 	if kind == "base" or kind == "unit_or_base":
 		pool.append(m.players[0].base)
 		pool.append(m.players[1].base)
+	if kind == "upgrade":
+		for instance in m.by_uid.values():
+			if instance.zone == "upgrade":
+				pool.append(instance)
 	for c in pool:
 		if matches(m, c, t, ctx):
 			out.append(c)
@@ -309,8 +356,16 @@ static func condition(m: Match, cond: Dictionary, ctx: Dictionary) -> bool:
 
 static func upgrade_targets(m: Match, p: int, up: CardInst) -> Array:
 	var out: Array = []
+	if up.has_kw("fortify"):
+		return [m.players[p].base]
 	var txt: String = up.data.get("text", "").to_lower()
 	for u in m.all_units():
+		var eligible := true
+		for restriction in up.data.get("abilities", []):
+			if restriction.get("trigger") == "attach_restriction" and not matches(m, u, restriction["target"], {"ctl": p, "src": up.uid}):
+				eligible = false
+		if not eligible:
+			continue
 		if txt.find("attach to a non-vehicle unit") >= 0 and u.has_trait("vehicle"):
 			continue
 		if txt.find("attach to a vehicle unit") >= 0 and not u.has_trait("vehicle"):
@@ -465,6 +520,33 @@ static func _attack_with(m: Match, e: Dictionary, ctx: Dictionary, attackers: Ar
 static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 	var op: String = e["op"]
 	match op:
+		"_plot":
+			var controller: int = ctx["ctl"]
+			if ctx.has("_choice"):
+				var choice: Array = ctx["_choice"]
+				ctx.erase("_choice")
+				if not choice.is_empty():
+					var plotted := m.card(choice[0])
+					m._play_card(controller, plotted, false, {"from_resource": true})
+					var left: Array = e["ids"].duplicate()
+					left.erase(plotted.uid)
+					m.push_frame([{"op": "_plot", "ids": left}], {"ctl": controller})
+				return DONE
+			var options: Array = []
+			for uid in e["ids"]:
+				var candidate := m.card(uid)
+				if candidate == null or candidate.zone != "resource":
+					continue
+				if candidate.card_type() == "upgrade" and upgrade_targets(m, controller, candidate).is_empty():
+					continue
+				if candidate.card_type() == "unit" and not m.arena_for(candidate) in m.rules.arenas:
+					continue
+				if m.play_cost(controller, candidate) <= m.players[controller].available():
+					options.append(uid)
+			if options.is_empty():
+				return DONE
+			_ask(m, ctx, "hand", "Plot: play a card from resources after deploying your leader, or skip", options, 0, 1)
+			return SUSPEND
 		"_draw":
 			m.draw(int(e["p"]), int(e["n"]))
 		"_mulligan":
@@ -580,7 +662,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			m.phase = "action"
 			m.start_action_phase()
 		"_regroup_triggers":
-			for u in m.all_units():
+			for u in m.trigger_sources():
 				for ab in u.abilities_with("regroup_start"):
 					m.push_ability(u, ab)
 		"_ready_all":
@@ -613,7 +695,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 				up.zone = "discard"
 				m.players[up.owner].discard.append(up)
 				return DONE
-			_ask(m, {"ctl": p, "src": up.uid}, "target", "Attach %s to a unit" % up.name(), opts, 1, 1, {"op": "attach"})
+			_ask(m, {"ctl": p, "src": up.uid}, "target", "Attach %s" % up.name(), opts, 1, 1, {"op": "attach"})
 			m.pending["hostile"] = int(up.data.get("power", 0)) < 0
 			return SUSPEND
 		"_ambush":

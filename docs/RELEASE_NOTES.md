@@ -1,16 +1,34 @@
-SWU Sabacc 0.2.0 — themes, deck identity and radial card inspection.
+SWU Sabacc 0.3.0 — earned cosmetics and additional rules support.
 
-- Renamed the game to **SWU Sabacc** and the GitHub repository to **KSPress/SWSabacc**.
-- Added Settings → Appearance with ten offline backgrounds: Deep Orbit, Violet Nebula, Hyperspace, Tatooine, Dathomir, Coruscant, Death Star, and Imperial, Republic and Outer Rim datapads.
-- Deck selection now tints controls and friendly outlines using up to three unique aspects. Datapad orbital lines, scan beam and targeting rings share those deck colors. Villainy outlines are lifted to a readable graphite; printed aspect icons, damage colors and enemy warnings retain their meanings.
-- Card inspection now flies the card to the screen centre, blurs the game behind it and opens four connected dossiers with profile, printed text, keyword/timing explanations and live state/support. Layout adapts to portrait, landscape and tall phones. Leader flipping and return animation are included. Performance mode uses a dim backdrop and still schematics.
-- Migrates legacy save files and retains the Android package ID and signing key. Do not uninstall before upgrading. A legacy updater manifest/APK alias lets v0.1.1 clients discover this release through GitHub's repository redirect.
-- Fixed landscape main-menu title/button overlap.
+- Added an offline cosmetic collection: 25 profile emblems, 37 cropped card backs,
+  and four static scene backgrounds. Each normal-account win awards one random
+  unowned item. Emblems include their matching holographic background.
+- Added animated datapad profile frames and faded, flickering emblem backdrops.
+  Board traces use leader/base aspects and fade to enemy colors on enemy turns.
+  Performance mode freezes motion. Play mats remain a future option.
+- Added a red GM toggle in Settings with a separate all-access equipment loadout.
+  Returning to account mode restores earned equipment and collection.
+- Added selected conditional auras/keywords, upgrade targeting, capture/rescue,
+  bounty choices, Fortify attachments, Plot and combat damage before defenders.
+  Fixed keyword extraction incorrectly granting conditionally mentioned keywords.
+- Kept the Android package/signing key, save migration and legacy updater bridge.
+  Install over the existing app to retain progress.
 
-Validation: 58 visual/behavioral checks; 569 rules/campaign checks; 24 release-manifest checks; 9 updater-flow checks; zero broken GDScripts; 500 bot games without stalls; real mouse drag-to-play and drag-to-attack. Native packages bundle the existing 2,588-card database and 2,760 art files.
+Validation: 90 cosmetic checks, 49 theme/inspection checks, 38 added rules checks,
+24 manifest checks, zero broken scripts and a staged audit of 2,558 non-token
+cards. See docs/CUSTOMIZATION_QA.md for evidence and limitations.
 
-Download **swu_sabacc.apk** on Android. For Windows, extract **SWSabacc-windows.zip** and keep SWU_Sabacc.exe and SWU_Sabacc.pck together. The duplicate legacy-named APK and update.json are compatibility assets; new installs use sabacc-update.json.
+**Complete card automation remains unfinished:** of 2,588 cards, 1,033 have complete
+compiler text coverage, 542 are partial and 1,013 remain manual. Compiler coverage
+does not certify correct behavior. This release does not fulfill the every-card
+automation requirement. Piloting, Support and many interactions need more work.
 
-This remains a foundation build: complete SWU card-ability/rules coverage is unfinished. No Android device was connected; installation, on-device rendering/touch performance and a real installed-app upgrade remain unverified. Browser card art is fetched separately and needs prior caching for offline access; native builds bundle it.
+Android: install **swu_sabacc.apk**. Windows: extract **SWSabacc-windows.zip** and
+keep SWU_Sabacc.exe with SWU_Sabacc.pck. Native builds bundle offline assets.
+Legacy APK/update.json assets support older installed clients. No Android device
+was attached; installation and real device upgrades remain unverified. Android
+requires user confirmation to install downloaded updates.
 
-Unofficial, non-commercial fan project. Star Wars and Star Wars: Unlimited characters, card text and artwork belong to Lucasfilm Ltd. and Fantasy Flight Games. No affiliation or endorsement.
+Unofficial, non-commercial fan project. Star Wars and Star Wars: Unlimited
+characters, card text and artwork belong to Lucasfilm Ltd. and Fantasy Flight
+Games. No affiliation or endorsement.

@@ -3,6 +3,11 @@ extends ScreenBase
 ## decorative Aurebesh, save reset.
 
 var _box: VBoxContainer
+var _gm: SabaccButton
+
+
+func _refresh_gm() -> void:
+	_gm.text = "GM: EVERYTHING UNLOCKED" if Cosmetics.state()["gm"] else "GM: ACCOUNT PROGRESSION"
 
 
 func build() -> void:
@@ -16,17 +21,18 @@ func build() -> void:
 	_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_box)
 	_box.add_child(UIKit.label("Appearance", 24, Appearance.color_at()))
-	var theme_picker := OptionButton.new()
-	theme_picker.name = "ThemeSelector"
-	theme_picker.custom_minimum_size.y = 56
-	theme_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var theme_ids := Appearance.PRESETS.keys()
-	for id in theme_ids:
-		theme_picker.add_item(Appearance.PRESETS[id]["name"])
-	theme_picker.selected = maxi(0, theme_ids.find(Sabacc.settings.get("theme", "datapad_republic")))
-	theme_picker.item_selected.connect(func(i): Sabacc.set_setting("theme", theme_ids[i]))
-	_box.add_child(theme_picker)
-	var theme_help := UIKit.label("Your deck's aspects colour buttons, outlines and datapad orbital lines. Themes are saved and work offline.", 17, Sabacc.C_DIM)
+	var profile := SabaccButton.make("Profile, card backs & backgrounds", SabaccButton.Style.PRIMARY)
+	profile.pressed.connect(func(): Router.go("customization"))
+	_box.add_child(profile)
+	var gm := SabaccButton.make("", SabaccButton.Style.EMPIRE)
+	gm.name = "GMButton"
+	gm.custom_minimum_size.y = 64
+	_gm = gm
+	Cosmetics.changed.connect(_refresh_gm)
+	gm.pressed.connect(func(): Cosmetics.set_gm(not Cosmetics.state()["gm"]))
+	_box.add_child(gm)
+	_refresh_gm()
+	var theme_help := UIKit.label("Win games to earn emblems, card backs and scene backgrounds. GM grants access to everything while preserving your earned collection.", 17, Sabacc.C_DIM)
 	theme_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(theme_help)
 	_toggle("Performance mode (static backgrounds, fewer particles)", "perf_mode")

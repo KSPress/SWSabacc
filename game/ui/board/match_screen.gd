@@ -44,6 +44,7 @@ var _selected: UnitToken
 var _arrow: Fx.TargetArrow
 var _target_sel: Array = []
 var _choice_open := false
+var _result_recorded := false
 
 
 func _ready() -> void:
@@ -54,6 +55,7 @@ func _ready() -> void:
 		params["mode"] = "quick"
 	var player: Dictionary = cfg.get("players", [{}])[0]
 	Appearance.set_deck(player.get("leader", ""), player.get("base", ""), player.get("deck", []))
+	Appearance.begin_match(cfg["players"])
 	theme = UIKit.build_theme()
 	Appearance.changed.connect(func(): theme = UIKit.build_theme())
 	m = Match.new()
@@ -351,6 +353,7 @@ func _step() -> void:
 	while true:
 		await _drain()
 		_sync()
+		Appearance.set_acting_player(int(m.pending.get("player", m.active)))
 		if m.is_over():
 			busy = false
 			_game_over()
@@ -1212,7 +1215,11 @@ func _open_menu() -> void:
 
 
 func _game_over() -> void:
+	if _result_recorded:
+		return
+	_result_recorded = true
 	var won := m.winner == HUMAN
+	var cosmetic_reward := Cosmetics.record_match(won, "%d_%d" % [Time.get_unix_time_from_system(), get_instance_id()])
 	for c in get_tree().root.find_children("*", "", true, false):
 		if c is ChoicePanel or c is InspectOverlay:
 			c.get_parent().queue_free()
@@ -1245,10 +1252,11 @@ func _game_over() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 16)
 	v.add_child(row)
-	Save.data["stats"]["matches"] += 1
-	if won:
-		Save.data["stats"]["wins"] += 1
-	Save.write()
+	if not cosmetic_reward.is_empty():
+		var reward := UIKit.label("Cosmetic unlocked: " + cosmetic_reward["name"], 25, Appearance.color_at(1), HORIZONTAL_ALIGNMENT_CENTER)
+		reward.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(reward)
+		v.move_child(reward, row.get_index())
 	if params.get("mode", "quick") == "spotlight":
 		var sres := SpotlightFlow.on_match_end(params, m)
 		var scont := SabaccButton.make("Continue", SabaccButton.Style.PRIMARY, "play", true)

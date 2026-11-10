@@ -6,9 +6,18 @@ var _buttons: GridContainer
 var _floaters: Array = []
 var _foot: Label
 var _t := 0.0
+var _profile_button: SabaccButton
+var _profile_badge: ProfileBadge
 
 
 func build() -> void:
+	_profile_button = SabaccButton.make("Profile", SabaccButton.Style.GHOST)
+	_profile_button.custom_minimum_size = Vector2(150, 54)
+	_profile_button.pressed.connect(func(): Router.go("customization"))
+	body.add_child(_profile_button)
+	_profile_badge = ProfileBadge.new()
+	_profile_badge.size = Vector2(76, 76)
+	body.add_child(_profile_badge)
 	bg.backdrop = Art.ui_texture("swu_background")
 	bg.backdrop_alpha = 0.45
 	_title_box = VBoxContainer.new()
@@ -53,6 +62,9 @@ func build() -> void:
 	_foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(_foot)
 	_spawn_floaters()
+	# The full-width title container covers this corner in landscape layouts.
+	# Keep the profile navigation above it so real pointer input reaches it.
+	body.move_child(_profile_button, -1)
 
 
 func _spawn_floaters() -> void:
@@ -99,6 +111,8 @@ func _process(dt: float) -> void:
 
 
 func relayout(p: bool, r: Rect2) -> void:
+	_profile_button.position = Vector2(r.size.x - 150, 0)
+	_profile_badge.position = Vector2(4, 0)
 	_buttons.columns = 1 if p else 2
 	_title_box.get_node("Logo").custom_minimum_size.y = 150 if p else 72
 	_title_box.get_node("Title").add_theme_font_size_override("font_size", 48 if p else 38)

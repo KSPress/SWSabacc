@@ -128,10 +128,10 @@ const KEYWORD_HELP := {
 	"exploit": "May defeat friendly units to reduce cost (not yet automated).",
 	"coordinate": "Bonus while you control 3+ units (shown, not yet automated).",
 	"piloting": "May be played as a pilot upgrade on a Vehicle (not yet automated).",
-	"bounty": "Reward when this unit is defeated or captured (not yet automated).",
+	"bounty": "This unit's opponent may collect its printed reward when it is defeated or captured. Check the automation dossier for unsupported reward text.",
 	"support": "When played, may attack with another unit (not yet automated).",
-	"plot": "May be deployed from resources with your leader (not yet automated).",
-	"fortify": "Attaches to your base (not yet automated).",
+	"plot": "When you deploy your leader, you may pay this card's cost to play it from resources. Replace it with the top card of your deck as a resource.",
+	"fortify": "This upgrade attaches to your own base instead of a unit.",
 }
 
 

@@ -130,6 +130,7 @@ func _new_inst(cid: String, owner_idx: int) -> CardInst:
 	if data.is_empty():
 		data = {"id": cid, "name": cid, "type": "unit", "power": 1, "hp": 1, "cost": 1, "text": "MISSING CARD DATA", "implemented": "manual"}
 	var c := CardInst.new(_next_uid, cid, data, owner_idx)
+	c.battle = weakref(self)
 	_next_uid += 1
 	by_uid[c.uid] = c
 	return c
@@ -155,6 +156,18 @@ func card(uid: int) -> CardInst:
 
 func all_units() -> Array:
 	return players[0].units + players[1].units
+
+
+func trigger_sources() -> Array:
+	var result := all_units()
+	for player in players:
+		result.append(player.base)
+		if player.leader and not player.leader.deployed:
+			result.append(player.leader)
+	for instance in by_uid.values():
+		if instance.zone == "upgrade":
+			result.append(instance)
+	return result
 
 
 func is_over() -> bool:
@@ -207,6 +220,9 @@ func attack_targets(u: CardInst) -> Array:
 	var out: Array = []
 	if not u.in_play() or u.exhausted or u.flags.get("cannot_attack", false):
 		return out
+	for ability in u.abilities_with("constant"):
+		if ability.get("flag") == "cannot_attack":
+			return out
 	var p := u.controller
 	var enemies: Array = players[opp(p)].units_in(u.zone)
 	var sab := u.has_kw("saboteur")
@@ -250,7 +266,7 @@ func legal_actions(p: int) -> Array:
 		if play_cost(p, c) - exploit_discount(p, c) <= res:
 			out.append({"a": "play", "uid": c.uid})
 	for r in ps.resources:
-		if r.has_kw("smuggle") and play_cost(p, r, true) <= res - (0 if r.exhausted else 1):
+		if r.has_kw("smuggle") and play_cost(p, r, true) <= res:
 			if r.card_type() == "upgrade" and not _has_upgrade_target(p, r):
 				continue
 			out.append({"a": "smuggle", "uid": r.uid})
@@ -261,6 +277,13 @@ func legal_actions(p: int) -> Array:
 		for i in acts.size():
 			if _can_pay_action(p, u, acts[i]):
 				out.append({"a": "ability", "uid": u.uid, "idx": i})
+	for source in trigger_sources():
+		if source.controller != p or source.zone not in ["base", "upgrade"]:
+			continue
+		var actions: Array = source.abilities_with("action")
+		for i in actions.size():
+			if _can_pay_action(p, source, actions[i]):
+				out.append({"a": "ability", "uid": source.uid, "idx": i})
 	if ps.leader and not ps.leader.deployed:
 		var acts := ps.leader.abilities_with("action")
 		for i in acts.size():
@@ -465,7 +488,7 @@ func start_action_phase() -> void:
 	events.append({"t": "phase", "phase": "action", "round": round_num})
 	_log("— Round %d: action phase —" % round_num)
 	objective.on_action_start(self)
-	for u in all_units():
+	for u in trigger_sources():
 		for ab in u.abilities_with("action_start"):
 			push_ability(u, ab)
 	events.append({"t": "turn", "p": active})
@@ -612,11 +635,15 @@ func _put_in_play(u: CardInst, arena: String, exhausted := true) -> void:
 func _play_card(p: int, c: CardInst, smuggle: bool, opts := {}) -> void:
 	var cost := play_cost(p, c, smuggle, opts)
 	played_this_phase[p].append(c)
-	if smuggle:
-		c.exhausted = true  # can't pay with itself
-	pay(p, cost)
+	var from_resource: bool = smuggle or opts.get("from_resource", false)
+	# A ready resource being played may pay for itself before leaving the zone.
+	if from_resource and not c.exhausted and cost > 0:
+		c.exhausted = true
+		pay(p, cost - 1)
+	else:
+		pay(p, cost)
 	var ps: PlayerState = players[p]
-	if smuggle:
+	if from_resource:
 		ps.resources.erase(c)
 		if not ps.deck.is_empty():
 			move_to_resources(p, ps.deck.pop_front(), true)
@@ -657,6 +684,9 @@ func _enforce_unique(p: int, c: CardInst) -> void:
 
 
 func _on_unit_enters(u: CardInst, trigger: String) -> void:
+	for ability in u.abilities_with("constant"):
+		if ability.get("flag") == "enters_ready":
+			u.exhausted = false
 	if u.has_kw("shielded"):
 		attach_token(u, "shield")
 	var ps: PlayerState = players[u.controller]
@@ -752,8 +782,24 @@ func heal(target: CardInst, n: int) -> int:
 
 
 func defeat(u: CardInst) -> void:
+	if u.zone == "upgrade":
+		var host := u.attached_to
+		if host:
+			host.upgrades.erase(u)
+			events.append({"t": "buff", "uid": host.uid})
+		u.attached_to = null
+		u.zone = "removed" if u.is_token else "discard"
+		if u.is_token:
+			by_uid.erase(u.uid)
+		else:
+			players[u.owner].discard.append(u)
+		for ability in u.abilities_with("when_defeated"):
+			push_ability(u, ability)
+		return
 	if not u.in_play():
 		return
+	var bounties := u.abilities_with("bounty")
+	_rescue_captives(u)
 	var p := u.controller
 	var ps: PlayerState = players[p]
 	ps.units.erase(u)
@@ -786,12 +832,15 @@ func defeat(u: CardInst) -> void:
 		objective.on_protected_lost(self, u)
 	for ab in abil:
 		push_ability(u, ab, {"lki_arena": u.arena()})
+	for bounty in bounties:
+		push_ability(u, bounty, {"ctl": opp(p)})
 
 
 func return_to_hand(u: CardInst) -> void:
 	if u.is_leader() or u.is_token:
 		defeat(u)
 		return
+	_rescue_captives(u)
 	var ps: PlayerState = players[u.controller]
 	ps.units.erase(u)
 	for up in u.upgrades:
@@ -808,6 +857,55 @@ func return_to_hand(u: CardInst) -> void:
 	u.controller = u.owner
 	players[u.owner].hand.append(u)
 	events.append({"t": "bounce", "uid": u.uid})
+
+
+func capture(guard: CardInst, captive: CardInst) -> bool:
+	if not guard or not captive or not guard.in_play() or not captive.in_play() or captive.is_leader() or guard.controller == captive.controller or guard.zone != captive.zone:
+		return false
+	var controller := captive.controller
+	var bounties := captive.abilities_with("bounty")
+	_rescue_captives(captive)
+	_remove_from_zones(captive)
+	for upgrade in captive.upgrades:
+		upgrade.attached_to = null
+		upgrade.zone = "removed" if upgrade.is_token else "discard"
+		if upgrade.is_token:
+			by_uid.erase(upgrade.uid)
+		else:
+			players[upgrade.owner].discard.append(upgrade)
+	captive.upgrades.clear()
+	captive.mods.clear()
+	captive.damage = 0
+	if captive.is_token:
+		captive.zone = "removed"
+		by_uid.erase(captive.uid)
+		events.append({"t": "bounce", "uid": captive.uid})
+		for bounty in bounties:
+			push_ability(captive, bounty, {"ctl": opp(controller)})
+		return true
+	captive.zone = "captured"
+	captive.flags["guard"] = guard.uid
+	var held: Array = guard.flags.get("captives", [])
+	held.append(captive.uid)
+	guard.flags["captives"] = held
+	events.append({"t": "bounce", "uid": captive.uid})
+	_log("%s captures %s." % [guard.name(), captive.name()])
+	for bounty in bounties:
+		push_ability(captive, bounty, {"ctl": opp(controller)})
+	return true
+
+
+func _rescue_captives(guard: CardInst) -> void:
+	var held: Array = guard.flags.get("captives", []).duplicate()
+	guard.flags.erase("captives")
+	for uid in held:
+		var captive := card(uid)
+		if not captive or captive.zone != "captured":
+			continue
+		captive.flags.erase("guard")
+		captive.controller = captive.owner
+		_put_in_play(captive, captive.arena(), true)
+		_log("%s is rescued." % captive.name())
 
 
 func exhaust(u: CardInst, v := true) -> void:
@@ -867,7 +965,14 @@ func resolve_combat() -> void:
 	var t_rem := t.remaining_hp()
 	var t_shielded := t.shield_count() > 0
 	deal_damage(t, ap, a)
-	deal_damage(a, dp, t)
+	var early_damage := false
+	for ability in a.abilities_with("constant"):
+		if ability.get("flag") == "first_strike":
+			early_damage = true
+	if early_damage and t.damage >= t.max_hp():
+		defeat(t)
+	else:
+		deal_damage(a, dp, t)
 	if a.has_kw("overwhelm") and not t_shielded and ap > t_rem:
 		deal_damage(players[opp(a.controller)].base, ap - t_rem, a)
 
@@ -917,6 +1022,12 @@ func _deploy_leader(p: int) -> void:
 	events.append({"t": "deploy", "uid": l.uid, "p": p})
 	_log("%s deploys %s!" % [players[p].display_name, l.title()])
 	_on_unit_enters(l, "when_deployed")
+	var plots: Array = []
+	for resource in players[p].resources:
+		if resource.has_kw("plot"):
+			plots.append(resource.uid)
+	if not plots.is_empty():
+		push_frame([{"op": "_plot", "ids": plots}], {"ctl": p})
 
 
 func _claim_token(p: int, token_id: String) -> void:
@@ -937,3 +1048,58 @@ func _claim_token(p: int, token_id: String) -> void:
 func _log(s: String) -> void:
 	log_lines.append(s)
 	events.append({"t": "log", "text": s})
+
+
+func continuous_bonus(target: CardInst, field: String, keyword: String) -> int:
+	var total := 0
+	var sources := all_units()
+	for player in players:
+		if player.leader and not player.leader.deployed:
+			sources.append(player.leader)
+		sources.append(player.base)
+	for source in sources:
+		for ability in source.abilities_with("continuous"):
+			if ability.get("target", "self") == "self":
+				if source != target:
+					continue
+			elif source.controller != target.controller:
+				continue
+			if ability.get("other", false) and source == target:
+				continue
+			var filter_trait: String = ability.get("trait", "")
+			match filter_trait:
+				"damaged":
+					if target.damage <= 0:
+						continue
+				"unique":
+					if not target.unique():
+						continue
+				"token":
+					if not target.is_token:
+						continue
+				"upgraded":
+					if target.upgrades.is_empty():
+						continue
+				"ground", "space":
+					if target.zone != filter_trait:
+						continue
+				_:
+					if filter_trait != "" and not target.has_trait(filter_trait) and not filter_trait in target.aspects():
+						continue
+			var condition: Dictionary = ability.get("condition", {})
+			if condition.get("initiative", false) and initiative != source.controller:
+				continue
+			if condition.get("upgraded", false) and source.upgrades.is_empty():
+				continue
+			if condition.get("damaged", false) and source.damage <= 0:
+				continue
+			if players[source.controller].resources.size() < int(condition.get("resources_min", 0)):
+				continue
+			if players[source.controller].units.size() < int(condition.get("units_min", 0)):
+				continue
+			if field == "kw":
+				if ability.get("kw") == keyword:
+					total += int(ability.get("v", 1))
+			else:
+				total += int(ability.get(field, 0))
+	return total

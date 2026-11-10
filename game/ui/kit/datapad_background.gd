@@ -4,12 +4,26 @@ extends Control
 ## slow rings, circuit traces, scan beam, cross markers and Aurebesh readouts.
 
 var _time := 0.0
+var _badge: ProfileBadge
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	Appearance.changed.connect(queue_redraw)
 	resized.connect(queue_redraw)
+	_badge = ProfileBadge.new()
+	_badge.background_mode = true
+	add_child(_badge)
+	Cosmetics.changed.connect(_refresh_emblem)
+	resized.connect(_refresh_emblem)
+	_refresh_emblem()
+
+
+func _refresh_emblem() -> void:
+	_badge.visible = Cosmetics.background() == "emblem"
+	var extent := minf(size.x * 0.8, size.y * 0.78)
+	_badge.size = Vector2.ONE * extent
+	_badge.position = (size - _badge.size) / 2.0
 
 
 func _process(delta: float) -> void:
@@ -27,9 +41,9 @@ func _draw() -> void:
 	if size.x <= 0 or size.y <= 0:
 		return
 	draw_rect(Rect2(Vector2.ZERO, size), Appearance.preset()["base"])
-	var primary := Appearance.color_at(0)
-	var secondary := Appearance.color_at(1)
-	var tertiary := Appearance.color_at(2)
+	var primary := Appearance.line_color(0)
+	var secondary := Appearance.line_color(1)
+	var tertiary := Appearance.line_color(2)
 	for x in range(0, ceili(size.x), 96):
 		for y in range(0, ceili(size.y), 96):
 			var p := Vector2(x, y)
@@ -40,7 +54,7 @@ func _draw() -> void:
 	for i in 5:
 		var radius := unit * (0.12 + i * 0.18)
 		var center := anchor + Vector2(-0.32, -1).normalized() * radius
-		var col := Appearance.color_at(i)
+		var col := Appearance.line_color(i)
 		draw_arc(center, radius, 0, TAU, 128, Color(col, 0.035), 7.0, true)
 		draw_arc(center, radius, 0, TAU, 128, Color(col, 0.24), 1.1, true)
 		var angle := _time * (0.07 + i * 0.013) + i

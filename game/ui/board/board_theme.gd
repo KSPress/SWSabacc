@@ -106,7 +106,7 @@ static func faction_for(data: Dictionary, manifest: Dictionary) -> String:
 
 
 func _process(dt: float) -> void:
-	if Appearance.preset()["kind"] == "datapad":
+	if Appearance.preset()["kind"] in ["datapad", "planet"]:
 		return
 	if Sabacc.perf():
 		if _t == 0.0:

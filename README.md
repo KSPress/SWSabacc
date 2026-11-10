@@ -13,12 +13,26 @@ through the Skywalker saga. Built with **Godot 4.7** (GL Compatibility renderer)
 > generated locally into the git-ignored `game/ip/` folder.
 
 ## Themes and card inspection
-Settings → Appearance offers ten offline themes: Deep Orbit, Violet Nebula,
-Hyperspace, Tatooine, Dathomir, Coruscant, Death Star, and Imperial/Republic/Outer
-Rim datapads. Choosing a deck tints buttons and outlines using up to three unique
-aspects. Datapad orbital lines, scan beam and targeting rings use those same
-colours. Damage, healing, enemy warnings and printed aspect icons keep their
-usual meaning.
+Settings → Appearance → Profile, card backs & backgrounds opens the cosmetic
+collection. Normal-account wins award one random unowned cosmetic: 25 emblems,
+37 card backs and four static scene backgrounds are supported. Emblems include
+their matching faded hologram background. Play mats are reserved for a future
+release. The default datapad is free; its slow orbital traces use leader/base
+aspects and fade to the opposing palette on enemy turns. Deck aspects also tint
+buttons and friendly outlines. The red GM toggle grants access to all cosmetics
+with a separate loadout; returning to account mode restores earned selections.
+
+Import the supplied local `Customization/` assets with
+`python -I tools/import_customization.py` (Pillow with AVIF support required).
+Card backs are cropped and converted to 500×698 WebP. Originals remain intact;
+generated files and the source asset folder are excluded from Git.
+
+Every-card automation is **unfinished**: the current inventory contains 1,033
+cards with complete compiler text coverage, 542 partial and 1,013 manual.
+Compiler coverage is not proof of correct rules behavior. Run
+`python -I tools/check_card_coverage.py --require-full` to generate a per-card
+inventory and fail the gate while incomplete cards remain. See
+[`docs/CUSTOMIZATION_QA.md`](docs/CUSTOMIZATION_QA.md) for this release's checks.
 
 Inspecting a card flies it to the screen centre, blurs the surrounding game and
 opens four connected dossiers: card profile, printed ability, keyword/timing

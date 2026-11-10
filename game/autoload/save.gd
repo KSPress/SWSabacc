@@ -21,6 +21,7 @@ func default_data() -> Dictionary:
 		"settings": {},
 		"vault": [],                 # card ids unlocked for vault / bot / PvP play
 		"decks": [],                 # deckbuilder decks (see save_deck)
+		"cosmetics": {"earned": ["emblem:sabacc", "cardback:default", "background:datapad"], "equipped": {"emblem": "sabacc", "cardback": "default", "background": "datapad"}, "gm": false, "recorded": []},
 		"spotlight_runs": {},        # Spotlight Campaign: deck id -> active run
 		"spotlight_records": {},     # Spotlight Campaign: deck id -> record (runs, bests, history)
 		"campaign": {

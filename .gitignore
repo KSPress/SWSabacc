@@ -6,6 +6,7 @@ build/
 # --- IP-bearing assets: never commit (spec section 1) ---
 # Card DB + converted art + fonts + UI art + audio live here, regenerated locally.
 game/ip/
+/Customization/
 # Raw SWU-DB dump and art
 swu_data/
 # Reference images, fonts and art dropped in the repo root
