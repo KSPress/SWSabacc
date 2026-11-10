@@ -1220,6 +1220,9 @@ func _game_over() -> void:
 	_result_recorded = true
 	var won := m.winner == HUMAN
 	var cosmetic_reward := Cosmetics.record_match(won, "%d_%d" % [Time.get_unix_time_from_system(), get_instance_id()])
+	var pack_reward := ""
+	if params.get("mode", "quick") == "quick" and params.get("traditional", params.get("format", -1) == 0):
+		pack_reward = Progression.traditional_result("%s_%s" % [Time.get_unix_time_from_system(), get_instance_id()])
 	for c in get_tree().root.find_children("*", "", true, false):
 		if c is ChoicePanel or c is InspectOverlay:
 			c.get_parent().queue_free()
@@ -1252,6 +1255,11 @@ func _game_over() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 16)
 	v.add_child(row)
+	if not pack_reward.is_empty():
+		v.add_child(UIKit.label("Card pack earned! Open it from Card Packs.", 23, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
+		var open_pack := SabaccButton.make("Open earned pack", SabaccButton.Style.GOLD, "star")
+		open_pack.pressed.connect(func(): Router.go("packs"))
+		v.add_child(open_pack)
 	if not cosmetic_reward.is_empty():
 		var reward := UIKit.label("Cosmetic unlocked: " + cosmetic_reward["name"], 25, Appearance.color_at(1), HORIZONTAL_ALIGNMENT_CENTER)
 		reward.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

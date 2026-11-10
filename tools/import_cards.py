@@ -97,6 +97,7 @@ def parse_target(phrase: str) -> dict | None:
     p = phrase.strip().rstrip(".").lower()
     p = re.sub(r"^(?:to|from|on) ", "", p)
     simple = {
+		"a unit or base": {"s": "choose", "kind": "unit_or_base", "side": "any"},
         "this unit": {"s": "self"}, "it": {"s": "it"}, "him": {"s": "self"}, "her": {"s": "self"},
         "your base": {"s": "own_base"}, "the defender": {"s": "defender"},
         "the defending unit": {"s": "defender"}, "attached unit": {"s": "attached"},
@@ -224,6 +225,16 @@ def compile_sentence(s: str) -> list | None:
 
     if low == "a friendly unit captures an enemy non-leader unit in the same arena":
         return wrap({"op": "capture"})
+
+    m = re.fullmatch(r"return (?:a|an) (?:(\w+) )?(unit|event|upgrade|card) from your discard pile to your hand", low)
+    if m:
+        return wrap({"op": "recover", "kind": m.group(2), "trait": m.group(1) or ""})
+    if low == "put this event into play as a resource":
+        return wrap({"op": "resource_self"})
+    if low == "look at an opponent's hand":
+        return wrap({"op": "reveal_hand", "who": "opponent"})
+    if low == "an opponent chooses a unit they control. defeat that unit":
+        return wrap({"op": "opponent_defeat"})
 
     m = re.match(r"^deal (\d+) damage to (.+)$", low)
     if m and parse_target(m.group(2)):
@@ -458,6 +469,8 @@ def inert(effects: list, ok: bool) -> bool:
 
 
 def compile_body(body: str) -> tuple[list, bool]:
+    if body.strip().lower().rstrip(".") == "an opponent chooses a unit they control. defeat that unit":
+        return [{"op": "opponent_defeat"}], True
     if re.search(r"chooses? one:", body, re.I):
         c = compile_choose_one(body.strip())
         return (c, True) if c else ([], False)
@@ -633,7 +646,7 @@ def compile_text(text: str, keywords: list) -> tuple[list, list, str]:
             else:
                 unparsed.append(line)
             continue
-        if first in ("piloting", "support"):
+        if first in ("piloting",):
             # Listed keywords are not implementation. Keep unimplemented
             # mechanics visible in coverage until their engine path exists.
             unparsed.append(line)
@@ -727,6 +740,8 @@ def compile_text(text: str, keywords: list) -> tuple[list, list, str]:
 def compile_continuous(line: str):
     """Only exact recognized ongoing rules; never guess unknown text."""
     text = line.lower().rstrip(".").strip()
+    if text == "enemy units lose ambush and support":
+        return {"trigger": "constant", "suppress_keywords": ["ambush", "support"], "text": line}
     if text == "while attacking, this unit deals combat damage before the defender":
         return {"trigger": "constant", "flag": "first_strike", "text": line}
     condition = {}

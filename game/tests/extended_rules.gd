@@ -9,6 +9,7 @@ func _init() -> void:
 	test_capture_and_bounty()
 	test_plot_and_fortify()
 	test_early_combat_and_tokens()
+	test_support_and_recovery()
 	print("EXTENDED RULES: %d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
 
@@ -147,3 +148,58 @@ func test_early_combat_and_tokens() -> void:
 	check(m.card(uid) == null and guard.flags.get("captives", []).is_empty(), "captured token ceases to exist")
 	m.defeat(guard)
 	check(m.card(uid) == null, "captured token cannot be rescued")
+
+
+func test_support_and_recovery() -> void:
+	var m := blank_match()
+	var attacker := add_unit(m, 0, "SOR_095")
+	var defender := add_unit(m, 1, "SOR_095")
+	defender.damage = 2
+	var supporter := add_unit(m, 0, "ASH_121", false)
+	var base_damage: int = m.players[1].base.damage
+	m._on_unit_enters(supporter, "when_played")
+	m.pump()
+	check(attacker.uid in m.pending.get("options", []) and not supporter.uid in m.pending.get("options", []), "Support offers another ready unit")
+	m.submit_choice([attacker.uid])
+	check(defender.uid in m.pending.get("options", []), "Support asks for legal attack target")
+	m.submit_choice([defender.uid])
+	check(m.players[1].base.damage == base_damage + 2, "Support grants Overwhelm for combat")
+	check(attacker.exhausted and not attacker.has_kw("overwhelm"), "Support exhausts attacker and expires borrowed keyword")
+	var m2 := blank_match()
+	add_unit(m2, 1, "ASH_068")
+	add_unit(m2, 0, "SOR_095")
+	var blocked := add_unit(m2, 0, "ASH_121", false)
+	m2._on_unit_enters(blocked, "when_played")
+	m2.pump()
+	check(m2.pending.is_empty() and not blocked.has_kw("support"), "Loth-Cat suppresses enemy Support")
+	var returned := m2._new_inst("SOR_095", 0)
+	returned.zone = "discard"
+	m2.players[0].discard.append(returned)
+	m2.push_frame([{"op": "recover", "kind": "unit"}], {"ctl": 0})
+	m2.pump()
+	check(returned.uid in m2.pending.get("options", []), "recover chooses unit from discard")
+	m2.submit_choice([returned.uid])
+	check(returned in m2.players[0].hand and not returned in m2.players[0].discard, "recover moves card into hand")
+	var event := m2._new_inst("SOR_125", 0)
+	event.zone = "discard"
+	m2.players[0].discard.append(event)
+	m2.push_frame([{"op": "resource_self"}], {"ctl": 0, "src": event.uid})
+	m2.pump()
+	check(event.zone == "resource" and event.exhausted, "event becomes an exhausted resource")
+	m2.push_frame([{"op": "opponent_defeat"}], {"ctl": 0})
+	m2.pump()
+	check(m2.pending.get("player") == 1, "opponent chooses own unit for defeat")
+	var victim: int = m2.pending["options"][0]
+	m2.submit_choice([victim])
+	check(m2.card(victim).zone == "discard", "opponent's chosen unit defeated")
+	var m3 := blank_match()
+	var marine := add_unit(m3, 0, "SOR_095")
+	var messenger := add_unit(m3, 0, "ASH_189", false)
+	for resource in m3.players[0].resources:
+		resource.exhausted = true
+	m3._on_unit_enters(messenger, "when_played")
+	m3.pump()
+	m3.submit_choice([marine.uid])
+	m3.submit_choice([m3.players[1].base.uid])
+	check(m3.players[0].ready_resources() == 1, "Support grants and resolves On Attack ability")
+	check(marine.abilities_with("on_attack").is_empty(), "Support's borrowed ability expires")

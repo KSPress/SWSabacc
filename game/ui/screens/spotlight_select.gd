@@ -8,7 +8,7 @@ var _box: VBoxContainer
 
 
 func build() -> void:
-	set_header("Spotlight Campaign")
+	set_header("Spotlight Campaign", "hub")
 	bg.backdrop = Art.ui_texture("swu_background")
 	bg.backdrop_alpha = 0.2
 	_scroll = ScrollContainer.new()

@@ -13,6 +13,15 @@ through the Skywalker saga. Built with **Godot 4.7** (GL Compatibility renderer)
 > generated locally into the git-ignored `game/ip/` folder.
 
 ## Themes and card inspection
+Campaigns groups Saga and Spotlight roguelike runs; Battles groups Traditional
+and Custom formats. Card Packs on the main menu opens saved rewards. Complete a
+Saga chapter run, clear a Spotlight sector, finish a Spotlight run with a win,
+or complete two traditional games to earn a pack. Packs contain ten cards with
+a leader, base and rare-or-better slot. Rip open the pack and flip the cards;
+each reveal permanently unlocks a legal playset for custom deckbuilding.
+Two starter decks are available on new accounts, and existing saved decks retain
+their cards on migration. See [pack/campaign validation](docs/PACKS_CAMPAIGN_QA.md).
+
 Settings → Appearance → Profile, card backs & backgrounds opens the cosmetic
 collection. Normal-account wins award one random unowned cosmetic: 25 emblems,
 37 card backs and four static scene backgrounds are supported. Emblems include
@@ -27,8 +36,8 @@ Import the supplied local `Customization/` assets with
 Card backs are cropped and converted to 500×698 WebP. Originals remain intact;
 generated files and the source asset folder are excluded from Git.
 
-Every-card automation is **unfinished**: the current inventory contains 1,033
-cards with complete compiler text coverage, 542 partial and 1,013 manual.
+Every-card automation is **unfinished**: the current inventory contains 1,060
+cards with complete compiler text coverage, 544 partial and 984 manual.
 Compiler coverage is not proof of correct rules behavior. Run
 `python -I tools/check_card_coverage.py --require-full` to generate a per-card
 inventory and fail the gate while incomplete cards remain. See

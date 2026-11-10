@@ -129,7 +129,7 @@ const KEYWORD_HELP := {
 	"coordinate": "Bonus while you control 3+ units (shown, not yet automated).",
 	"piloting": "May be played as a pilot upgrade on a Vehicle (not yet automated).",
 	"bounty": "This unit's opponent may collect its printed reward when it is defeated or captured. Check the automation dossier for unsupported reward text.",
-	"support": "When played, may attack with another unit (not yet automated).",
+	"support": "When this unit enters play, you may attack with another ready friendly unit. It gains this unit's other abilities for that attack. Unsupported printed abilities remain listed in the automation dossier.",
 	"plot": "When you deploy your leader, you may pay this card's cost to play it from resources. Replace it with the top card of your deck as a resource.",
 	"fortify": "This upgrade attaches to your own base instead of a unit.",
 }

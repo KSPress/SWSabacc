@@ -112,6 +112,8 @@ func abilities() -> Array:
 	for a in src:
 		if not a.get("granted", false):
 			out.append(a)
+	for modifier in mods:
+		out.append_array(modifier.get("abilities", []))
 	for u in upgrades:
 		for a in u.data.get("abilities", []):
 			if a.get("granted", false):
@@ -135,6 +137,9 @@ func _printed_keywords() -> Array:
 
 ## Sum of keyword values (Raid 2 + Raid 1 = 3). Returns 0 when absent, 1 for valueless keywords.
 func kw(k: String) -> int:
+	var match_game: Match = battle.get_ref() if battle else null
+	if match_game and in_play() and match_game.keyword_suppressed(self, k):
+		return 0
 	for m in mods:
 		if m.get("lose_kw", "") == k:
 			return 0

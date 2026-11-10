@@ -15,7 +15,7 @@ var _selected := 4
 
 
 func build() -> void:
-	set_header("Campaign", "menu")
+	set_header("Saga Campaign", "hub")
 	bg.backdrop = Art.ui_texture("swu_background")
 	bg.backdrop_alpha = 0.25
 	var scroll := ScrollContainer.new()

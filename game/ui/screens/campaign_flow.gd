@@ -54,7 +54,8 @@ static func on_match_end(params: Dictionary, m: Match) -> Dictionary:
 		if res["boss"]:
 			run["status"] = "won"
 			Save.clear_chapter(chapter["id"])
-			res["unlocked"] = Save.unlock(chapter.get("unlocks_on_clear", []) + run["deck"])
+			res["unlocked"] = [] if Cosmetics.state()["gm"] else Save.unlock(chapter.get("unlocks_on_clear", []))
+			res["pack"] = Progression.grant("Saga campaign run completed", "saga:%s:%s" % [chapter["id"], run.get("reward_id", run.get("node_seed", 0))])
 		else:
 			res["rewards"] = CampaignRun.roll_rewards(run, chapter, node, CardDB.lib)
 			if int(node.get("reward_tier", 1)) >= 3:

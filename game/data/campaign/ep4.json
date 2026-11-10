@@ -483,7 +483,7 @@
       "base_sequence": [
         "SOR_023"
       ],
-      "base_hp_override": 18,
+      "base_hp_override": 22,
       "starting_deck": [
         "SOR_236",
         "HMW_208",
@@ -601,7 +601,10 @@
               "SOR_128"
             ]
           },
-          "reward_tier": 1
+          "reward_tier": 1,
+          "player_bonus_hand": [
+            "SOR_172"
+          ]
         },
         {
           "id": "n2",
@@ -691,7 +694,10 @@
               "SOR_128"
             ]
           },
-          "reward_tier": 3
+          "reward_tier": 3,
+          "player_bonus_hand": [
+            "SOR_172"
+          ]
         },
         {
           "id": "n4",

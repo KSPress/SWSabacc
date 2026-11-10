@@ -49,6 +49,8 @@ func _build() -> void:
 		var c: Dictionary = CardDB.lib.cards[id]
 		if c.get("custom", false) or c.get("type", "") != kind:
 			continue
+		if filter.has("ids") and not id in filter["ids"]:
+			continue
 		if filter.get("pilot", "") == "exclude" and "pilot" in c.get("traits", []):
 			continue
 		if filter.get("pilot", "") == "only" and not ("pilot" in c.get("traits", [])):

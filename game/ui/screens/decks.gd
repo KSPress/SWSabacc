@@ -57,6 +57,9 @@ func _new_deck() -> void:
 		var b := SabaccButton.make(sd["name"], SabaccButton.Style.GHOST, sd.get("icon", "star"))
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.add_theme_font_size_override("font_size", 17)
+		b.disabled = not Progression.deck_owned(sd)
+		if b.disabled:
+			b.text += " · Unlock cards in packs"
 		b.pressed.connect(func():
 			var d := {"id": "", "name": CardDB.card(sd["leader"]).get("name", "Deck"), "icon": "star", "marked": false,
 				"leader": sd["leader"], "base": sd["base"], "cards": sd["cards"].duplicate()}

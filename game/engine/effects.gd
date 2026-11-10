@@ -10,7 +10,7 @@ extends RefCounted
 
 const DONE := 0
 const SUSPEND := 1
-const HOSTILE_OPS := ["damage", "defeat", "exhaust", "bounce", "lose_kw"]
+const HOSTILE_OPS := ["damage", "defeat", "exhaust", "bounce", "lose_kw", "opponent_defeat"]
 
 
 static func exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
@@ -62,6 +62,11 @@ static func exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 				m.heal(t, n)
 		"draw":
 			m.draw(ctl, n)
+		"recover", "reveal_hand", "opponent_defeat":
+			return _zone_choice(m, e, ctx)
+		"resource_self":
+			if src and src.zone == "discard":
+				m.move_to_resources(ctl, src, true)
 		"discard":
 			return _discard(m, e, ctx)
 		"shield", "experience":
@@ -121,7 +126,7 @@ static func exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			return _scry(m, e, ctx)
 		"search":
 			return _search(m, e, ctx)
-		"attack_with":
+		"attack_with", "support":
 			return _attack_with(m, e, ctx, targets)
 		"base_damage":
 			m.deal_damage(m.players[m.opp(ctl)].base, n, src)
@@ -134,6 +139,45 @@ static func exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 
 
 # ---------------------------------------------------------------- targeting
+
+static func _zone_choice(m: Match, e: Dictionary, ctx: Dictionary) -> int:
+	var ctl: int = ctx.get("ctl", 0)
+	var op: String = e["op"]
+	if ctx.has("_choice"):
+		var selection: Array = ctx["_choice"]
+		ctx.erase("_choice")
+		for uid in selection:
+			var card := m.card(uid)
+			if card == null:
+				continue
+			if op == "recover" and card.zone == "discard":
+				m._remove_from_zones(card)
+				card.zone = "hand"
+				m.players[ctl].hand.append(card)
+			elif op == "opponent_defeat" and card.in_play():
+				m.defeat(card)
+		ctx["did"] = not selection.is_empty() or op == "reveal_hand"
+		return DONE
+	var pool: Array = m.players[ctl].discard if op == "recover" else (m.players[m.opp(ctl)].units if op == "opponent_defeat" else m.players[m.opp(ctl)].hand)
+	var options: Array = []
+	for card in pool:
+		if op == "recover":
+			if e.get("kind", "card") != "card" and card.card_type() != e["kind"]:
+				continue
+			if e.get("trait", "") != "" and not card.has_trait(e["trait"]):
+				continue
+		options.append(card.uid)
+	if options.is_empty():
+		ctx["did"] = false
+		return DONE
+	var chooser: int = m.opp(ctl) if op == "opponent_defeat" else ctl
+	var saved_ctl: int = ctx.get("ctl", 0)
+	ctx["ctl"] = chooser
+	_ask(m, ctx, "search" if op != "opponent_defeat" else "target", "Opponent's hand · Continue" if op == "reveal_hand" else ("Choose a unit to defeat" if op == "opponent_defeat" else "Return a card to your hand"), options, 0 if op == "reveal_hand" or e.get("optional", false) else 1, 0 if op == "reveal_hand" else 1, e)
+	ctx["ctl"] = saved_ctl
+	if op == "reveal_hand":
+		m.pending["reveal"] = options
+	return SUSPEND
 
 ## Returns Array[CardInst], or null when the controller must choose (pending set).
 static func _targets(m: Match, e: Dictionary, ctx: Dictionary):
@@ -280,6 +324,8 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 	if t.get("exhausted", false) and not c.exhausted:
 		return false
 	if t.get("ready", false) and c.exhausted:
+		return false
+	if t.get("can_attack", false) and m.attack_targets(c).is_empty():
 		return false
 	if t.has("max_hp") and c.remaining_hp() > int(t["max_hp"]):
 		return false
@@ -496,6 +542,11 @@ static func _attack_with(m: Match, e: Dictionary, ctx: Dictionary, attackers: Ar
 			ctx.erase("_choice")
 			ctx.erase("_attacker")
 			ctx["it"] = a.uid
+			if e.get("op") == "support":
+				a.mods.append({"abilities": e.get("support_abilities", []), "dur": "attack"})
+				for keyword in e.get("support_keywords", []):
+					if keyword["k"] != "support":
+						a.mods.append({"kw": keyword["k"], "v": keyword.get("v", 1), "dur": "attack"})
 			for pre in e.get("pre", []):
 				if pre.get("op") == "buff":
 					a.mods.append({"p": int(pre.get("p", 0)), "h": int(pre.get("h", 0)), "dur": "attack"})

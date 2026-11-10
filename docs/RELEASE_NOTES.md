@@ -1,33 +1,35 @@
-SWU Sabacc 0.3.0 — earned cosmetics and additional rules support.
+SWU Sabacc 0.4.0 — Campaigns, Battles and earned card packs.
 
-- Added an offline cosmetic collection: 25 profile emblems, 37 cropped card backs,
-  and four static scene backgrounds. Each normal-account win awards one random
-  unowned item. Emblems include their matching holographic background.
-- Added animated datapad profile frames and faded, flickering emblem backdrops.
-  Board traces use leader/base aspects and fade to enemy colors on enemy turns.
-  Performance mode freezes motion. Play mats remain a future option.
-- Added a red GM toggle in Settings with a separate all-access equipment loadout.
-  Returning to account mode restores earned equipment and collection.
-- Added selected conditional auras/keywords, upgrade targeting, capture/rescue,
-  bounty choices, Fortify attachments, Plot and combat damage before defenders.
-  Fixed keyword extraction incorrectly granting conditionally mentioned keywords.
-- Kept the Android package/signing key, save migration and legacy updater bridge.
-  Install over the existing app to retain progress.
+- Grouped game modes under Campaigns and Battles, with collection/deckbuilding,
+  card packs and settings utilities on the main menu.
+- Added saved ten-card packs: five Common, two Uncommon, Rare-or-better, leader
+  and base. Rip the seal, watch face-down cards burst out, then flip each card
+  with rarity colors/effects. Reveals persist immediately; reopening cannot
+  reroll or lose rewards. One unlock grants a legal deckbuilding playset.
+- Earn packs for Saga chapter-run completion, cleared Spotlight sectors, the end
+  of a Spotlight run with a victory, and every two traditional games. Abandoning
+  a new run does not unlock the borrowed run deck or award a pack.
+- Added starter collections, saved-deck migration and owned-card enforcement in
+  the deck editor and traditional auto-build. GM access preserves earned cards.
+- Reviewed seeded campaign results and softened the Death Star chapter entrance:
+  22 starting base HP and an extra removal card in Hangar/Detention encounters.
+- Implemented Support attacks with temporary borrowed abilities, recovery,
+  opponent hand reveals, event-to-resource and opponent-chosen defeat. Fixed
+  granted When Defeated snapshots and unit-or-base targeting.
 
-Validation: 90 cosmetic checks, 49 theme/inspection checks, 38 added rules checks,
-24 manifest checks, zero broken scripts and a staged audit of 2,558 non-token
-cards. See docs/CUSTOMIZATION_QA.md for evidence and limitations.
+Validation: 50 progression/UI checks, 50 extended rule checks, 551 broader engine
+assertions, 500 simulated games without stalls, 48 Spotlight opening encounters,
+100 tuned Death Star encounters, and an audit of all 2,558 non-token cards.
+See docs/PACKS_CAMPAIGN_QA.md for evidence and limitations.
 
-**Complete card automation remains unfinished:** of 2,588 cards, 1,033 have complete
-compiler text coverage, 542 are partial and 1,013 remain manual. Compiler coverage
-does not certify correct behavior. This release does not fulfill the every-card
-automation requirement. Piloting, Support and many interactions need more work.
+**Card automation is still incomplete:** 1,060 cards have complete compiler text
+coverage, 544 are partial and 984 remain manual. Coverage is not proof of correct
+rules. Only Episode IV currently has authored Saga content.
 
-Android: install **swu_sabacc.apk**. Windows: extract **SWSabacc-windows.zip** and
-keep SWU_Sabacc.exe with SWU_Sabacc.pck. Native builds bundle offline assets.
-Legacy APK/update.json assets support older installed clients. No Android device
-was attached; installation and real device upgrades remain unverified. Android
-requires user confirmation to install downloaded updates.
+Android: swu_sabacc.apk. Windows: extract SWSabacc-windows.zip and keep the EXE/PCK
+together. Native builds bundle offline assets. Existing package/signing key and
+legacy updater bridge are retained. No Android device was attached for physical
+installation/upgrade or touch-performance testing; Android confirms installation.
 
 Unofficial, non-commercial fan project. Star Wars and Star Wars: Unlimited
 characters, card text and artwork belong to Lucasfilm Ltd. and Fantasy Flight

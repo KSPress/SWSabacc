@@ -14,6 +14,7 @@ static func start(chapter: Dictionary, leader: String, seed_value: int) -> Dicti
 		"base_hp_bonus": 0, "base_damage": 0,
 		"current": "", "visited": [], "treasures": [],
 		"node_seed": seed_value, "status": "active", "fights": 0,
+		"reward_id": "%s_%s" % [Time.get_unix_time_from_system(), seed_value],
 	}
 
 

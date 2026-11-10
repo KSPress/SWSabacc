@@ -41,12 +41,11 @@ func build() -> void:
 	_buttons.add_theme_constant_override("v_separation", 14)
 	body.add_child(_buttons)
 	var items := [
-		["Saga Campaign", SabaccButton.Style.PRIMARY, "boss", func(): Router.go("episodes"), true],
-		["Spotlight Campaign", SabaccButton.Style.PRIMARY, "star", func(): Router.go("spotlight"), false],
-		["Standard Battle", SabaccButton.Style.REBEL, "fight", func(): Router.go("quick", {"format": 0}), false],
-		["Quick Battle", SabaccButton.Style.REBEL, "ground", func(): Router.go("quick", {"format": 1}), false],
+		["Campaigns", SabaccButton.Style.PRIMARY, "boss", func(): Router.go("hub", {"section": "campaigns"}), true],
+		["Battles", SabaccButton.Style.REBEL, "fight", func(): Router.go("hub", {"section": "battles"}), false],
 		["Deck Builder", SabaccButton.Style.GOLD, "deck", func(): Router.go("decks"), false],
 		["Collection Vault", SabaccButton.Style.GOLD, "collection", func(): Router.go("collection"), false],
+		["Card Packs (%d)" % Progression.packs().size(), SabaccButton.Style.GOLD, "star", func(): Router.go("packs"), false],
 		["Settings", SabaccButton.Style.GHOST, "gear", func(): Router.go("settings"), false],
 	]
 	var i := 0

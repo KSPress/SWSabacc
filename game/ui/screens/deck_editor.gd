@@ -22,7 +22,7 @@ var _deck_panel: Control
 var _search: LineEdit
 var _type := ""
 var _my_aspects := true
-var _unlocked_only := false
+var _unlocked_only := true
 var _pool_grid: GridContainer
 var _page := 0
 var _results: Array = []
@@ -142,6 +142,7 @@ func _build_pool() -> void:
 	f2.add_child(mine)
 	var unl := CheckButton.new()
 	unl.text = "Unlocked only"
+	unl.button_pressed = _unlocked_only
 	unl.toggled.connect(func(on): _unlocked_only = on; _page = 0; _refresh_pool())
 	f2.add_child(unl)
 	_pool_grid = GridContainer.new()
@@ -175,7 +176,7 @@ func _deck_aspects() -> Array:
 func _refresh_pool() -> void:
 	var f := {"type": _type}
 	if _unlocked_only:
-		f["ids"] = Save.data.get("vault", [])
+		f["ids"] = Progression.owned_ids()
 	var res := CardDB.lib.query(_search.text, f)
 	var asp := _deck_aspects()
 	var hero := "heroism" in asp
@@ -240,6 +241,8 @@ func _show_page() -> void:
 		cv.scale = cv.home_scale
 		cv.hover_lift = false
 		cv.draggable = false
+		if not Progression.owns(id):
+			cv.dim = true
 		var c := CardDB.card(id)
 		if deck.get("leader", "") != "":
 			cv.cost_override = _cost_with_penalty(c)
@@ -257,6 +260,9 @@ func _show_page() -> void:
 
 
 func _add(id: String, cv: CardView) -> void:
+	if not Progression.owns(id):
+		Fx.float_text(self, cv.get_global_rect().get_center(), "Unlock in card packs", Sabacc.C_GOLD, 23)
+		return
 	var n := int(deck["cards"].get(id, 0))
 	if n >= 3:
 		Fx.float_text(self, cv.get_global_rect().get_center(), "Max 3", Sabacc.C_EMPIRE, 26)
@@ -412,7 +418,7 @@ func _refresh_identity() -> void:
 
 func _pick(kind: String) -> void:
 	var slot: Control = _leader_slot if kind == "leader" else _base_slot
-	var picker := CardPicker.open(self, kind, slot.get_global_rect())
+	var picker := CardPicker.open(self, kind, slot.get_global_rect(), {"ids": Progression.owned_ids()})
 	picker.picked.connect(func(id: String):
 		deck[kind] = id
 		if kind == "leader" and deck.get("name", "") in ["", "New deck"]:
@@ -456,6 +462,9 @@ func _toggle_mark() -> void:
 
 
 func _save() -> void:
+	if not Progression.deck_owned(deck):
+		Fx.float_text(self, _save_btn.get_global_rect().get_center(), "Deck contains locked cards", Sabacc.C_EMPIRE, 23)
+		return
 	if deck.get("name", "").strip_edges() == "":
 		deck["name"] = "Untitled deck"
 	Save.save_deck(deck)

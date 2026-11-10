@@ -201,7 +201,7 @@ func _battle_panel(mp: ModalPanel, id: String, n: Dictionary) -> void:
 		for p in en["preplaced"]:
 			names.append(CardDB.card(p["id"]).get("name", ""))
 		mp.text("Already on the field: " + ", ".join(names), 15, Sabacc.C_EMPIRE)
-	var reward_txt: String = {"fight": "a card", "objective": "a card, maybe a perk", "elite": "a rare card + a perk", "boss": "2 cards, a perk, repairs — then the next sector"}[n["type"]]
+	var reward_txt: String = {"fight": "a card", "objective": "a card, maybe a perk", "elite": "a rare card + a perk", "boss": "2 run cards, a perk, repairs and a collection pack"}[n["type"]]
 	mp.text("Reward: credits and " + reward_txt, 15, Sabacc.C_DIM)
 	if SpotlightRun.deck_size(run) < int(SpotlightRun.cfg().get("start", {}).get("deck_min", 20)):
 		mp.text("Your deck needs at least %d cards — edit your deck first." % int(SpotlightRun.cfg()["start"]["deck_min"]), 16, Sabacc.C_EMPIRE)
@@ -605,7 +605,11 @@ func _death(res: Dictionary) -> void:
 			box.add_child(UIKit.label(line, 20, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
 	if not rec.is_empty():
 		box.add_child(UIKit.label("Record: %d runs · best sector %d · most wins %d · %d bosses" % [int(rec["runs"]), int(rec["best_sector"]), int(rec["best_wins"]), int(rec["bosses"])], 18, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
-	box.add_child(UIKit.label("Cards you earned were added to your Collection Vault.", 15, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	box.add_child(UIKit.label("Runs with a battle win earn a pack for your permanent collection.", 15, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	if not Progression.packs().is_empty():
+		var packs := SabaccButton.make("Open earned card packs", SabaccButton.Style.GOLD, "star")
+		packs.pressed.connect(func(): Router.go("packs"))
+		box.add_child(packs)
 	var b := SabaccButton.make("Back to Spotlight Campaign", SabaccButton.Style.PRIMARY, "back", true)
 	b.pressed.connect(func(): Router.go("spotlight"))
 	box.add_child(b)

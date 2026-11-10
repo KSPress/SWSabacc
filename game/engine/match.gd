@@ -699,6 +699,8 @@ func _on_unit_enters(u: CardInst, trigger: String) -> void:
 	for kind in ps.card_upgrades.get(u.id, []):
 		attach_token(u, kind)
 	# Ambush is pushed first so When Played resolves before the ambush attack.
+	if u.has_kw("support"):
+		push_frame([{"op": "support", "t": {"s": "choose", "kind": "unit", "side": "friendly", "other": true, "ready": true, "can_attack": true, "opt": true}, "support_abilities": u.abilities().duplicate(true), "support_keywords": u.keyword_list().duplicate(true)}], {"src": u.uid, "ctl": u.controller})
 	if u.has_kw("ambush") and trigger == "when_played":
 		push_frame([{"op": "_ambush", "uid": u.uid}], {"src": u.uid, "ctl": u.controller})
 	for ab in u.abilities_with(trigger):
@@ -799,6 +801,7 @@ func defeat(u: CardInst) -> void:
 	if not u.in_play():
 		return
 	var bounties := u.abilities_with("bounty")
+	var abil := u.abilities_with("when_defeated")
 	_rescue_captives(u)
 	var p := u.controller
 	var ps: PlayerState = players[p]
@@ -816,7 +819,6 @@ func defeat(u: CardInst) -> void:
 			players[up.owner].discard.append(up)
 	u.upgrades.clear()
 	u.mods.clear()
-	var abil := u.abilities_with("when_defeated")
 	if u.is_leader():
 		u.deployed = false
 		u.zone = "leader"
@@ -981,11 +983,20 @@ func end_attack() -> void:
 	if attack.is_empty():
 		return
 	var a := card(attack["a"])
+	var end_abilities: Array = a.abilities_with("attack_end") if a and a.in_play() else []
 	attack = {}
 	_expire("attack")
 	if a and a.in_play():
-		for ab in a.abilities_with("attack_end"):
+		for ab in end_abilities:
 			push_ability(a, ab)
+
+
+func keyword_suppressed(target: CardInst, keyword: String) -> bool:
+	for source in players[opp(target.controller)].units:
+		for ability in source.abilities_with("constant"):
+			if keyword in ability.get("suppress_keywords", []):
+				return true
+	return false
 
 
 # ---------------------------------------------------------------- leaders, abilities, tokens

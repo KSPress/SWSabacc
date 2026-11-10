@@ -89,6 +89,10 @@ func _build_clear() -> void:
 	_box.add_child(UIKit.aurebesh("chapter complete", 26))
 	_box.add_child(UIKit.title("%s cleared!" % chapter.get("title", ""), 44, Sabacc.C_GOLD))
 	var unlocked: Array = res.get("unlocked", [])
+	if not res.get("pack", "").is_empty():
+		var pack_button := SabaccButton.make("Campaign pack earned · Open packs", SabaccButton.Style.GOLD, "star")
+		pack_button.pressed.connect(func(): Router.go("packs"))
+		_box.add_child(pack_button)
 	_box.add_child(UIKit.label("%d new card(s) added to your Collection Vault." % unlocked.size(), 20, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size.y = CardView.PORTRAIT.y * 0.5 + 20

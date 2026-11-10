@@ -35,10 +35,11 @@ static func start(deck_id: String) -> Dictionary:
 
 ## Ends a run (death or abandon): folds it into the deck's record and clears it.
 static func finish(r: Dictionary) -> void:
+	if r.get("status") == "dead" and int(r["stats"].get("wins", 0)) > 0:
+		Progression.grant("Spotlight run completed", "spotlight:%s:%s:%s" % [r["deck_id"], r["seed"], r["stats"].get("started", 0)])
 	var rec := SpotlightRun.record(record(r["deck_id"]), r)
 	Save.data["spotlight_records"][r["deck_id"]] = rec
 	Save.data["spotlight_runs"].erase(r["deck_id"])
-	Save.unlock(r["owned"].keys())
 	Save.write()
 
 
@@ -58,6 +59,8 @@ static func on_match_end(params: Dictionary, m: Match) -> Dictionary:
 	else:
 		save_run(r)
 	res["deck_id"] = params["deck_id"]
+	if res.get("reward", {}).get("boss", false):
+		res["pack"] = Progression.grant("Spotlight sector cleared", "sector:%s:%s:%s:%s" % [r["deck_id"], r["seed"], r["stats"].get("started", 0), r["sector"]])
 	return res
 
 

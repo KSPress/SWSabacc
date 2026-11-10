@@ -83,6 +83,10 @@ static func config_for(you: Dictionary, opp: Dictionary, rules: RuleSet, profile
 
 func build() -> void:
 	_format = int(Router.params.get("format", 0))
+	if _format == 0 and (not Progression.owns(_auto["leader"]) or not Progression.owns(_auto["base"])):
+		var starters := CardDB.spotlight_for_mode("traditional")
+		if not starters.is_empty():
+			_auto = {"leader": starters[0]["leader"], "base": starters[0]["base"]}
 	set_header("Quick Battle" if _format > 0 else "Standard Battle")
 	bg.backdrop = Art.ui_texture("coruscant")
 	bg.backdrop_alpha = 0.25
@@ -165,7 +169,8 @@ func _fill_decks() -> void:
 			_choices.append(d)
 		_choices.append({"auto": true, "name": "Auto-build", "icon": "gear", "leader": _auto["leader"], "base": _auto["base"], "count": 50})
 		for d in CardDB.spotlight_for_mode("traditional"):
-			_choices.append(d)
+			if Progression.deck_owned(d):
+				_choices.append(d)
 	else:
 		_choices = CardDB.spotlight_for_mode(_mode())
 	var i := 0
@@ -205,7 +210,7 @@ func _select(i: int) -> void:
 
 func _pick(kind: String) -> void:
 	var slot: Control = _leader_slot if kind == "leader" else _base_slot
-	var flt := {}
+	var flt := {"ids": Progression.owned_ids()} if _format == 0 else {}
 	if _format == 1:
 		flt["pilot"] = "only" if _mode() == "space" else "exclude"
 	var p := CardPicker.open(self, kind, slot.get_global_rect(), flt)
@@ -255,10 +260,16 @@ func _start() -> void:
 	var mode := _mode() if _format == 1 else "standard"
 	var rules := RuleSet.quick_mode(mode) if _format == 1 else RuleSet.premier()
 	var d: Dictionary = _choices[_sel]
+	if not d.get("spotlight", false) and not d.get("auto", false) and not Progression.deck_owned(d):
+		_go.text = "Deck contains locked cards"
+		return
 	var you: Dictionary
 	if d.get("auto", false):
 		you = {"leader": _auto["leader"], "base": _auto["base"],
-			"list": DeckBuilder.auto_deck(CardDB.lib, _auto["leader"], _auto["base"], 50, rng, rules.arenas)}
+			"list": DeckBuilder.auto_deck(CardDB.lib, _auto["leader"], _auto["base"], 50, rng, rules.arenas, 7, Progression.owned_ids())}
+		if you["list"].size() < 50:
+			_go.text = "Not enough unlocked cards · choose a starter deck"
+			return
 	else:
 		you = d
 	var pool := _opp_pool()
@@ -273,7 +284,7 @@ func _start() -> void:
 	var cfg := config_for(you, opp, rules, PROFILES[_profile], rng)
 	var theme: String = "auto"
 	var title: String = "Standard Battle" if _format == 0 else "Quick · " + Sabacc.QUICK_MODES[mode][0]
-	Router.go("match", {"mode": "quick", "format": _format, "cfg": cfg, "theme": theme, "title": title})
+	Router.go("match", {"mode": "quick", "format": _format, "traditional": mode in ["standard", "traditional"], "cfg": cfg, "theme": theme, "title": title})
 
 
 func relayout(_p: bool, r: Rect2) -> void:

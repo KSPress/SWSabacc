@@ -115,7 +115,7 @@ func _pages() -> int:
 func _refresh() -> void:
 	var f := {"type": _type, "aspect": _aspect, "set": _set}
 	if _unlocked_only:
-		f["ids"] = Save.data.get("vault", [])
+		f["ids"] = Progression.owned_ids()
 	_results = CardDB.lib.query(_search.text if _search else "", f)
 	_show_page()
 
@@ -146,8 +146,8 @@ func _show_page() -> void:
 		cv.drag_released.connect(func(c, _p): c.spring_home())
 		cv.tapped.connect(func(c): InspectOverlay.open(self, c.card_id, c.get_global_rect()))
 		cv.inspect_requested.connect(func(c): InspectOverlay.open(self, c.card_id, c.get_global_rect()))
-		if _unlocked_only == false and not (id in Save.data.get("vault", [])):
-			cv.modulate = Color(0.85, 0.85, 0.9)
+		if not Progression.owns(id):
+			cv.modulate = Color(0.4, 0.4, 0.5)
 		slot.add_child(cv)
 		_grid.add_child(slot)
 		UIKit.pop_in(cv, i * 0.02)
