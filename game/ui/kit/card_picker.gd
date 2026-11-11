@@ -21,6 +21,7 @@ var _title: Label
 var _count: Label
 var _layer: CanvasLayer
 var _cards: Array = []
+var _closing := false
 
 
 static func open(host: Node, p_kind: String, from_rect: Rect2, p_filter := {}) -> CardPicker:
@@ -38,6 +39,7 @@ static func open(host: Node, p_kind: String, from_rect: Rect2, p_filter := {}) -
 
 func _build() -> void:
 	UIKit.fill_rect(self)
+	add_to_group("back_dismissible")
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var dim := ColorRect.new()
 	dim.color = Color(0.0, 0.01, 0.03, 0.0)
@@ -208,7 +210,9 @@ func _choose(id: String, cv: CardView) -> void:
 
 
 func close_picker() -> void:
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _closing:
+		return
+	_closing = true
 	# collapse back toward the origin
 	var local := _origin - _grid.global_position
 	for cv in _cards:
@@ -220,3 +224,7 @@ func close_picker() -> void:
 	await t2.finished
 	if is_instance_valid(_layer):
 		_layer.queue_free()
+
+
+func request_back() -> void:
+	close_picker()

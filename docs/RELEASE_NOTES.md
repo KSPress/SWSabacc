@@ -1,19 +1,22 @@
-SWU Sabacc 0.6.0 — Sabacc tokens, cinematic combat and expanded inspection.
+SWU Sabacc 0.6.1 — inspector navigation and graphical fixes.
 
-- Replaced Force and Initiative markers with the supplied Sabacc fronts and
-  backs. Gain, spend and claim actions animate a face-changing card flip.
-- Added melee windup, curved swings and contact flashes. Ground Force characters
-  use lightsabers: red for Villainy, blue/green for Heroism. Rounded luminous
-  blaster bolts are green for Villainy, red for Heroism and yellow for neutral,
-  with target impact flashes and sparks.
-- Gave all 25 emblem backgrounds their own animated line geometry while
-  retaining matching palettes, irregular flicker and input parallax.
-- Expanded radial inspection with actual aspect icons, card anatomy, deployment
-  thresholds, upgrade modifiers, referenced keywords and expandable dossiers.
+- Fixed expanded inspector return controls scrolling out of view in landscape.
+  Back to card now stays visible while the dossier scrolls.
+- Added Android Back and Escape handling for overlays and ordinary screen
+  navigation. Repeated modal/picker closure cannot start duplicate close tweens.
+- Removed opaque black scan bars crossing the large background emblem. The
+  remaining transmission detail is translucent and matches its palette.
+- Fixed expired impact effects drawing negative widths/radii after a slow frame.
+  Muzzle, impact, shockwave, slash and punch effects stop drawing at expiration.
 
-Validation: 75 cinematic/inspector assertions, 114 responsive assertions over
-eight ratios and 152 screen states (zero detected layout issues), 24 update
-manifest assertions and zero broken scripts. See docs/CINEMATIC_QA.md.
+Validation: 122 GUI input assertions (six baseline failures reproduced, now zero),
+114 responsive assertions over eight ratios/152 screen states, 75 cinematic,
+80 visual, ten rendered effect-lifetime, 553 gameplay, 50 extended-rules,
+50 progression, 24 manifest and nine updater-flow assertions passed.
+Zero broken scripts. See docs/BUGFIX_QA.md for evidence and limitations.
+
+Fresh Windows startup clicks worked during investigation. The inspector blockage
+was reproduced and fixed; the separate initial-launch freeze was not reproduced.
 
 Android: swu_sabacc.apk. Windows: extract SWSabacc-windows.zip and keep the EXE/PCK
 together. The existing Android signing identity, saves and legacy update bridge

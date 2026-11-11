@@ -27,6 +27,40 @@ var _fade: ColorRect
 var _busy := false
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		handle_back()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and handle_back():
+		get_viewport().set_input_as_handled()
+
+
+## Dismiss only the highest modal, then navigate back from ordinary screens.
+## Android Back must not quit the app or abandon an active match.
+func handle_back() -> bool:
+	if _busy:
+		return true
+	var top: Control
+	var highest := -1
+	for candidate in get_tree().get_nodes_in_group("back_dismissible"):
+		if not candidate.is_visible_in_tree():
+			continue
+		var layer := candidate.get_parent() as CanvasLayer
+		if layer and layer.layer > highest:
+			highest = layer.layer
+			top = candidate
+	if top:
+		top.request_back()
+		return true
+	var scene := get_tree().current_scene as ScreenBase
+	if scene and not scene._back_target.is_empty():
+		go(scene._back_target)
+		return true
+	return false
+
+
 func _ready() -> void:
 	_layer = CanvasLayer.new()
 	_layer.layer = 100
@@ -39,10 +73,10 @@ func _ready() -> void:
 
 
 func go(screen: String, p := {}) -> void:
-	if screen != "match":
-		Appearance.end_match()
 	if _busy:
 		return
+	if screen != "match":
+		Appearance.end_match()
 	_busy = true
 	params = p
 	var path: String = SCREENS.get(screen, screen)

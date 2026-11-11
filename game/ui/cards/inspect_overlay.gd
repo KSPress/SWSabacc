@@ -72,6 +72,7 @@ func _build(from_rect: Rect2) -> void:
 	theme = UIKit.build_theme()
 	UIKit.fill_rect(self)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	add_to_group("back_dismissible")
 	_origin = from_rect
 	var backdrop := ColorRect.new()
 	UIKit.fill_rect(backdrop)
@@ -218,7 +219,7 @@ func _expand_panel(index: int) -> void:
 		_expanded.add(copy)
 	var back := SabaccButton.make("Back to card", SabaccButton.Style.PRIMARY)
 	back.pressed.connect(_expanded.close)
-	_expanded.add(back)
+	_expanded.add_action(back)
 	_expanded.closed.connect(func(): _expanded = null)
 
 
@@ -396,10 +397,14 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
-		if is_instance_valid(_expanded):
-			_expanded.close()
-		else:
-			close_overlay()
+		request_back()
+
+
+func request_back() -> void:
+	if is_instance_valid(_expanded):
+		_expanded.close()
+	else:
+		close_overlay()
 
 
 func close_overlay() -> void:

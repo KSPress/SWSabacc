@@ -26,6 +26,8 @@ The default datapad follows the active turn's leader/base aspect colors.
 Each emblem now has its own animated line geometry. Force and Initiative use
 custom flipping Sabacc cards, with rounded blaster bolts, saber and melee impacts.
 See [cinematic presentation validation](docs/CINEMATIC_QA.md).
+The 0.6.1 [bug sweep](docs/BUGFIX_QA.md) keeps expanded inspection controls
+visible, supports Escape/Android Back and removes opaque emblem scan bars.
 See [visual polish validation](docs/POLISH_QA.md) for the eight-ratio layout sweep.
 Two starter decks are available on new accounts, and existing saved decks retain
 their cards on migration. See [pack/campaign validation](docs/PACKS_CAMPAIGN_QA.md).

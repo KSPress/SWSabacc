@@ -79,11 +79,13 @@ func _draw() -> void:
 	if texture:
 		var extent := Vector2.ONE * radius * 1.45
 		draw_texture_rect(texture, Rect2(center - extent / 2.0, extent), false, Color(1, 1, 1, alpha * _flicker))
-		# Scan bars and small digital slices make the oversized background glyph
-		# read as a transmission rather than an opaque image behind the cards.
+		# Keep transmission detail outside the glyph. Opaque, full-width dark
+		# scan bars looked like rendering corruption and obscured the emblem.
 		if background_mode:
-			for i in 16:
-				var y := center.y - radius * 0.7 + i * radius * 0.09
-				draw_line(Vector2(center.x - radius * 0.7, y), Vector2(center.x + radius * 0.7, y), primary.darkened(0.96), 2.5)
+			for i in 8:
+				var y := center.y + (i - 3.5) * radius * 0.18
+				var edge := radius * (0.78 + sin(_time * 0.16 + i) * 0.025)
+				for side in [-1, 1]:
+					draw_line(Vector2(center.x + side * edge, y), Vector2(center.x + side * (edge + radius * 0.07), y), Color(primary, alpha * 0.4), 1.0, true)
 			var y := center.y - radius + fposmod(_time * 18, radius * 2)
-			draw_line(Vector2(center.x - radius * 0.75, y), Vector2(center.x + radius * 0.75, y), Color(primary, 0.14), 1.3)
+			draw_line(Vector2(center.x - radius * 0.7, y), Vector2(center.x + radius * 0.7, y), Color(primary, alpha * 0.18), 1.0, true)

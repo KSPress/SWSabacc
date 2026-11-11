@@ -168,6 +168,8 @@ class FxImpact extends Node2D:
 			queue_free()
 
 	func _draw() -> void:
+		if _t >= 0.5:
+			return
 		var k := _t / 0.5
 		var r := (60.0 if big else 38.0) * (0.3 + k)
 		draw_arc(Vector2.ZERO, r, 0, TAU, 32, Color(color, 1.0 - k), 6.0 * (1.0 - k) + 1.0, true)
@@ -299,6 +301,8 @@ class FxMuzzle extends Node2D:
 			queue_free()
 
 	func _draw() -> void:
+		if _t >= 0.12:
+			return
 		var k := 1.0 - _t / 0.12
 		var n := Vector2(-dir.y, dir.x)
 		draw_colored_polygon(PackedVector2Array([dir * 34.0 * k, n * 9.0 * k, -dir * 6.0, -n * 9.0 * k]), Color(1, 1, 0.85, k))
@@ -327,6 +331,8 @@ class FxShockwave extends Node2D:
 			queue_free()
 
 	func _draw() -> void:
+		if _t >= 0.6:
+			return
 		var k := _t / 0.6
 		draw_arc(Vector2.ZERO, 30.0 + k * 140.0, 0, TAU, 48, Color(color, (1.0 - k) * 0.9), 10.0 * (1.0 - k) + 1.0, true)
 		draw_arc(Vector2.ZERO, 15.0 + k * 90.0, 0, TAU, 48, Color(1, 1, 1, (1.0 - k) * 0.6), 4.0, true)
@@ -463,6 +469,8 @@ class FxSlash extends Node2D:
 		if age >= 1:
 			queue_free()
 	func _draw() -> void:
+		if age >= 1:
+			return
 		for stroke in 3:
 			var points := PackedVector2Array()
 			for i in 24:
@@ -514,6 +522,8 @@ class FxPunch extends Node2D:
 			queue_free()
 
 	func _draw() -> void:
+		if _t >= LIFE:
+			return
 		var k := _t / LIFE
 		var pw := power
 		var core := clampf(1.0 - _t / 0.14, 0.0, 1.0)

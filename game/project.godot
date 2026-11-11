@@ -6,6 +6,7 @@ config_version=5
 [application]
 
 config/name="SWU Sabacc"
+config/quit_on_go_back=false
 config/description="Star Wars: Unlimited rules in a fast, Hearthstone-style mobile frame. Non-commercial fan project."
 run/main_scene="res://ui/screens/boot.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
