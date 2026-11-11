@@ -5,6 +5,7 @@ var _grid: GridContainer
 var _kind := "emblem"
 var _filter: OptionButton
 var _info: Label
+var _canvas: Control
 
 
 func build() -> void:
@@ -24,9 +25,12 @@ func build() -> void:
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	body.add_child(_scroll)
 	_grid = GridContainer.new()
+	_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_grid.add_theme_constant_override("h_separation", 12)
 	_grid.add_theme_constant_override("v_separation", 12)
-	_scroll.add_child(_grid)
+	_canvas = Control.new()
+	_scroll.add_child(_canvas)
+	_canvas.add_child(_grid)
 	Cosmetics.changed.connect(_populate)
 	_populate()
 
@@ -94,3 +98,11 @@ func relayout(p: bool, rect: Rect2) -> void:
 	_scroll.position = Vector2(0, 140)
 	_scroll.size = Vector2(rect.size.x, maxf(100, rect.size.y - 140))
 	_grid.columns = maxi(1, int(rect.size.x / 210))
+	_center_grid.call_deferred()
+
+
+func _center_grid() -> void:
+	var extent := _grid.get_combined_minimum_size()
+	_canvas.custom_minimum_size = Vector2(maxf(0, _scroll.size.x - 16), extent.y)
+	_grid.size = extent
+	_grid.position = Vector2(maxf(0, (_canvas.custom_minimum_size.x - extent.x) / 2), 0)

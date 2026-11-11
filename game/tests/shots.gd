@@ -29,8 +29,11 @@ func _ready() -> void:
 
 
 func _size(w: int, h: int) -> void:
-	DisplayServer.window_set_size(Vector2i(w, h))
+	get_tree().root.mode = Window.MODE_WINDOWED
+	get_tree().root.min_size = Vector2i.ZERO
+	get_tree().root.size = Vector2i(w, h)
 	await _wait(0.6)
+	print("viewport requested ", Vector2i(w, h), " actual window ", get_tree().root.size, " canvas ", get_viewport().get_visible_rect().size)
 
 
 func _wait(t: float) -> void:

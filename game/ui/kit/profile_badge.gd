@@ -5,28 +5,72 @@ extends Control
 var emblem_id := ""
 var background_mode := false
 var _time := 0.0
+var _lean := Vector2.ZERO
+var _touch := Vector2.ZERO
+var _touching := false
+var _touch_device := false
+var _noise := FastNoiseLite.new()
+var _random := RandomNumberGenerator.new()
+var _next_glitch := 2.0
+var _glitch_left := 0.0
+var _flicker := 1.0
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	Cosmetics.changed.connect(queue_redraw)
 	Appearance.changed.connect(queue_redraw)
+	_random.randomize()
+	_noise.seed = absi(hash(emblem_id if not emblem_id.is_empty() else Cosmetics.equipped("emblem")))
+	_noise.frequency = 0.8
+	_next_glitch = _random.randf_range(1.0, 5.0)
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		_touch_device = true
+		_touching = event.pressed
+		_touch = event.position
+	elif event is InputEventScreenDrag:
+		_touch = event.position
 
 
 func _process(delta: float) -> void:
-	if not Sabacc.perf():
-		_time += delta
-		queue_redraw()
+	if Sabacc.perf():
+		_lean = Vector2.ZERO
+		_flicker = 1.0
+		return
+	_time += delta
+	var pointer := get_global_transform_with_canvas().affine_inverse() * _touch if _touching else get_local_mouse_position()
+	var target := (pointer - size / 2) / maxf(1, minf(size.x, size.y) / 2)
+	if _touch_device and not _touching:
+		target = Vector2.ZERO
+	if not background_mode and target.length() > 2:
+		target = Vector2.ZERO
+	_lean = _lean.lerp(target.limit_length(1.0), 1 - exp(-delta * 5))
+	_next_glitch -= delta
+	_glitch_left = maxf(0, _glitch_left - delta)
+	if _next_glitch <= 0:
+		_glitch_left = _random.randf_range(0.035, 0.14)
+		_next_glitch = _random.randf_range(1.2, 6.0)
+	_flicker = 0.93 + _noise.get_noise_1d(_time * 9) * 0.07
+	if _glitch_left > 0:
+		_flicker *= 0.55 + _random.randf() * 0.3
+	queue_redraw()
 
 
 func _draw() -> void:
 	var center := size / 2.0
 	var radius := minf(size.x, size.y) * 0.45
+	draw_set_transform(center + _lean * radius * 0.035, _lean.x * 0.035, Vector2(1 - absf(_lean.y) * 0.035, 1 - absf(_lean.x) * 0.035))
+	center = Vector2.ZERO
 	var alpha := 0.22 if background_mode else 1.0
+	var identity := emblem_id if not emblem_id.is_empty() else Cosmetics.equipped("emblem")
+	var primary := Cosmetics.emblem_color(identity)
 	if not background_mode:
-		draw_circle(center, radius, Color("07111b"))
+		draw_circle(center, radius, primary.darkened(0.94))
 	for i in 3:
-		var color := Appearance.line_color(i)
+		var color := Cosmetics.emblem_color(identity, i)
 		var angle := _time * (0.08 + i * 0.025) + i * 1.8
 		draw_arc(center, radius * (0.8 + i * 0.08), angle, angle + PI * 1.4, 80, Color(color, alpha * 0.65), 1.4, true)
 		var point := center + Vector2.from_angle(angle) * radius * (0.8 + i * 0.08)
@@ -34,13 +78,12 @@ func _draw() -> void:
 	var texture := Cosmetics.texture("emblem", emblem_id if not emblem_id.is_empty() else Cosmetics.equipped("emblem"))
 	if texture:
 		var extent := Vector2.ONE * radius * 1.45
-		var flicker := 1.0 if Sabacc.perf() else 0.88 + 0.12 * sin(_time * 7.7)
-		draw_texture_rect(texture, Rect2(center - extent / 2.0, extent), false, Color(1, 1, 1, alpha * flicker))
+		draw_texture_rect(texture, Rect2(center - extent / 2.0, extent), false, Color(1, 1, 1, alpha * _flicker))
 		# Scan bars and small digital slices make the oversized background glyph
 		# read as a transmission rather than an opaque image behind the cards.
 		if background_mode:
 			for i in 16:
 				var y := center.y - radius * 0.7 + i * radius * 0.09
-				draw_line(Vector2(center.x - radius * 0.7, y), Vector2(center.x + radius * 0.7, y), Color("06101b"), 2.5)
+				draw_line(Vector2(center.x - radius * 0.7, y), Vector2(center.x + radius * 0.7, y), primary.darkened(0.96), 2.5)
 			var y := center.y - radius + fposmod(_time * 18, radius * 2)
-			draw_line(Vector2(center.x - radius * 0.75, y), Vector2(center.x + radius * 0.75, y), Color(Appearance.line_color(), 0.14), 1.3)
+			draw_line(Vector2(center.x - radius * 0.75, y), Vector2(center.x + radius * 0.75, y), Color(primary, 0.14), 1.3)

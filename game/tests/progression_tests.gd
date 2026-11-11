@@ -54,6 +54,8 @@ func _run() -> void:
 	check(Progression.packs()[0]["cards"] == cards and Progression.packs()[0]["revealed"] == [0], "pack contents and reveal survive restart")
 	for index in range(1, 10):
 		check(Progression.reveal(id, index), "reveal remaining slot")
+	if not Progression.packs()[0].get("bonus", {}).is_empty():
+		Progression.reveal_bonus(id)
 	check(Progression.finish(id) and Progression.packs().is_empty(), "fully revealed pack can finish")
 	check(Progression.grant("Test", "battle_pack:2").is_empty(), "reward identity cannot grant twice")
 	# Save migration retains existing custom decks as usable playsets.
@@ -99,7 +101,7 @@ func _run() -> void:
 	var screen := get_tree().current_scene
 	screen._rip()
 	await _wait(1.5)
-	check(screen._slots.size() == 10, "rip deals ten face-down cards")
+	check(screen._slots.size() == 10 + (0 if screen._pack.get("bonus", {}).is_empty() else 1), "rip deals ten cards and any bonus")
 	await _shot("pack_explosion_settled")
 	screen._flip(screen._slots[7])
 	await _wait(0.6)

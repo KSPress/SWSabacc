@@ -122,6 +122,7 @@ func _refresh() -> void:
 
 func _show_page() -> void:
 	for c in _grid.get_children():
+		_grid.remove_child(c)
 		c.queue_free()
 	var per := _per_page()
 	var start := _page * per
@@ -154,6 +155,12 @@ func _show_page() -> void:
 		i += 1
 	_page_label.text = "Page %d / %d" % [_page + 1, _pages()]
 	_count.text = "%d cards · %d unlocked in vault" % [_results.size(), Save.data.get("vault", []).size()]
+	_center_grid.call_deferred()
+
+
+func _center_grid() -> void:
+	_grid.size.x = _grid.get_combined_minimum_size().x
+	_grid.position.x = maxf(0, (body.size.x - _grid.size.x) / 2)
 
 
 func relayout(p: bool, r: Rect2) -> void:

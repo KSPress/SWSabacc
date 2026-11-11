@@ -5,9 +5,13 @@ signal changed
 
 var catalog: Dictionary = {"emblems": [], "cardbacks": [], "scenes": []}
 var _texture_cache: Dictionary = {}
+var palettes: Dictionary = {}
 
 
 func _ready() -> void:
+	var colors = JSON.parse_string(FileAccess.get_file_as_string("res://data/emblem_palettes.json"))
+	if colors is Dictionary:
+		palettes = colors
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string("res://ip/cosmetics/catalog.json"))
 	if parsed is Dictionary:
 		catalog = parsed
@@ -129,3 +133,19 @@ func texture(kind: String, id: String = "") -> Texture2D:
 
 func background() -> String:
 	return equipped("background")
+
+
+func emblem_color(id: String = "", index: int = 0) -> Color:
+	if id.is_empty():
+		id = equipped("emblem")
+	var colors: Array = palettes.get(id, ["#c0b89a", "#e8ddc2"])
+	return Color(colors[posmod(index, colors.size())])
+
+
+func award(key: String) -> bool:
+	if not known(key) or key in state()["earned"]:
+		return false
+	state()["earned"].append(key)
+	Save.write()
+	changed.emit()
+	return true

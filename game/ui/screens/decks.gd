@@ -4,6 +4,7 @@ extends ScreenBase
 
 var _scroll: ScrollContainer
 var _grid: GridContainer
+var _canvas: Control
 
 
 func build() -> void:
@@ -14,14 +15,18 @@ func build() -> void:
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	body.add_child(_scroll)
 	_grid = GridContainer.new()
+	_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_grid.add_theme_constant_override("h_separation", 14)
 	_grid.add_theme_constant_override("v_separation", 14)
-	_scroll.add_child(_grid)
+	_canvas = Control.new()
+	_scroll.add_child(_canvas)
+	_canvas.add_child(_grid)
 	_fill()
 
 
 func _fill() -> void:
 	for c in _grid.get_children():
+		_grid.remove_child(c)
 		c.queue_free()
 	var new_btn := SabaccButton.make("New deck", SabaccButton.Style.PRIMARY, "play", true)
 	new_btn.custom_minimum_size = DeckTile.SIZE
@@ -41,6 +46,7 @@ func _fill() -> void:
 		_grid.add_child(t)
 		UIKit.pop_in(t, i * 0.04)
 		i += 1
+	_center_grid.call_deferred()
 
 
 func _new_deck() -> void:
@@ -118,3 +124,11 @@ func relayout(_p: bool, r: Rect2) -> void:
 	_scroll.position = Vector2.ZERO
 	_scroll.size = r.size
 	_grid.columns = maxi(1, int((r.size.x + 14) / (DeckTile.SIZE.x + 14)))
+	_center_grid.call_deferred()
+
+
+func _center_grid() -> void:
+	var extent := _grid.get_combined_minimum_size()
+	_canvas.custom_minimum_size = Vector2(maxf(0, _scroll.size.x - 16), extent.y)
+	_grid.size = extent
+	_grid.position = Vector2(maxf(0, (_canvas.custom_minimum_size.x - extent.x) / 2), 0)

@@ -27,7 +27,8 @@ var _fade: Tween
 func preset() -> Dictionary:
 	var background := Cosmetics.background()
 	if background in ["datapad", "emblem"]:
-		return {"name": "Emblem hologram" if background == "emblem" else "Datapad", "kind": "datapad", "accent": Color("9fdcff"), "base": Color("06101b"), "emblem": background == "emblem"}
+		var accent := Cosmetics.emblem_color() if background == "emblem" else Color("9fdcff")
+		return {"name": "Emblem hologram" if background == "emblem" else "Datapad", "kind": "datapad", "accent": accent, "base": accent.darkened(0.95), "emblem": background == "emblem"}
 	return PRESETS.get("planet_" + background, PRESETS["datapad_republic"])
 
 
@@ -55,6 +56,10 @@ func line_color(index: int = 0) -> Color:
 	return friendly.lerp(_aspect_color(_enemy[posmod(index, _enemy.size())]), _enemy_mix)
 
 
+func backdrop_color(index: int = 0) -> Color:
+	return Cosmetics.emblem_color("", index) if Cosmetics.background() == "emblem" else line_color(index)
+
+
 func begin_match(players: Array) -> void:
 	_friendly = aspects_for([CardDB.card(players[0].get("leader", "")), CardDB.card(players[0].get("base", ""))])
 	_enemy = aspects_for([CardDB.card(players[1].get("leader", "")), CardDB.card(players[1].get("base", ""))])
@@ -75,7 +80,7 @@ func set_acting_player(player: int) -> void:
 		_fade.kill()
 	_fade = create_tween()
 	_fade.set_meta("side", player)
-	_fade.tween_property(self, "_enemy_mix", target, 1.2)
+	_fade.tween_property(self, "_enemy_mix", target, Sabacc.anim(0.45)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 func end_match() -> void:

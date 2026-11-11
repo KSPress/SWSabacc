@@ -207,6 +207,8 @@ func _layout() -> void:
 		hand.position = Vector2(0, vs.y - hand_h)
 		hand.size = Vector2(vs.x, hand_h)
 		var row_y := arena_area.end.y + 8
+		pass_btn.custom_minimum_size = Vector2(150, 64)
+		pass_btn.size = Vector2(150, 64)
 		pass_btn.position = Vector2(vs.x - 170, row_y)
 		tray.vertical = false
 		tray.position = Vector2(12 + TableTokens.InitiativeCoin.SIZE + 16, row_y + 4)
@@ -234,6 +236,7 @@ func _layout() -> void:
 		var rx := vs.x - right_w - 12
 		pass_btn.position = Vector2(rx, vs.y * 0.5 - 32)
 		pass_btn.custom_minimum_size.x = right_w
+		pass_btn.size = Vector2(right_w, 64)
 		tray.vertical = true
 		tray.position = Vector2(rx, vs.y * 0.5 + 50)
 		tracker.position = Vector2(side_w + 30, 12)
@@ -353,7 +356,7 @@ func _step() -> void:
 	while true:
 		await _drain()
 		_sync()
-		Appearance.set_acting_player(int(m.pending.get("player", m.active)))
+		Appearance.set_acting_player(m.active)
 		if m.is_over():
 			busy = false
 			_game_over()

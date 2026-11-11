@@ -19,6 +19,11 @@ Saga chapter run, clear a Spotlight sector, finish a Spotlight run with a win,
 or complete two traditional games to earn a pack. Packs contain ten cards with
 a leader, base and rare-or-better slot. Rip open the pack and flip the cards;
 each reveal permanently unlocks a legal playset for custom deckbuilding.
+Packs may also contain an extra cosmetic: a 12.5% emblem chance or 5% scene
+background chance, with saved individual bonus reveals. Emblem backdrops use
+reviewed glyph palettes and irregular holographic motion with cursor/touch tilt.
+The default datapad follows the active turn's leader/base aspect colors.
+See [visual polish validation](docs/POLISH_QA.md) for the eight-ratio layout sweep.
 Two starter decks are available on new accounts, and existing saved decks retain
 their cards on migration. See [pack/campaign validation](docs/PACKS_CAMPAIGN_QA.md).
 

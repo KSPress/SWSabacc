@@ -47,7 +47,9 @@ func _ready() -> void:
 
 func _apply_style() -> void:
 	var col := _accent()
-	var pad := 50 if glyph != "" else 16
+	# Icon-only controls must fit their 56px touch target. Text+icon padding
+	# previously forced them to 100px and overlapped the match action row.
+	var pad := 8 if text.is_empty() else (50 if glyph != "" else 16)
 	# Buttons with a set width (or that stretch) wrap long labels onto more lines;
 	# buttons sized by their text keep their natural width so nothing is cut.
 	var sized := custom_minimum_size.x >= 120.0 or size_flags_horizontal & Control.SIZE_EXPAND != 0

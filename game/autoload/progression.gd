@@ -4,6 +4,8 @@ extends Node
 signal changed
 
 var _pools: Dictionary = {}
+const EMBLEM_CHANCE := 0.125
+const BACKGROUND_CHANCE := 0.05
 
 
 func _ready() -> void:
@@ -96,7 +98,8 @@ func grant(source: String, identity: String) -> String:
 		reserved.append(picked)
 	s["sequence"] += 1
 	var id := "pack_%d" % s["sequence"]
-	s["packs"].append({"id": id, "source": source, "cards": cards, "revealed": [], "torn": false})
+	s["packs"].append({"id": id, "source": source, "cards": cards, "revealed": [], "torn": false,
+		"bonus": roll_cosmetic(random), "bonus_revealed": false})
 	s["claimed"][identity] = true
 	Save.write()
 	changed.emit()
@@ -127,11 +130,40 @@ func reveal(id: String, index: int) -> bool:
 
 func finish(id: String) -> bool:
 	for pack in packs():
-		if pack["id"] == id and pack["revealed"].size() == pack["cards"].size():
+		if pack["id"] == id and pack["revealed"].size() == pack["cards"].size() and (pack.get("bonus", {}).is_empty() or pack.get("bonus_revealed", false)):
 			packs().erase(pack)
 			Save.write()
 			changed.emit()
 			return true
+	return false
+
+
+func roll_cosmetic(random: RandomNumberGenerator) -> Dictionary:
+	var roll := random.randf()
+	var kind := "background" if roll < BACKGROUND_CHANCE else ("emblem" if roll < BACKGROUND_CHANCE + EMBLEM_CHANCE else "")
+	if kind.is_empty():
+		return {}
+	var reserved: Array = Cosmetics.state()["earned"].duplicate()
+	for pack in packs():
+		if not pack.get("bonus", {}).is_empty():
+			reserved.append(pack["bonus"]["key"])
+	var choices: Array = Cosmetics.all_items().filter(func(item): return item["kind"] == kind and not item["key"] in reserved)
+	if choices.is_empty():
+		return {}
+	var reward: Dictionary = choices[random.randi_range(0, choices.size() - 1)].duplicate()
+	reward["rarity"] = "Legendary" if kind == "background" else "Rare"
+	return reward
+
+
+func reveal_bonus(id: String) -> bool:
+	for pack in packs():
+		if pack["id"] != id or not pack["torn"] or pack.get("bonus_revealed", false) or pack.get("bonus", {}).is_empty():
+			continue
+		pack["bonus_revealed"] = true
+		Cosmetics.award(pack["bonus"]["key"])
+		Save.write()
+		changed.emit()
+		return true
 	return false
 
 
