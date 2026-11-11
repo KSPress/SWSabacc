@@ -19,6 +19,9 @@ func _input(event: InputEvent) -> void:
 			_finish()
 			if not get_global_rect().has_point(event.position):
 				return
+			for control in find_children("*", "Range", true, false):
+				if (control is HSlider or control is VSlider) and control.is_visible_in_tree() and control.get_global_rect().has_point(event.position):
+					return
 			var bar := get_v_scroll_bar()
 			if bar.is_visible_in_tree() and bar.get_global_rect().has_point(event.position):
 				return

@@ -396,7 +396,7 @@ static func muzzle(layer: Control, at: Vector2, dir: Vector2, col: Color) -> voi
 
 
 ## Volley of heavy bolts; returns the total duration.
-static func volley(layer: Control, from: Vector2, to: Vector2, col: Color, count: int, gap := 0.08, thickness := 1.0, spread := 16.0) -> float:
+static func volley(layer: Control, from: Vector2, to: Vector2, col: Color, count: int, gap := 0.08, thickness := 1.0, spread := 16.0, sound_key := "blaster") -> float:
 	for i in count:
 		var b := FxBolt2.new()
 		b.from = from + Vector2(randf_range(-6, 6), randf_range(-6, 6))
@@ -409,7 +409,7 @@ static func volley(layer: Control, from: Vector2, to: Vector2, col: Color, count
 		layer.get_tree().create_timer(i * gap).timeout.connect(func():
 			if is_instance_valid(layer):
 				muzzle(layer, from, to - from, col)
-				Sfx.play("blaster", randf_range(0.85, 1.15) / maxf(0.8, thickness)))
+				Sfx.play(sound_key, randf_range(0.85, 1.15) / maxf(0.8, thickness)))
 	return count * gap + 0.18
 
 

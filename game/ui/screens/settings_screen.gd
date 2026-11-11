@@ -3,16 +3,19 @@ extends ScreenBase
 ## decorative Aurebesh, save reset.
 
 var _box: VBoxContainer
-var _gm: SabaccButton
+var _gm: HSlider
+var _gm_status: Label
 
 
 func _refresh_gm() -> void:
-	_gm.text = "GM: EVERYTHING UNLOCKED" if Cosmetics.state()["gm"] else "GM: ACCOUNT PROGRESSION"
+	_gm.set_value_no_signal(1 if Cosmetics.state()["gm"] else 0)
+	_gm_status.text = "GM · Everything unlocked" if Cosmetics.state()["gm"] else "Normal · Earn your collection"
+	_gm_status.modulate = Sabacc.C_EMPIRE if Cosmetics.state()["gm"] else Sabacc.C_TEXT
 
 
 func build() -> void:
 	set_header("Settings")
-	var scroll := ScrollContainer.new()
+	var scroll := TouchScroll.new()
 	scroll.name = "Scroll"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	body.add_child(scroll)
@@ -24,13 +27,31 @@ func build() -> void:
 	var profile := SabaccButton.make("Profile, card backs & backgrounds", SabaccButton.Style.PRIMARY)
 	profile.pressed.connect(func(): Router.go("customization"))
 	_box.add_child(profile)
-	var gm := SabaccButton.make("", SabaccButton.Style.EMPIRE)
-	gm.name = "GMButton"
-	gm.custom_minimum_size.y = 64
+	var gm_box := VBoxContainer.new()
+	_gm_status = UIKit.label("", 25, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	gm_box.add_child(_gm_status)
+	var gm := HSlider.new()
+	gm.name = "GMSlider"
+	gm.min_value = 0
+	gm.max_value = 1
+	gm.step = 1
+	gm.scrollable = false
+	gm.custom_minimum_size.y = 76
+	var thumb := Image.new()
+	thumb.load_svg_from_string('<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56"><rect x="3" y="3" width="50" height="50" rx="12" fill="#a82322" stroke="#ff7266" stroke-width="3"/><path d="M23 18v20M32 18v20" stroke="#fff0df" stroke-width="3"/></svg>')
+	var thumb_texture := ImageTexture.create_from_image(thumb)
+	gm.add_theme_icon_override("grabber", thumb_texture)
+	gm.add_theme_icon_override("grabber_highlight", thumb_texture)
+	gm.tooltip_text = "Left: normal progression. Right: GM, everything unlocked."
+	gm.add_theme_stylebox_override("slider", UIKit.chamfer(Sabacc.C_PANEL, Sabacc.C_EMPIRE, 10, 2))
+	gm.add_theme_stylebox_override("grabber_area", UIKit.chamfer(Color(Sabacc.C_EMPIRE, 0.35), Sabacc.C_EMPIRE, 10, 2))
+	gm.add_theme_stylebox_override("grabber_area_highlight", UIKit.chamfer(Color(Sabacc.C_EMPIRE, 0.55), Sabacc.C_EMPIRE, 10, 2))
 	_gm = gm
 	Cosmetics.changed.connect(_refresh_gm)
-	gm.pressed.connect(func(): Cosmetics.set_gm(not Cosmetics.state()["gm"]))
-	_box.add_child(gm)
+	gm.value_changed.connect(func(value): Cosmetics.set_gm(value >= 0.5))
+	gm_box.add_child(gm)
+	gm_box.add_child(UIKit.label("NORMAL PROGRESSION                         GM UNLOCK ALL", 16, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	_box.add_child(gm_box)
 	_refresh_gm()
 	var theme_help := UIKit.label("Win games to earn emblems, card backs and scene backgrounds. GM grants access to everything while preserving your earned collection.", 17, Sabacc.C_DIM)
 	theme_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -39,6 +60,7 @@ func build() -> void:
 	_toggle("Decorative Aurebesh text", "show_aurebesh")
 	_slider("Animation speed", "anim_speed", 0.5, 2.5, 0.1)
 	_slider("Sound effects", "sfx_volume", 0.0, 1.0, 0.05)
+	_toggle("Background music", "music_enabled")
 	_slider("Music", "music_volume", 0.0, 1.0, 0.05)
 	var qm := OptionButton.new()
 	var modes := ["one_lane", "traditional", "ground", "space"]

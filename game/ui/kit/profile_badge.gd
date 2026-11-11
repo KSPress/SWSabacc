@@ -4,6 +4,7 @@ extends Control
 
 var emblem_id := ""
 var background_mode := false
+var draw_disc := true
 var _time := 0.0
 var _lean := Vector2.ZERO
 var _touch := Vector2.ZERO
@@ -67,7 +68,7 @@ func _draw() -> void:
 	var alpha := 0.22 if background_mode else 1.0
 	var identity := emblem_id if not emblem_id.is_empty() else Cosmetics.equipped("emblem")
 	var primary := Cosmetics.emblem_color(identity)
-	if not background_mode:
+	if not background_mode and draw_disc:
 		draw_circle(center, radius, primary.darkened(0.94))
 	for i in 3:
 		var color := Cosmetics.emblem_color(identity, i)

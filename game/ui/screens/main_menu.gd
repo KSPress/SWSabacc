@@ -24,17 +24,14 @@ func build() -> void:
 	_title_box.add_theme_constant_override("separation", 0)
 	body.add_child(_title_box)
 	var banner := TextureRect.new()
-	banner.texture = Art.ui_texture("logo")
+	banner.texture = Art.ui_texture("sabacc_title")
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	banner.custom_minimum_size = Vector2(0, 150)
 	banner.name = "Logo"
 	banner.pivot_offset = Vector2(0, 75)
 	_title_box.add_child(banner)
-	var t := UIKit.title(Sabacc.GAME_TITLE, 48, Sabacc.C_TEXT)
-	t.name = "Title"
-	_title_box.add_child(t)
-	_title_box.add_child(UIKit.aurebesh("sabacc", 30))
 	_title_box.add_child(UIKit.label(Sabacc.GAME_SUBTITLE, 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	_buttons = GridContainer.new()
 	_buttons.add_theme_constant_override("h_separation", 16)
@@ -46,7 +43,9 @@ func build() -> void:
 		["Deck Builder", SabaccButton.Style.GOLD, "deck", func(): Router.go("decks"), false],
 		["Collection Vault", SabaccButton.Style.GOLD, "collection", func(): Router.go("collection"), false],
 		["Card Packs (%d)" % Progression.packs().size(), SabaccButton.Style.GOLD, "star", func(): Router.go("packs"), false],
+		["Customization", SabaccButton.Style.PRIMARY, "gear", func(): Router.go("customization"), false],
 		["Settings", SabaccButton.Style.GHOST, "gear", func(): Router.go("settings"), false],
+		["Exit", SabaccButton.Style.EMPIRE, "back", exit_application, false],
 	]
 	var i := 0
 	for it in items:
@@ -64,6 +63,17 @@ func build() -> void:
 	# The full-width title container covers this corner in landscape layouts.
 	# Keep the profile navigation above it so real pointer input reaches it.
 	body.move_child(_profile_button, -1)
+
+
+func exit_application() -> void:
+	if OS.has_feature("web"):
+		var modal := ModalPanel.open(self)
+		modal.text("Close this browser tab to exit the game.")
+		var back := SabaccButton.make("Back to menu")
+		back.pressed.connect(modal.close)
+		modal.add_action(back)
+	else:
+		get_tree().quit()
 
 
 func _spawn_floaters() -> void:
@@ -113,11 +123,8 @@ func relayout(p: bool, r: Rect2) -> void:
 	_profile_button.position = Vector2(r.size.x - 150, 0)
 	_profile_badge.position = Vector2(4, 0)
 	_buttons.columns = 1 if p else 2
-	_title_box.get_node("Logo").custom_minimum_size.y = 150 if p else 72
-	_title_box.get_node("Title").add_theme_font_size_override("font_size", 48 if p else 38)
-	_title_box.get_child(2).add_theme_font_size_override("font_size", 30 if p else 20)
-	_title_box.get_child(3).add_theme_font_size_override("font_size", 18 if p else 16)
-	_title_box.position = Vector2(0, r.size.y * (0.04 if p else 0.0))
+	_title_box.get_node("Logo").custom_minimum_size.y = 132 if p else 92
+	_title_box.position = Vector2(0, maxf(72, r.size.y * 0.04) if p else 0.0)
 	_title_box.size = Vector2(r.size.x, 0)
 	await get_tree().process_frame
 	var bs := _buttons.get_combined_minimum_size()

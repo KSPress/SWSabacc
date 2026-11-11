@@ -50,6 +50,7 @@ var settings := {
 	"text_scale": 1.0,
 	"sfx_volume": 0.7,
 	"music_volume": 0.5,
+	"music_enabled": true,
 	"orientation": "auto",     # auto | portrait | landscape
 	"show_aurebesh": true,
 	"quick_mode": "traditional",  # one_lane | traditional | ground | space

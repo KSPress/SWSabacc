@@ -397,6 +397,8 @@ func _drain() -> void:
 				log_text.append_text(e["text"] + "\n")
 			"enter":
 				_ensure_token(m.card(e["uid"]), true)
+				if m.card(e["uid"]):
+					Sfx.entered(m.card(e["uid"]).data)
 				_position_tokens()
 				Sfx.play("play")
 				await _wait(0.18)
@@ -428,6 +430,9 @@ func _drain() -> void:
 					var txt: String = e.get("kw", "").capitalize() if e.has("kw") else "%+d/%+d" % [int(e.get("p", 0)), int(e.get("h", 0))]
 					Fx.float_text(fx_layer, bt.center_global(), txt, Sabacc.C_GOLD, 26)
 			"defeat":
+				if m.card(e["uid"]):
+					var dead := m.card(e["uid"])
+					Sfx.defeated(dead.data, dead.arena())
 				var dt: UnitToken = tokens.get(e["uid"])
 				if dt:
 					tokens.erase(e["uid"])
@@ -481,6 +486,8 @@ func _drain() -> void:
 				force_orbs[int(e["p"])].spend()
 				await _wait(0.3)
 			"ability":
+				if m.card(e["uid"]):
+					Sfx.acted(m.card(e["uid"]).data)
 				var at: UnitToken = tokens.get(e["uid"])
 				if at:
 					at.flash(Sabacc.C_GOLD)
@@ -536,6 +543,7 @@ func _anim_play(e: Dictionary) -> void:
 func _anim_attack(a: CardInst, t: CardInst) -> void:
 	if a == null or t == null:
 		return
+	Sfx.acted(a.data)
 	var at: UnitToken = tokens.get(a.uid)
 	if at == null:
 		return
@@ -605,7 +613,7 @@ func _anim_saber(at: UnitToken, target: Vector2, col: Color) -> void:
 	t3.tween_method(lit, 0.0, 1.0, Sabacc.anim(0.2))
 	get_tree().create_timer(Sabacc.anim(0.11)).timeout.connect(func():
 		Fx.punch(fx_layer, target, col, 1.2, at.center_global())
-		Sfx.play("hit", 0.8)
+		Sfx.play("saber_hit")
 		Fx.shake(board_layer, 7.0, 0.2))
 	await t3.finished
 	await _wait(0.08)
@@ -633,7 +641,7 @@ func _anim_ranged(at: UnitToken, target: Vector2, col: Color, heavy: bool) -> vo
 	var shots := 3 if heavy else clampi(2 + at.inst.power(true), 3, 6)
 	var gap := Sabacc.anim(0.15 if heavy else 0.08)
 	var muzzle_at := at.center_global() + dir * 50.0 * s0.x
-	var dur := Fx.volley(fx_layer, muzzle_at, target, col, shots, gap, 1.9 if heavy else 1.15, 22.0 if heavy else 14.0)
+	var dur := Fx.volley(fx_layer, muzzle_at, target, col, shots, gap, 1.9 if heavy else 1.15, 22.0 if heavy else 14.0, Sfx.attack_sound(at.inst.data, "heavy" if heavy else "blaster"))
 	var rec := create_tween()
 	for i in shots:
 		rec.tween_property(at, "position", ready_pos - dir * (11.0 if heavy else 6.0), gap * 0.4)
@@ -664,8 +672,8 @@ func _anim_ship(at: UnitToken, target: Vector2, col: Color) -> void:
 	var c := at.center_global()
 	var off := side * 14.0 * s0.x
 	for i in 3:
-		Fx.volley(fx_layer, c + off, target + off * 0.5, col, 1, 0.0, 1.0, 10.0)
-		Fx.volley(fx_layer, c - off, target - off * 0.5, col, 1, 0.0, 1.0, 10.0)
+		Fx.volley(fx_layer, c + off, target + off * 0.5, col, 1, 0.0, 1.0, 10.0, Sfx.attack_sound(at.inst.data, "ship"))
+		Fx.volley(fx_layer, c - off, target - off * 0.5, col, 1, 0.0, 1.0, 10.0, Sfx.attack_sound(at.inst.data, "ship"))
 		await _wait(0.09)
 	await _wait(0.12)
 	Fx.punch(fx_layer, target, col, 1.0, c)
@@ -680,6 +688,7 @@ func _anim_ship(at: UnitToken, target: Vector2, col: Color) -> void:
 ## Melee (no blaster on the card): the card leaps up off the board, hangs for a
 ## beat, then slams down into the target with a shockwave.
 func _anim_melee(at: UnitToken, target: Vector2) -> void:
+	Sfx.play("melee")
 	var s0 := at.scale
 	var start := at.position
 	var direction := (target - at.center_global()).normalized()
@@ -1243,6 +1252,8 @@ func _game_over() -> void:
 		menu_popup.queue_free()
 		menu_popup = null
 	Sfx.play("win" if won else "lose")
+	if m.winner in [0, 1]:
+		Sfx.result_cues(m.players[m.winner].leader, m.players[1 - m.winner].leader, Appearance.aspects_for([m.players[m.winner].leader.data, m.players[m.winner].base.data]))
 	var layer := CanvasLayer.new()
 	layer.layer = 45
 	add_child(layer)

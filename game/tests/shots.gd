@@ -8,6 +8,9 @@ var only := ""
 
 
 func _ready() -> void:
+	AudioServer.set_bus_mute(0, true)
+	Sabacc.settings["music_enabled"] = false
+	Music._apply()
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		out = args[0]

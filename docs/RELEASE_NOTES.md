@@ -1,18 +1,25 @@
-SWU Sabacc 0.6.2 — Android customization scrolling.
+SWU Sabacc 0.7.0 — title, customization and character audio.
 
-- Fixed finger scrolling over emblem, card-back and background previews.
-- Swipes starting on equip buttons scroll without accidentally equipping items.
-  Horizontal swipes cancel taps too; stationary taps still equip normally.
-- Fixed trackpad pan events blocked by cosmetic preview/centering controls.
-- Retained 0.6.1 inspector navigation, emblem scan-bar and expired-effect fixes.
+- Added main-menu Exit and Customization entries and the supplied Sabacc title.
+- Polished cosmetic tiles, grey locked previews, equipped/unlocked sorting and
+  live datapad/emblem background previews. Selection preserves scroll position.
+- Replaced the GM button with a large red slider: normal progression on the
+  left, everything unlocked on the right, while preserving earned cosmetics.
+- Imported 52 sound clips and six quietly shuffled background music tracks.
+  Settings control music enable/volume and current sound-effect volume.
+- PLAYED clips accompany entry. DIE/LOSE clips share death/losing-leader cues.
+  Unlabeled character clips accompany attacks and activated abilities.
+- Wilhelm rolls at 5% only for ground non-Creature, non-Vehicle units. All
+  Vehicles have a 5% Minecraft/Creeper death explosion chance.
+- Added TIE entry/shooting, combat sound categories, Villainy victory siren and
+  Heroism victory Cantina cues, with temporary soundtrack ducking.
 
-Validation: 42 touch-input assertions passed (26 baseline failures reproduced),
-122 menu/inspector GUI input assertions passed, and 114 responsive assertions
-over eight ratios/152 screen states passed with zero detected layout issues.
-Zero broken scripts. See docs/TOUCH_INPUT_QA.md for evidence and limitations.
+Validation: 117 presentation/audio assertions, 42 touch checks, 114 responsive
+checks over eight ratios/152 screen states, 75 cinematic checks and 24 manifest
+checks passed. Native Exit and chunked browser startup/navigation were verified.
+Zero broken scripts. See docs/PRESENTATION_AUDIO_QA.md for evidence and limitations.
 
-The Windows main-menu lockup remains unreproduced in native testing and is
-tracked separately from the confirmed Android scrolling failure.
+The user confirmed the earlier Windows menu was working again.
 
 Android: swu_sabacc.apk. Windows: extract SWSabacc-windows.zip and keep the EXE/PCK
 together. The existing Android signing identity, saves and legacy update bridge
