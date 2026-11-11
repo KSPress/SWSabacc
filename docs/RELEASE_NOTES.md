@@ -1,24 +1,19 @@
-SWU Sabacc 0.5.0 — pack reveals, emblem identity and responsive polish.
+SWU Sabacc 0.6.0 — Sabacc tokens, cinematic combat and expanded inspection.
 
-- Upgraded pack opening with animated foil, an emblem seal, drag/touch seam
-  feedback, anticipation, wrapper separation, radial bursts and staggered cards.
-- Added a possible bonus beyond the ten cards: 12.5% emblem chance or 5% scene
-  background chance. Bonuses are pre-rolled, saved and individually revealed.
-  Already-owned/pending cosmetics are excluded from the selected pool at roll
-  time. Exhausted pools give no bonus; existing packs keep their saved contents.
-- Reviewed all 25 emblem palettes. Backgrounds and profile frames now match the
-  selected glyph, including olive Fett, warm ivory Old Republic and silver emblems.
-- Replaced repeating hologram pulses with noise and irregular signal drops,
-  plus smooth cursor/finger tilt. Performance mode freezes decorative motion.
-- Made default datapad enemy-turn transitions more obvious using active-turn
-  ownership, faster aspect blending and an ambient color wash.
-- Fixed icon-only button padding that overlapped the match Log/Settings/PASS row,
-  reset PASS width after rotation, and centered cosmetic/deck/collection grids.
+- Replaced Force and Initiative markers with the supplied Sabacc fronts and
+  backs. Gain, spend and claim actions animate a face-changing card flip.
+- Added melee windup, curved swings and contact flashes. Ground Force characters
+  use lightsabers: red for Villainy, blue/green for Heroism. Rounded luminous
+  blaster bolts are green for Villainy, red for Heroism and yellow for neutral,
+  with target impact flashes and sparks.
+- Gave all 25 emblem backgrounds their own animated line geometry while
+  retaining matching palettes, irregular flicker and input parallax.
+- Expanded radial inspection with actual aspect icons, card anatomy, deployment
+  thresholds, upgrade modifiers, referenced keywords and expandable dossiers.
 
-Validation: 114 checks across eight ratios and 152 screen states, with zero
-out-of-bounds buttons or detected button overlaps; 50 existing progression checks;
-80 visual/interaction checks; zero broken scripts; 24 manifest checks. See docs/POLISH_QA.md for evidence,
-visual checks and limitations.
+Validation: 75 cinematic/inspector assertions, 114 responsive assertions over
+eight ratios and 152 screen states (zero detected layout issues), 24 update
+manifest assertions and zero broken scripts. See docs/CINEMATIC_QA.md.
 
 Android: swu_sabacc.apk. Windows: extract SWSabacc-windows.zip and keep the EXE/PCK
 together. The existing Android signing identity, saves and legacy update bridge

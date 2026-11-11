@@ -36,10 +36,9 @@ class InitiativeCoin extends Control:
 		var c := size / 2.0
 		var sx := absf(_flip)
 		var face_claimed := claimed if _flip >= 0.0 else not claimed
-		var tex := Art.ui_texture("tokens/initiative")
-		var ts := tex.get_size() if tex else Vector2(174, 140)
-		var w := SIZE * 1.25
-		var h := w * ts.y / ts.x
+		var tex := Art.ui_texture("tokens/sabacc_initiative_back" if face_claimed else "tokens/sabacc_initiative_front")
+		var h := SIZE
+		var w := h * 400.0 / 550.0
 		var tr := Transform2D(0.0, Vector2(maxf(0.06, sx), 1.0), 0.0, c)
 		draw_set_transform_matrix(tr)
 		if claimable and not face_claimed and not _flying:
@@ -49,8 +48,7 @@ class InitiativeCoin extends Control:
 		# drop shadow
 		if tex:
 			draw_texture_rect(tex, Rect2(Vector2(-w / 2.0 + 3, -h / 2.0 + 5), Vector2(w, h)), false, Color(0, 0, 0, 0.5))
-			var tint := Color.WHITE if not face_claimed else Color(0.42, 0.42, 0.46, 0.95)
-			draw_texture_rect(tex, Rect2(-Vector2(w, h) / 2.0, Vector2(w, h)), false, tint)
+			draw_texture_rect(tex, Rect2(-Vector2(w, h) / 2.0, Vector2(w, h)), false, Color.WHITE)
 		# moving glint across the gold inlay
 		if not face_claimed:
 			var g := fposmod(_t * 0.5, 2.6) - 1.3
@@ -91,7 +89,7 @@ class InitiativeCoin extends Control:
 			scale = Vector2.ONE * (1.0 + 0.45 * sin(k * PI)), 0.0, 1.0, Sabacc.anim(0.75)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		# spin: several flips in the air, landing on the right face
 		tw.tween_method(func(k: float):
-			_flip = cos(k * TAU * 3.0), 0.0, 1.0, Sabacc.anim(0.75))
+			_flip = cos(k * PI * 3.0), 0.0, 1.0, Sabacc.anim(0.75))
 		await tw.finished
 		claimed = p_claimed
 		_flip = 1.0
@@ -115,6 +113,8 @@ class ForceOrb extends Control:
 	var _motes: Array = []     # gathering particles: {from, delay}
 	var _gather := -1.0
 	var _burst := -1.0
+	var _flip := -1.0
+	var _turn: Tween
 
 	func _ready() -> void:
 		size = Vector2(SIZE, SIZE)
@@ -144,6 +144,7 @@ class ForceOrb extends Control:
 		visible = true
 		_burst = -1.0
 		_gather = 0.0
+		_turn_card(true)
 		_motes.clear()
 		var vs := get_viewport_rect().size
 		var me := global_position + size / 2.0
@@ -156,7 +157,14 @@ class ForceOrb extends Control:
 	func spend() -> void:
 		active = false
 		_burst = 0.0
+		_turn_card(false)
 		Sfx.play("shield", 0.7)
+
+	func _turn_card(face_up: bool) -> void:
+		if _turn and _turn.is_valid():
+			_turn.kill()
+		_turn = create_tween()
+		_turn.tween_property(self, "_flip", 1.0 if face_up else -1.0, Sabacc.anim(0.48)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 	func _draw() -> void:
 		var c := size / 2.0
@@ -172,34 +180,30 @@ class ForceOrb extends Control:
 				draw_circle(p, 3.0, Color(0.85, 0.95, 1.0, k))
 		var grow := 1.0
 		if _gather >= 0.0:
-			grow = clampf((_gather - 0.55) / 0.45, 0.0, 1.0)
-		var back := false
+			grow = 0.72 + 0.28 * clampf(_gather, 0, 1)
+		var back := _flip < 0
 		if _burst >= 0.0:
 			var b := _burst
 			for i in 3:
 				draw_arc(c, r * (1.6 + b * (2.0 + i)), 0, TAU, 32, Color(0.6, 0.85, 1.0, (1.0 - b) * 0.6), 3.0, true)
-			back = b > 0.25                      # flipped to the blue side as it fades
-			grow = 1.0 - maxf(0.0, b - 0.25) / 0.75
+			grow = 1.0 - maxf(0.0, b - 0.75) / 0.25
 		if not active and _burst < 0.0:
 			return
 		if grow <= 0.0:
 			return
-		var pulse := 0.5 + 0.5 * sin(_t * 3.0)
 		var tok_r := SIZE * 0.5 * grow
-		for i in 3:
-			draw_circle(c, tok_r * (1.12 + i * 0.12 + pulse * 0.05), Color(1.0, 0.82, 0.4, 0.07) if not back else Color(0.45, 0.7, 1.0, 0.07))
-		var tex := Art.ui_texture("tokens/force_back" if back else "tokens/force")
-		var flip_sx := 1.0
-		if _burst >= 0.0 and _burst < 0.5:
-			flip_sx = absf(cos(_burst / 0.5 * PI))   # coin flip
+		var tex := Art.ui_texture("tokens/sabacc_force_back" if back else "tokens/sabacc_force_front")
+		var flip_sx := maxf(0.015, absf(_flip))
 		if tex:
 			draw_set_transform(c, sin(_t * 0.7) * 0.05, Vector2(flip_sx, 1.0))
-			draw_texture_rect(tex, Rect2(-Vector2(tok_r, tok_r), Vector2(tok_r, tok_r) * 2.0), false, Color(1, 1, 1, 1.0 if not back else 0.85))
+			var extent := Vector2(tok_r * 1.45, tok_r * 2)
+			draw_texture_rect(tex, Rect2(-extent / 2 + Vector2(2, 4), extent), false, Color(0, 0, 0, 0.4))
+			draw_texture_rect(tex, Rect2(-extent / 2, extent), false, Color.WHITE)
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		# glints orbiting the token
 		for i in 3:
 			var a2 := _t * 2.2 + i * TAU / 3.0
-			draw_circle(c + Vector2(cos(a2), sin(a2) * 0.55) * tok_r * 1.15, 2.2, Color(1.0, 0.92, 0.6, 0.85))
+			draw_circle(c + Vector2(cos(a2) * 0.8, sin(a2)) * tok_r * 1.15, 1.5, Color(0.65, 0.8, 1.0, 0.7))
 
 
 ## Claimable token in the tray (Plan, Blast...) shown with its real token art.

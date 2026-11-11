@@ -356,7 +356,7 @@ class FxBolt2 extends Node2D:
 		if k >= 1.0 and not _hit:
 			_hit = true
 			if host:
-				Fx.punch(host, to, color, 0.55 + 0.25 * thickness, from)
+				Fx.punch(host, to, color, 0.28 + 0.12 * thickness, from)
 				Sfx.play("hit", randf_range(1.1, 1.4))
 		if _t > delay + speed + 0.12:
 			queue_free()
@@ -366,13 +366,19 @@ class FxBolt2 extends Node2D:
 		if k < 0.0 or k > 1.15:
 			return
 		var head := from.lerp(to, clampf(k, 0, 1))
-		var tail := from.lerp(to, clampf(k - 0.35, 0, 1))
+		var direction := (to - from).normalized()
+		var bolt_length := clampf(from.distance_to(to) * 0.08, 18, 42) * thickness
+		var tail := head - direction * minf(bolt_length, from.distance_to(head))
 		var gp := get_global_transform().affine_inverse()
 		var a := gp * tail
 		var b := gp * head
-		draw_line(a, b, Color(color, 0.25), 18.0 * thickness, true)
-		draw_line(a, b, Color(color, 0.7), 9.0 * thickness, true)
-		draw_line(a, b, Color(1, 1, 1, 0.95), 3.0 * thickness, true)
+		for layer in [[12.0, 0.07], [7.0, 0.18], [3.5, 0.9], [1.4, 1.0]]:
+			var width: float = layer[0] * thickness
+			var tint := Color.WHITE if layer[0] < 2 else color
+			tint.a = layer[1]
+			draw_line(a, b, tint, width, true)
+			draw_circle(a, width / 2, tint)
+			draw_circle(b, width / 2, tint)
 
 
 static func muzzle(layer: Control, at: Vector2, dir: Vector2, col: Color) -> void:
@@ -435,6 +441,35 @@ static func punch(layer: Control, at: Vector2, col: Color, power := 1.0, from :=
 	layer.add_child(n)
 	n.global_position = at
 	light_at(at, col.lightened(0.35), 240.0 * power, 1.4 * power)
+	for target in light_targets:
+		if is_instance_valid(target) and target.get_global_rect().has_point(at) and target.has_method("flash"):
+			target.flash(col.lightened(0.55))
+
+
+static func slash(layer: Control, at: Vector2, direction: Vector2, col: Color) -> void:
+	var arc := FxSlash.new()
+	arc.color = col
+	arc.rotation = direction.angle()
+	layer.add_child(arc)
+	arc.global_position = at
+
+
+class FxSlash extends Node2D:
+	var color := Color.WHITE
+	var age := 0.0
+	func _process(delta: float) -> void:
+		age += delta / Sabacc.anim(0.28)
+		queue_redraw()
+		if age >= 1:
+			queue_free()
+	func _draw() -> void:
+		for stroke in 3:
+			var points := PackedVector2Array()
+			for i in 24:
+				var angle := lerpf(-1.4, 1.2, minf(1, age * 3) * i / 23.0)
+				points.append(Vector2(cos(angle) * (66 - stroke * 12), sin(angle) * (46 - stroke * 8)) - Vector2(40, 0))
+			draw_polyline(points, Color(color, (1 - age) * 0.2), 12, true)
+			draw_polyline(points, Color(color.lightened(0.8), 1 - age), 2.5 - stroke * 0.5, true)
 
 
 class FxPunch extends Node2D:

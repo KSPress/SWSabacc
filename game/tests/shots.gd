@@ -437,8 +437,10 @@ func _anims() -> void:
 			continue
 		print("ANIM %s style=%s" % [case[2], AttackStyle.of(a)["style"]])
 		ms._act({"a": "attack", "uid": a.uid, "target": d.uid})
-		for f in [0.18, 0.42, 0.62, 0.9]:
-			await get_tree().create_timer(f - (0.0 if f == 0.18 else 0.0)).timeout
+		var previous := 0.0
+		for f in [0.12, 0.32, 0.54, 0.64, 0.86, 1.15]:
+			await get_tree().create_timer(f - previous).timeout
+			previous = f
 			await _shot("anim_%s_%02d" % [case[2], int(f * 100)])
 		await _wait(1.5)
 

@@ -35,6 +35,24 @@ var _actions: HBoxContainer
 var _flight: Tween
 var _closing := false
 var _time := 0.0
+var _expanded: ModalPanel
+
+const ASPECT_HELP := {
+	"vigilance": "Vigilance: defensive tactics, endurance and protecting your board.",
+	"command": "Command: leadership, resource development and coordinated forces.",
+	"aggression": "Aggression: direct damage, pressure and decisive attacks.",
+	"cunning": "Cunning: tricks, tempo, evasion and disrupting an opponent.",
+	"heroism": "Heroism is an alignment aspect. Its icon is still required when paying aspect penalties.",
+	"villainy": "Villainy is an alignment aspect. Its icon is still required when paying aspect penalties.",
+}
+
+
+func _accent(index: int = 0) -> Color:
+	var aspects: Array = CardDB.card(_id).get("aspects", [])
+	if aspects.is_empty():
+		return Color("c9ba95")
+	var aspect: String = aspects[posmod(index, aspects.size())]
+	return Color("a9afbd") if aspect == "villainy" else Sabacc.aspect_color(aspect).lightened(0.12)
 
 
 static func open(host: Node, id: String, from_rect := Rect2(), p_inst: CardInst = null) -> InspectOverlay:
@@ -74,7 +92,7 @@ func _build(from_rect: Rect2) -> void:
 	_chrome.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UIKit.fill_rect(_chrome)
 	add_child(_chrome)
-	_heading = UIKit.label(CardDB.card(_id).get("name", _id).to_upper(), 26, Appearance.color_at(), HORIZONTAL_ALIGNMENT_CENTER)
+	_heading = UIKit.label(CardDB.card(_id).get("name", _id).to_upper(), 26, _accent(), HORIZONTAL_ALIGNMENT_CENTER)
 	_heading.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_heading.clip_text = true
 	_heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -144,13 +162,15 @@ func _make_card() -> void:
 	_card.set_card(_id)
 	_card.draggable = false
 	_card.hover_lift = false
+	_card.tapped.connect(func(_view): _expand_panel(0))
+	_card.tooltip_text = "Tap to expand aspects and card anatomy"
 	_card.pivot_offset = Vector2.ZERO
 	add_child(_card)
 	_card._tex = Art.get_now(_card.data.get("art", _id), _back)
 
 
 func _panel(title: String, index: int) -> VBoxContainer:
-	var panel := UIKit.panel(Color(Sabacc.C_PANEL, 0.96), Color(Appearance.color_at(index), 0.75), 12, 5)
+	var panel := UIKit.panel(Color(Sabacc.C_PANEL, 0.96), Color(_accent(index), 0.75), 12, 5)
 	panel.name = "Dossier" + str(index)
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(panel)
@@ -162,10 +182,44 @@ func _panel(title: String, index: int) -> VBoxContainer:
 	box.add_theme_constant_override("separation", 8)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(box)
-	var label := UIKit.label(title.to_upper(), 18, Appearance.color_at(index))
+	var header := HBoxContainer.new()
+	var label := UIKit.label(title.to_upper(), 18, _accent(index))
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(label)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(label)
+	var expand := SabaccButton.make("+", SabaccButton.Style.GHOST)
+	expand.custom_minimum_size = Vector2(42, 42)
+	expand.add_theme_font_size_override("font_size", 18)
+	expand.tooltip_text = "Expand " + title
+	expand.pressed.connect(_expand_panel.bind(_panels.size() - 1))
+	header.add_child(expand)
+	box.add_child(header)
 	return box
+
+
+func _expand_panel(index: int) -> void:
+	if _closing or is_instance_valid(_expanded) or index >= _panels.size():
+		return
+	var source: VBoxContainer = _panels[index].get_child(0).get_child(0)
+	_expanded = ModalPanel.open(self, 880, _accent(index))
+	_expanded._layer.layer = 70
+	_expanded.dismiss_on_backdrop = true
+	_expanded.text(source.get_child(0).get_child(0).text, 28, _accent(index))
+	for child in source.get_children().slice(1):
+		var copy := child.duplicate() as Control
+		if child.has_meta("aspects"):
+			copy.free()
+			copy = HBoxContainer.new()
+			copy.add_theme_constant_override("separation", 8)
+			for aspect in child.get_meta("aspects"):
+				copy.add_child(AspectIcon.make(aspect, 40))
+		if copy is Label:
+			copy.add_theme_font_size_override("font_size", 22)
+		_expanded.add(copy)
+	var back := SabaccButton.make("Back to card", SabaccButton.Style.PRIMARY)
+	back.pressed.connect(_expanded.close)
+	_expanded.add(back)
+	_expanded.closed.connect(func(): _expanded = null)
 
 
 func _text(box: VBoxContainer, text: String, color := Sabacc.C_TEXT) -> void:
@@ -182,20 +236,40 @@ func _make_panels() -> void:
 	_panels.clear()
 	var d: Dictionary = CardDB.card(_id)
 	var face: Dictionary = d.get("leader_unit", {}) if _back else d
-	var profile := _panel("Card profile", 0)
+	var profile := _panel("Aspects & anatomy", 0)
 	_text(profile, d.get("name", _id))
 	if d.get("subtitle", "") != "":
 		_text(profile, d["subtitle"], Sabacc.C_DIM)
 	_text(profile, "%s · %s" % [UIKit.type_label(d.get("type", "")), ", ".join(d.get("traits", [])).capitalize()])
 	_text(profile, "Aspects: " + ", ".join(d.get("aspects", [])).capitalize())
+	var icons := HBoxContainer.new()
+	icons.set_meta("aspects", d.get("aspects", []))
+	icons.add_theme_constant_override("separation", 6)
+	for aspect in d.get("aspects", []):
+		icons.add_child(AspectIcon.make(aspect, 34))
+	profile.add_child(icons)
+	for aspect in d.get("aspects", []):
+		_text(profile, ASPECT_HELP.get(aspect, aspect.capitalize()), Sabacc.C_DIM)
+	_text(profile, "Your leader and base supply aspect icons. Each unmatched printed icon adds 2 resources to this card's cost in traditional battles.")
 	var stats: Array[String] = []
 	if d.has("cost"):
-		stats.append("Cost %d" % int(d["cost"]))
+		stats.append(("Deploy threshold %d" if d.get("type") == "leader" else "Cost %d") % int(d["cost"]))
 	if face.has("power"):
 		stats.append("Power %d" % int(face["power"]))
 	if face.has("hp"):
 		stats.append("HP %d" % int(face["hp"]))
-	_text(profile, " · ".join(stats), Appearance.color_at(1))
+	_text(profile, " · ".join(stats), _accent(1))
+	if d.has("cost"):
+		_text(profile, "Deployment threshold: control this many resources to meet the leader's Epic Action requirement. The threshold does not spend those resources; check any printed additional costs." if d.get("type") == "leader" else "Cost: resources exhausted to play the card, before applicable discounts or aspect penalties.", Sabacc.C_DIM)
+	if face.has("power"):
+		_text(profile, "Power: combat damage this unit deals. Upgrades show the modifier they grant instead." if d.get("type") == "upgrade" else "Power: combat damage dealt when attacking or defending.", Sabacc.C_DIM)
+	if face.has("hp"):
+		_text(profile, "HP modifier: added to the attached unit's HP; the upgrade does not take damage itself." if d.get("type") == "upgrade" else ("HP: damage this base can sustain before you lose." if d.get("type") == "base" else "HP: damage capacity. A unit with damage equal to or above its current HP is defeated."), Sabacc.C_DIM)
+	if d.get("type") == "leader":
+		_text(profile, "Leader deployment: its Epic Action can be used once per game when you meet its resource threshold (%d). Flip to inspect the unit side." % int(d.get("epic_cost", d.get("cost", 0))))
+	_text(profile, "Arena: " + str(face.get("arena", d.get("arena", "Not an arena unit"))).capitalize() + ". Ground and space units normally attack in their own arena.", Sabacc.C_DIM)
+	_text(profile, "Traits and uniqueness: traits enable card synergies; a unique title is subject to the uniqueness rule. Traits do not grant abilities by themselves.", Sabacc.C_DIM)
+	_text(profile, "Unique title: the diamond identifies a unique card; control of matching unique titles is restricted by the uniqueness rule." if d.get("unique", false) else "Non-unique card: no uniqueness marker. Deck copy limits still apply.", Sabacc.C_DIM)
 	_text(profile, "%s · %s" % [d.get("set", ""), d.get("number", "")], Sabacc.C_DIM)
 	var rules := _panel("Printed ability", 1)
 	var printed: String = face.get("text", "")
@@ -205,6 +279,15 @@ func _make_panels() -> void:
 	for keyword in keywords:
 		var key: String = keyword["k"]
 		_text(glossary, "%s%s — %s" % [key.capitalize(), " %s" % keyword["v"] if keyword.has("v") else "", UIKit.KEYWORD_HELP.get(key, "See the printed card for this ability.")])
+	# Conditional/granted keywords belong in the glossary even though they must
+	# not be granted unconditionally by the rules engine.
+	for key in UIKit.KEYWORD_HELP:
+		var printed_keyword := RegEx.create_from_string("(?i)\\b" + key + "\\b").search(printed)
+		if printed_keyword and not keywords.any(func(entry): return entry["k"] == key):
+			_text(glossary, key.capitalize() + " (conditional / referenced) — " + UIKit.KEYWORD_HELP[key])
+	for entry in [["Shield token", "Defeat one Shield token to prevent the next damage that would be dealt to its attached unit."], ["Experience token", "Each Experience upgrade grants +1 power and +1 HP to its attached unit."], ["Force", "The Force token is a player resource: abilities can grant it or require you to use it. Using it spends the token."], ["Exhaust", "Turn the card sideways. Exhausted units normally cannot attack; ready them during regroup unless a rule says otherwise."]]:
+		if entry[0].to_lower() in printed.to_lower():
+			_text(glossary, entry[0] + " — " + entry[1])
 	for trigger in [["When Played", "Resolves when this card is played, before the next normal action."], ["On Attack", "Resolves when this unit attacks, before combat damage."], ["When Defeated", "Resolves when this card is defeated."], ["Epic Action", "A once-per-game action. Meet its printed requirement first."], ["Action", "Uses your action for the turn and requires its printed costs."]]:
 		if trigger[0] in printed and not (trigger[0] == "Action" and "Epic Action" in printed):
 			_text(glossary, trigger[0] + " — " + trigger[1])
@@ -313,7 +396,10 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
-		close_overlay()
+		if is_instance_valid(_expanded):
+			_expanded.close()
+		else:
+			close_overlay()
 
 
 func close_overlay() -> void:
@@ -347,17 +433,17 @@ class OrbitChrome extends Control:
 		var shown := overlay._card.base_size() * overlay._scale
 		var radius := maxf(shown.x, shown.y) * 0.57
 		for i in 3:
-			var col := Appearance.color_at(i)
+			var col := overlay._accent(i)
 			var angle := overlay._time * (0.12 if i % 2 == 0 else -0.1) + i * 2
 			draw_arc(center, radius + i * 9, angle, angle + PI * 1.25, 90, Color(col, 0.28), 1.4, true)
 		for i in 48:
 			var dir := Vector2.from_angle(i * TAU / 48 + overlay._time * 0.04)
-			draw_line(center + dir * radius, center + dir * (radius + (10 if i % 4 == 0 else 4)), Color(Appearance.color_at(i), 0.3), 1.0, true)
+			draw_line(center + dir * radius, center + dir * (radius + (10 if i % 4 == 0 else 4)), Color(overlay._accent(i), 0.3), 1.0, true)
 		for i in overlay._panels.size():
 			var panel := overlay._panels[i]
 			var end := panel.position + panel.size / 2.0
 			var dir := (end - center).normalized()
 			var start := center + dir * radius
 			var elbow := Vector2(end.x, start.y)
-			draw_polyline(PackedVector2Array([start, elbow, end]), Color(Appearance.color_at(i), 0.32), 1.3, true)
-			draw_circle(start, 3.0, Appearance.color_at(i))
+			draw_polyline(PackedVector2Array([start, elbow, end]), Color(overlay._accent(i), 0.32), 1.3, true)
+			draw_circle(start, 3.0, overlay._accent(i))

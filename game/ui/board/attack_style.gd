@@ -7,7 +7,8 @@ extends RefCounted
 ##   ship    — space units: strafing run with twin lasers
 ##   melee   — creatures, Tuskens, Ewoks, astromechs…: the card leaps up and slams down
 ## Bolt colours follow the user's rule: Heroism fires RED, Villainy fires GREEN,
-## unaligned cards fire orange. Per-card corrections live in data/attack_styles.json.
+## unaligned cards fire yellow. Force characters use an aspect-colored blade;
+## space units retain ship attacks. Style corrections live in data/attack_styles.json.
 
 const SABER_TRAITS := ["jedi", "sith", "inquisitor"]
 const SABER_NAMES := ["luke skywalker", "darth vader", "kylo ren", "rey", "ahsoka tano", "obi-wan kenobi",
@@ -45,10 +46,12 @@ static func of(c: CardInst) -> Dictionary:
 	var aspects: Array = data.get("aspects", [])
 	var style := ""
 	var ov: Dictionary = _overrides.get(c.id, {})
-	if ov.has("style"):
-		style = ov["style"]
-	elif c.zone == "space" or data.get("arena") == "space" or (_any(traits, SPACE_TRAITS) and data.get("arena") != "ground"):
+	if c.zone == "space" or data.get("arena") == "space" or (_any(traits, SPACE_TRAITS) and data.get("arena") != "ground"):
 		style = "ship"
+	elif "force" in traits:
+		style = "saber"
+	elif ov.has("style"):
+		style = ov["style"]
 	elif _any(traits, SABER_TRAITS) or (name in SABER_NAMES and not _blaster_era(data)):
 		style = "saber"
 	elif _any(traits, HEAVY_TRAITS) or (traits.has("vehicle") and c.zone == "ground"):
@@ -59,16 +62,14 @@ static func of(c: CardInst) -> Dictionary:
 		style = "blaster"
 	var col: Color
 	if style == "saber":
-		var sc: String = ov.get("saber", data.get("saber", ""))
-		if sc == "":
-			sc = "red" if "villainy" in aspects else ("green" if name.find("yoda") >= 0 else "blue")
+		var sc := "red" if "villainy" in aspects else (("green" if "command" in aspects or "cunning" in aspects else "blue") if "heroism" in aspects else "yellow")
 		col = Sabacc.SABER_COLORS.get(sc, Color(0.35, 0.65, 1.0))
-	elif "heroism" in aspects:
-		col = Color(1.0, 0.18, 0.12)      # Rebel/Republic red bolts
 	elif "villainy" in aspects:
 		col = Color(0.25, 1.0, 0.3)       # Imperial/Sith green bolts
+	elif "heroism" in aspects:
+		col = Color(1.0, 0.18, 0.12)      # Rebel/Republic red bolts
 	else:
-		col = Color(1.0, 0.62, 0.15)      # unaligned: orange
+		col = Color(1.0, 0.86, 0.18)      # unaligned: yellow
 	return {"style": style, "color": col}
 
 

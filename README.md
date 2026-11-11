@@ -23,6 +23,9 @@ Packs may also contain an extra cosmetic: a 12.5% emblem chance or 5% scene
 background chance, with saved individual bonus reveals. Emblem backdrops use
 reviewed glyph palettes and irregular holographic motion with cursor/touch tilt.
 The default datapad follows the active turn's leader/base aspect colors.
+Each emblem now has its own animated line geometry. Force and Initiative use
+custom flipping Sabacc cards, with rounded blaster bolts, saber and melee impacts.
+See [cinematic presentation validation](docs/CINEMATIC_QA.md).
 See [visual polish validation](docs/POLISH_QA.md) for the eight-ratio layout sweep.
 Two starter decks are available on new accounts, and existing saved decks retain
 their cards on migration. See [pack/campaign validation](docs/PACKS_CAMPAIGN_QA.md).
@@ -49,8 +52,9 @@ inventory and fail the gate while incomplete cards remain. See
 [`docs/CUSTOMIZATION_QA.md`](docs/CUSTOMIZATION_QA.md) for this release's checks.
 
 Inspecting a card flies it to the screen centre, blurs the surrounding game and
-opens four connected dossiers: card profile, printed ability, keyword/timing
-explanations, and live state/engine support. Dossiers scroll when needed. Flip
+opens four connected dossiers: aspects/anatomy, printed ability, keyword/timing
+explanations, and live state/engine support. Dossiers scroll and expand into
+readable detail panels, including actual aspect icons and referenced keywords. Flip
 leaders to inspect both sides; close or press Escape to return. Performance mode
 uses a dim backdrop and still linework instead of blur and rotation.
 

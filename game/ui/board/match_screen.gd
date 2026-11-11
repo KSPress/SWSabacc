@@ -682,19 +682,22 @@ func _anim_ship(at: UnitToken, target: Vector2, col: Color) -> void:
 func _anim_melee(at: UnitToken, target: Vector2) -> void:
 	var s0 := at.scale
 	var start := at.position
+	var direction := (target - at.center_global()).normalized()
+	var side := 1.0 if direction.x >= 0 else -1.0
 	Sfx.play("whoosh", 0.8)
 	var t1 := create_tween().set_parallel(true)
-	t1.tween_property(at, "position", start + Vector2(0, -80.0 * s0.y), Sabacc.anim(0.26)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t1.tween_property(at, "position", start - direction * 38 * s0.x + Vector2(-direction.y, direction.x) * 18, Sabacc.anim(0.26)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t1.tween_property(at, "scale", s0 * 1.35, Sabacc.anim(0.26)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t1.tween_property(at, "rotation", -0.25, Sabacc.anim(0.26))
+	t1.tween_property(at, "rotation", -0.38 * side, Sabacc.anim(0.26))
 	await t1.finished
 	await _wait(0.06)
 	var t2 := create_tween().set_parallel(true)
-	t2.tween_property(at, "position", _token_pos_for(target), Sabacc.anim(0.15)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	t2.tween_property(at, "position", _token_pos_for(target - direction * 28 * s0.x), Sabacc.anim(0.15)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
 	t2.tween_property(at, "scale", s0 * 1.05, Sabacc.anim(0.15))
-	t2.tween_property(at, "rotation", 0.12, Sabacc.anim(0.15))
+	t2.tween_property(at, "rotation", 0.24 * side, Sabacc.anim(0.15))
 	await t2.finished
 	Fx.shockwave(fx_layer, target)
+	Fx.slash(fx_layer, target, direction, AttackStyle.of(at.inst)["color"])
 	Fx.punch(fx_layer, target, Color(1, 0.8, 0.45), 1.35, at.center_global() + Vector2(0, -120))
 	Sfx.play("hit", 0.7)
 	Fx.shake(board_layer, 12.0, 0.3)
@@ -795,6 +798,12 @@ func _sync() -> void:
 			lv.actionable = true
 	hud[0].refresh()
 	hud[1].refresh()
+	for player in 2:
+		var force: TableTokens.ForceOrb = force_orbs[player]
+		if m.players[player].force_token and not force.active:
+			force.gather()
+		elif not m.players[player].force_token and force.active:
+			force.spend()
 	hud[1].base_view.targetable = false
 	hud[0].base_view.targetable = false
 	# controls

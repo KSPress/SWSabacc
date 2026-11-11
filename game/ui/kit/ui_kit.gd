@@ -125,13 +125,14 @@ const KEYWORD_HELP := {
 	"restore": "When attacking, heal X damage from your base.",
 	"hidden": "Can't be attacked the phase it was played.",
 	"smuggle": "May be played from your resources at its Smuggle cost.",
-	"exploit": "May defeat friendly units to reduce cost (not yet automated).",
-	"coordinate": "Bonus while you control 3+ units (shown, not yet automated).",
+	"exploit": "While playing this card, you may defeat up to X friendly units. Each reduces its cost by 2 resources.",
+	"coordinate": "The printed conditional bonus applies while you control at least three units. The bonus is specified by this card, not by Coordinate alone.",
 	"piloting": "May be played as a pilot upgrade on a Vehicle (not yet automated).",
 	"bounty": "This unit's opponent may collect its printed reward when it is defeated or captured. Check the automation dossier for unsupported reward text.",
 	"support": "When this unit enters play, you may attack with another ready friendly unit. It gains this unit's other abilities for that attack. Unsupported printed abilities remain listed in the automation dossier.",
 	"plot": "When you deploy your leader, you may pay this card's cost to play it from resources. Replace it with the top card of your deck as a resource.",
 	"fortify": "This upgrade attaches to your own base instead of a unit.",
+	"disclose": "Reveal a card from your hand meeting the specified aspect requirement. The printed ability describes the effect that follows the disclosure.",
 }
 
 
