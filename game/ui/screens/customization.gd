@@ -21,7 +21,7 @@ func build() -> void:
 	_info = UIKit.label("Win a match to earn one random new cosmetic. Emblems include their matching holographic background.", 18, Sabacc.C_DIM)
 	_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(_info)
-	_scroll = ScrollContainer.new()
+	_scroll = TouchScroll.new()
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	body.add_child(_scroll)
 	_grid = GridContainer.new()
@@ -29,6 +29,7 @@ func build() -> void:
 	_grid.add_theme_constant_override("h_separation", 12)
 	_grid.add_theme_constant_override("v_separation", 12)
 	_canvas = Control.new()
+	_canvas.mouse_filter = Control.MOUSE_FILTER_PASS
 	_scroll.add_child(_canvas)
 	_canvas.add_child(_grid)
 	Cosmetics.changed.connect(_populate)
@@ -45,6 +46,7 @@ func _populate() -> void:
 	for item in items:
 		var owned := Cosmetics.unlocked(item["key"])
 		var box := VBoxContainer.new()
+		box.mouse_filter = Control.MOUSE_FILTER_PASS
 		box.custom_minimum_size.x = 190
 		box.add_theme_constant_override("separation", 6)
 		_grid.add_child(box)
@@ -56,6 +58,7 @@ func _populate() -> void:
 			box.add_child(badge)
 		elif _kind == "cardback":
 			var image := TextureRect.new()
+			image.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			image.texture = Cosmetics.texture("cardback", item["id"])
 			image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -69,6 +72,7 @@ func _populate() -> void:
 				box.add_child(preview)
 			else:
 				var scene := TextureRect.new()
+				scene.mouse_filter = Control.MOUSE_FILTER_IGNORE
 				scene.texture = Art.ui_texture(item["id"])
 				scene.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 				scene.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED

@@ -28,6 +28,8 @@ custom flipping Sabacc cards, with rounded blaster bolts, saber and melee impact
 See [cinematic presentation validation](docs/CINEMATIC_QA.md).
 The 0.6.1 [bug sweep](docs/BUGFIX_QA.md) keeps expanded inspection controls
 visible, supports Escape/Android Back and removes opaque emblem scan bars.
+The 0.6.2 [touch-input fix](docs/TOUCH_INPUT_QA.md) restores customization swipes
+over previews/buttons and prevents swipe gestures from equipping cosmetics.
 See [visual polish validation](docs/POLISH_QA.md) for the eight-ratio layout sweep.
 Two starter decks are available on new accounts, and existing saved decks retain
 their cards on migration. See [pack/campaign validation](docs/PACKS_CAMPAIGN_QA.md).

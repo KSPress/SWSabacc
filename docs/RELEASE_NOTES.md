@@ -1,22 +1,18 @@
-SWU Sabacc 0.6.1 — inspector navigation and graphical fixes.
+SWU Sabacc 0.6.2 — Android customization scrolling.
 
-- Fixed expanded inspector return controls scrolling out of view in landscape.
-  Back to card now stays visible while the dossier scrolls.
-- Added Android Back and Escape handling for overlays and ordinary screen
-  navigation. Repeated modal/picker closure cannot start duplicate close tweens.
-- Removed opaque black scan bars crossing the large background emblem. The
-  remaining transmission detail is translucent and matches its palette.
-- Fixed expired impact effects drawing negative widths/radii after a slow frame.
-  Muzzle, impact, shockwave, slash and punch effects stop drawing at expiration.
+- Fixed finger scrolling over emblem, card-back and background previews.
+- Swipes starting on equip buttons scroll without accidentally equipping items.
+  Horizontal swipes cancel taps too; stationary taps still equip normally.
+- Fixed trackpad pan events blocked by cosmetic preview/centering controls.
+- Retained 0.6.1 inspector navigation, emblem scan-bar and expired-effect fixes.
 
-Validation: 122 GUI input assertions (six baseline failures reproduced, now zero),
-114 responsive assertions over eight ratios/152 screen states, 75 cinematic,
-80 visual, ten rendered effect-lifetime, 553 gameplay, 50 extended-rules,
-50 progression, 24 manifest and nine updater-flow assertions passed.
-Zero broken scripts. See docs/BUGFIX_QA.md for evidence and limitations.
+Validation: 42 touch-input assertions passed (26 baseline failures reproduced),
+122 menu/inspector GUI input assertions passed, and 114 responsive assertions
+over eight ratios/152 screen states passed with zero detected layout issues.
+Zero broken scripts. See docs/TOUCH_INPUT_QA.md for evidence and limitations.
 
-Fresh Windows startup clicks worked during investigation. The inspector blockage
-was reproduced and fixed; the separate initial-launch freeze was not reproduced.
+The Windows main-menu lockup remains unreproduced in native testing and is
+tracked separately from the confirmed Android scrolling failure.
 
 Android: swu_sabacc.apk. Windows: extract SWSabacc-windows.zip and keep the EXE/PCK
 together. The existing Android signing identity, saves and legacy update bridge
