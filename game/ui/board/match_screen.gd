@@ -105,6 +105,9 @@ func _build() -> void:
 		ui_layer.add_child(h)
 		h.leader_pressed.connect(_on_leader_pressed)
 		h.base_pressed.connect(_on_base_pressed)
+		h.fortification_pressed.connect(_on_fortification_pressed)
+		h.leader_dragged.connect(_on_leader_dragged)
+		h.leader_dropped.connect(_on_leader_dropped)
 		h.resources_pressed.connect(_on_resources_pressed)
 		h.inspect.connect(func(id, r, inst): InspectOverlay.open(self, id, r, inst))
 		hud.append(h)
@@ -756,8 +759,11 @@ func _sync() -> void:
 		t2.highlight = UnitToken.Hi.CAN_ACT if can_attack.has(uid) and m.pending.is_empty() else UnitToken.Hi.NONE
 	var lv: SideHud.LeaderView = hud[HUMAN].leader_view
 	lv.actionable = false
+	lv.pilot_actionable = false
 	for a in legal:
-		if a["a"] == "deploy" or (a["a"] == "ability" and m.players[HUMAN].leader and a["uid"] == m.players[HUMAN].leader.uid):
+		if a["a"] == "deploy_pilot":
+			lv.pilot_actionable = true
+		if a["a"] in ["deploy", "deploy_pilot"] or (a["a"] == "ability" and m.players[HUMAN].leader and a["uid"] == m.players[HUMAN].leader.uid):
 			lv.actionable = true
 	hud[0].refresh()
 	hud[1].refresh()
@@ -840,6 +846,52 @@ func _legal_for(uid: int, kind: String) -> Array:
 
 func _on_hand_drag_moved(card: CardView, at: Vector2) -> void:
 	card.selected = at.y < _hand_top - 30 and card.playable
+	if card.inst and card.inst.data.has("pilot"):
+		_show_pilot_targets(card.inst, "pilot")
+
+
+func _show_pilot_targets(pilot: CardInst, action: String) -> void:
+	_clear_pilot_targets()
+	if busy or _legal_for(pilot.uid, action).is_empty():
+		return
+	for host in Effects.upgrade_targets(m, HUMAN, pilot, true):
+		if tokens.has(host.uid):
+			tokens[host.uid].highlight = UnitToken.Hi.TARGET
+
+
+func _clear_pilot_targets() -> void:
+	for token in tokens.values():
+		if token.highlight == UnitToken.Hi.TARGET:
+			token.highlight = UnitToken.Hi.NONE
+
+
+func _unit_at_drop(at: Vector2) -> CardInst:
+	for token: UnitToken in tokens.values():
+		if Rect2(token.global_position, UnitToken.SIZE * token.scale).has_point(at):
+			return token.inst
+	return null
+
+
+func _drop_pilot(pilot: CardInst, host: CardInst, action: String, at: Vector2) -> bool:
+	if host and not busy and not _legal_for(pilot.uid, action).is_empty() and host in Effects.upgrade_targets(m, HUMAN, pilot, true):
+		_act({"a": action, "uid": pilot.uid, "target": host.uid})
+		return true
+	Fx.float_text(fx_layer, at, "Choose an eligible friendly Vehicle", Sabacc.C_GOLD, 18)
+	return false
+
+
+func _on_leader_dragged(h: SideHud, _at: Vector2) -> void:
+	if h.player_idx == HUMAN and m.players[HUMAN].leader:
+		_show_pilot_targets(m.players[HUMAN].leader, "deploy_pilot")
+
+
+func _on_leader_dropped(h: SideHud, at: Vector2) -> void:
+	if h.player_idx != HUMAN:
+		return
+	_clear_pilot_targets()
+	var leader: CardInst = m.players[HUMAN].leader
+	if leader:
+		_drop_pilot(leader, _unit_at_drop(at), "deploy_pilot", at)
 
 
 func _on_hand_tapped(card: CardView) -> void:
@@ -866,7 +918,19 @@ func _show_pilot_options(card: CardView) -> bool:
 
 func _on_hand_drop(card: CardView, at: Vector2) -> void:
 	card.selected = false
+	if card.inst and card.inst.data.has("pilot"):
+		_clear_pilot_targets()
+		var host := _unit_at_drop(at)
+		if host and not busy and m.can_act(HUMAN):
+			card.spring_home()
+			_drop_pilot(card.inst, host, "pilot", at)
+			return
 	var uid: int = card.get_meta("uid")
+	if card.inst and card.inst.has_kw("fortify") and hud[HUMAN].base_view.get_global_rect().has_point(at):
+		card.spring_home()
+		if not _legal_for(uid, "play").is_empty():
+			_act({"a": "play", "uid": uid, "target": m.players[HUMAN].base.uid})
+		return
 	if at.y < _hand_top - 30 and card.playable and m.can_act(HUMAN):
 		if _show_pilot_options(card):
 			card.spring_home()
@@ -1012,6 +1076,33 @@ func _on_base_pressed(h: SideHud) -> void:
 	InspectOverlay.open(self, b.id, h.base_view.get_global_rect(), b)
 
 
+func _on_fortification_pressed(h: SideHud, rect: Rect2) -> void:
+	if (prompt_bar.visible and not m.pending.is_empty()) or (_selected and h.player_idx != HUMAN):
+		_on_base_pressed(h)
+		return
+	var base: CardInst = m.players[h.player_idx].base
+	if base.upgrades.is_empty():
+		return
+	var opts: Array = []
+	for up in base.upgrades:
+		opts.append(["Inspect %s" % up.name(), {"inspect": up.uid}])
+		if h.player_idx != HUMAN:
+			continue
+		if base.abilities_with("constant").any(func(ability):
+			return ability.get("flag") == "peek_own_deck" and ability.get("grant_source", 0) == up.uid):
+			if not m.players[HUMAN].deck.is_empty():
+				opts.append(["Look at top card", {"inspect": m.players[HUMAN].deck[0].uid}])
+		for source in [up, base]:
+			var abilities: Array = source.abilities_with("action")
+			var legal := _legal_for(source.uid, "ability")
+			for i in abilities.size():
+				if source == base and abilities[i].get("grant_source", 0) != up.uid:
+					continue
+				var action := {"a": "ability", "uid": source.uid, "idx": i}
+				opts.append([abilities[i].get("text", up.name()), action, "" if action in legal else "Unavailable this action"])
+	_popup_menu(rect, opts)
+
+
 func _on_leader_pressed(h: SideHud) -> void:
 	var l: CardInst = m.players[h.player_idx].leader
 	if l == null:
@@ -1068,6 +1159,16 @@ func _leader_options(l: CardInst) -> Array:
 			else:
 				dwhy = "needs %d resources (you have %d)" % [epic, ps.resources.size()]
 		opts.append(["Epic Action: deploy %s" % l.name(), {"a": "deploy"}, dwhy])
+		if l.data.has("pilot"):
+			var pilot := {"a": "deploy_pilot", "uid": l.uid}
+			var flip: bool = l.data["pilot"].has("flip_cost")
+			opts.append(["%s as Pilot" % ("Flip" if flip else "Deploy"), pilot,
+				"" if pilot in legal else "Requires an eligible Vehicle and available action"])
+	elif l.is_pilot_upgrade():
+		for i in l.abilities_with("action").size():
+			var action := {"a": "ability", "uid": l.uid, "idx": i}
+			opts.append([l.abilities_with("action")[i].get("text", "Pilot action"), action,
+				"" if action in legal else "Unavailable this action"])
 	else:
 		opts.append(["%s is deployed — tap the unit on the board to attack or use its abilities" % l.name(), {}, "deployed"])
 	opts.append(["Inspect leader", {"inspect": l.uid}, ""])
@@ -1112,8 +1213,16 @@ func _popup_menu(anchor: Rect2, opts: Array) -> void:
 	menu_popup = UIKit.panel(Color(0.03, 0.06, 0.1, 0.97), Sabacc.C_GOLD, 12, 12)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
-	menu_popup.add_child(v)
 	var vs := get_viewport_rect().size
+	if (opts.size() + 1) * 62 > vs.y * 0.7:
+		var scroll := ScrollContainer.new()
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.custom_minimum_size = Vector2(minf(vs.x * 0.85, 480), vs.y * 0.7)
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.add_child(v)
+		menu_popup.add_child(scroll)
+	else:
+		menu_popup.add_child(v)
 	for o in opts:
 		var why: String = o[2] if o.size() > 2 else ""
 		var label := str(o[0]) if why == "" else "%s\n(%s)" % [o[0], why]
@@ -1244,10 +1353,14 @@ func _game_over() -> void:
 		return
 	_result_recorded = true
 	var won := m.winner == HUMAN
-	var cosmetic_reward := Cosmetics.record_match(won, "%d_%d" % [Time.get_unix_time_from_system(), get_instance_id()])
+	var identity := "%s_%s" % [Time.get_unix_time_from_system(), get_instance_id()]
+	var cosmetic_reward := Cosmetics.record_match(won, identity)
+	var credits_earned := 0
+	if params.get("mode", "quick") == "quick" and m.winner != 2:
+		credits_earned = Progression.award_credits("battle:" + identity, Progression.BATTLE_WIN if won else Progression.BATTLE_LOSS)
 	var pack_reward := ""
 	if params.get("mode", "quick") == "quick" and params.get("traditional", params.get("format", -1) == 0):
-		pack_reward = Progression.traditional_result("%s_%s" % [Time.get_unix_time_from_system(), get_instance_id()])
+		pack_reward = Progression.traditional_result(identity)
 	for c in get_tree().root.find_children("*", "", true, false):
 		if c is ChoicePanel or c is InspectOverlay:
 			c.get_parent().queue_free()
@@ -1284,6 +1397,10 @@ func _game_over() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 16)
 	v.add_child(row)
+	if credits_earned > 0:
+		var credit_reward := UIKit.credit_label("+%d credits" % credits_earned)
+		v.add_child(credit_reward)
+		v.move_child(credit_reward, row.get_index())
 	if not pack_reward.is_empty():
 		v.add_child(UIKit.label("Card pack earned! Open it from Card Packs.", 23, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 		var open_pack := SabaccButton.make("Open earned pack", SabaccButton.Style.GOLD, "star")

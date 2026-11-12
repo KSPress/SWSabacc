@@ -8,7 +8,7 @@ var _canvas: Control
 
 
 func build() -> void:
-	set_header("Deck Builder")
+	set_header("Deck Builder", "collection")
 	bg.backdrop = Art.ui_texture("swu_background")
 	bg.backdrop_alpha = 0.2
 	_scroll = ScrollContainer.new()

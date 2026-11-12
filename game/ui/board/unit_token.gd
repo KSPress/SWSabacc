@@ -196,7 +196,7 @@ func _draw() -> void:
 	outline.append(pts[0])
 	if _light > 0.01:
 		draw_polyline(outline, Color(_light_col.lightened(0.4), 0.9 * minf(_light, 1.0)), 8.0, true)
-	if inst.is_leader():
+	if inst.is_leader_unit():
 		draw_polyline(outline, Sabacc.C_GOLD, 6.0, true)
 		draw_polyline(outline, Color(1, 0.95, 0.7), 2.0, true)
 	else:

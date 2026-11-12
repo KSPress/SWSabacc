@@ -49,7 +49,7 @@ func _refresh() -> void:
 	var hp := int(run["base_max"]) - int(run["base_damage"])
 	_hud.add_child(_chip("Sector %d" % int(run["sector"]), Sabacc.C_ACCENT))
 	_hud.add_child(_chip("Base %d / %d" % [hp, int(run["base_max"])], Sabacc.C_GOOD if hp > int(run["base_max"]) / 2 else Sabacc.C_EMPIRE))
-	_hud.add_child(_chip("Credits %d" % int(run["credits"]), Sabacc.C_COST))
+	_hud.add_child(UIKit.credit_label("%d run credits" % int(run["credits"])))
 	var locked := 0
 	for id in run["locked"]:
 		locked += int(run["locked"][id])
@@ -279,7 +279,7 @@ func _rest_panel(mp: ModalPanel, id: String) -> void:
 
 func _shop_panel(mp: ModalPanel, id: String) -> void:
 	var prices: Dictionary = SpotlightRun.cfg().get("prices", {})
-	mp.text("Credits: %d" % int(run["credits"]), 18, Sabacc.C_COST)
+	mp.add(UIKit.credit_label("%d run credits" % int(run["credits"])))
 	var stock := SpotlightRun.shop_stock(run, CardDB.lib, id)
 	var bought: Array = run.get("shop_bought", {}).get(id, [])
 	var grid := GridContainer.new()
@@ -306,7 +306,9 @@ func _shop_panel(mp: ModalPanel, id: String) -> void:
 			b.text = "Sold"
 		var c_id: String = cid
 		b.pressed.connect(func():
-			run["credits"] = int(run["credits"]) - price
+			if b.disabled or not SpotlightRun.spend_credits(run, price):
+				return
+			b.disabled = true
 			SpotlightRun.gain_card(run, c_id)
 			var sb: Dictionary = run.get("shop_bought", {})
 			var lst: Array = sb.get(id, [])
@@ -324,7 +326,8 @@ func _shop_panel(mp: ModalPanel, id: String) -> void:
 	rm.pressed.connect(func():
 		mp.close()
 		_pick_owned("Choose a card to remove", func(cid):
-			run["credits"] = int(run["credits"]) - int(prices.get("remove", 35))
+			if not SpotlightRun.spend_credits(run, int(prices.get("remove", 35))):
+				return
 			SpotlightRun.remove_card(run, cid)
 			_save()
 			_refresh()
@@ -333,18 +336,22 @@ func _shop_panel(mp: ModalPanel, id: String) -> void:
 	var heal := SabaccButton.make("Repairs: heal 6 (%d)" % int(prices.get("heal6", 20)), SabaccButton.Style.GHOST, "heal")
 	heal.disabled = int(run["credits"]) < int(prices.get("heal6", 20)) or int(run["base_damage"]) == 0
 	heal.pressed.connect(func():
+		if heal.disabled:
+			return
+		heal.disabled = true
 		SpotlightRun.apply_effect(run, {"credits": -int(prices.get("heal6", 20)), "heal": 6}, CardDB.lib, SpotlightRun.rng_for(run, 3))
 		_save()
 		_refresh()
 		mp.close()
 		_open_node(id))
 	mp.add(heal)
-	var up := SabaccButton.make("Upgrade a card: +Experience (%d)" % int(prices.get("upgrade", 45)), SabaccButton.Style.GHOST, "star")
-	up.disabled = int(run["credits"]) < int(prices.get("upgrade", 45))
+	var up := SabaccButton.make("Upgrade a card: +Experience (%d)" % int(prices.get("upgrade", 20)), SabaccButton.Style.GHOST, "star")
+	up.disabled = int(run["credits"]) < int(prices.get("upgrade", 20))
 	up.pressed.connect(func():
 		mp.close()
 		_pick_owned("Choose a card to upgrade", func(cid):
-			run["credits"] = int(run["credits"]) - int(prices.get("upgrade", 45))
+			if not SpotlightRun.spend_credits(run, int(prices.get("upgrade", 20))):
+				return
 			SpotlightRun.upgrade_card(run, cid, "experience")
 			_save()
 			_refresh()
@@ -599,6 +606,8 @@ func _death(res: Dictionary) -> void:
 	body.add_child(box)
 	box.add_child(UIKit.aurebesh("base destroyed", 24))
 	box.add_child(UIKit.title("Run over", 52, Sabacc.C_EMPIRE))
+	if int(res.get("payout", 0)) > 0:
+		box.add_child(UIKit.credit_label("+%d credits to Collection Vault" % int(res["payout"])))
 	if not s.is_empty():
 		for line in ["Reached sector %d" % int(s["sector"]), "%d battles won · %d elites · %d bosses · %d missions" % [int(s["wins"]), int(s["elites"]), int(s["bosses"]), int(s["missions"])],
 				"%d cards earned · final deck %d cards · %d perks" % [int(s["cards"]), int(s["deck"]), s["perks"].size()]]:

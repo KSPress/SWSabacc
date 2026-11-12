@@ -47,7 +47,7 @@ func _run() -> void:
 	check(not Router._busy and Router._fade.mouse_filter == Control.MOUSE_FILTER_IGNORE, "splash transition releases input")
 	Cosmetics.set_gm(true)
 	Cosmetics.equip("background", "emblem")
-	var routes := [["Campaigns", "mode_hub"], ["Battles", "mode_hub"], ["Deck Builder", "decks"], ["Collection Vault", "collection"], ["Card Packs", "pack_opening"], ["Customization", "customization"], ["Settings", "settings_screen"], ["Profile", "customization"]]
+	var routes := [["Campaigns", "mode_hub"], ["Battles", "mode_hub"], ["Collection Vault", "collection"], ["Customization", "customization"], ["Settings", "settings_screen"], ["Profile", "customization"]]
 	for dims in [[360, 640], [540, 1200], [1280, 720], [2560, 1080]]:
 		await _size(dims[0], dims[1])
 		await _go("menu")

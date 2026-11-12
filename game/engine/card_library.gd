@@ -7,6 +7,27 @@ extends RefCounted
 ## Campaign-only custom cards (data/custom_cards.json, namespace "KYB_") are
 ## merged in with `custom = true` so the vault / PvP can exclude them.
 
+const BOOSTER_SETS := ["SOR", "SHD", "TWI", "JTL", "LOF", "SEC", "LAW", "ASH", "HMW"]
+const SET_NAMES := {
+	"SOR": "Spark of Rebellion",
+	"SHD": "Shadows of the Galaxy",
+	"TWI": "Twilight of the Republic",
+	"JTL": "Jump to Lightspeed",
+	"LOF": "Legends of the Force",
+	"SEC": "Secrets of Power",
+	"LAW": "A Lawless Time",
+	"ASH": "Ashes of the Empire",
+	"HMW": "Homeworlds",
+	"IBH": "Intro Battle: Hoth",
+	"TS26": "Twin Suns 2026",
+	"IC27": "Icons 2027",
+}
+
+
+static func expansion_title(code: String) -> String:
+	return SET_NAMES.get(code, code)
+
+
 const TOKEN_NAMES := {
 	"shield": "Shield", "experience": "Experience", "battle_droid": "Battle Droid",
 	"clone_trooper": "Clone Trooper", "tie_fighter": "TIE Fighter", "x_wing": "X-Wing",
@@ -101,10 +122,13 @@ func query(text := "", filters := {}) -> Array:
 			if hay.find(q) < 0:
 				continue
 		out.append(id)
+	var set_order := SET_NAMES.keys()
 	out.sort_custom(func(a, b):
 		var ca: Dictionary = cards[a]
 		var cb: Dictionary = cards[b]
 		if ca.get("set", "") != cb.get("set", ""):
-			return ca.get("set", "") < cb.get("set", "")
+			var first := set_order.find(ca.get("set", ""))
+			var second := set_order.find(cb.get("set", ""))
+			return first < second if first != second else ca.get("set", "") < cb.get("set", "")
 		return a < b)
 	return out

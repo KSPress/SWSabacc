@@ -51,7 +51,7 @@ static func start(spot: Dictionary, lib: CardLibrary, seed_value: int, spots: Ar
 		"deck_id": spot["id"], "name": spot.get("name", ""), "leader": spot["leader"], "base": spot["base"],
 		"seed": seed_value, "status": "active",
 		"owned": deck.duplicate(), "deck": deck, "locked": locked, "upgrades": {}, "perks": [],
-		"credits": int(st.get("credits", 20)), "base_max": int(st.get("base_hp", 20)), "base_damage": 0,
+		"credits": int(st.get("credits", 0)), "base_max": int(st.get("base_hp", 20)), "base_damage": 0,
 		"sector": 0, "map": {}, "current": "", "visited": [],
 		"stats": {"wins": 0, "elites": 0, "bosses": 0, "missions": 0, "cards": 0, "nodes": 0,
 			"started": Time.get_unix_time_from_system()},
@@ -323,6 +323,7 @@ static func on_battle_end(run: Dictionary, node_id: String, won: bool, base_dama
 	var n := node(run, node_id)
 	var res := {"won": won, "node": node_id, "type": n.get("type", "")}
 	run["stats"]["nodes"] = int(run["stats"]["nodes"]) + 1
+	run["credits"] = int(run["credits"]) + 50
 	if not won:
 		run["status"] = "dead"
 		run["base_damage"] = int(run["base_max"])
@@ -341,10 +342,9 @@ static func on_battle_end(run: Dictionary, node_id: String, won: bool, base_dama
 	if t == "objective":
 		run["stats"]["missions"] = int(run["stats"]["missions"]) + 1
 	var rng := rng_for(run, 7)
-	var sector := int(run["sector"])
-	var credits: int = {"fight": 12, "objective": 20, "elite": 25, "boss": 50}.get(t, 10) + 3 * sector + rng.randi_range(0, 6)
-	credits = int(credits * (1.0 + float(pe["credit_mult"])))
-	run["credits"] = int(run["credits"]) + credits
+	var bonus := int(50 * float(pe["credit_mult"]))
+	var credits := 50 + bonus
+	run["credits"] = int(run["credits"]) + bonus
 	var reward := {"credits": credits, "cards": roll_cards(run, lib, 3, t in ["elite", "boss"], rng)}
 	if t in ["elite", "boss"] or (t == "objective" and rng.randf() < 0.5):
 		reward["perks"] = random_perks(run, 2 if t != "boss" else 3, rng)
@@ -439,9 +439,11 @@ static func deck_size(run: Dictionary) -> int:
 
 ## Applies an event/shop effect dict. Returns a short summary.
 static func apply_effect(run: Dictionary, e: Dictionary, lib: CardLibrary, rng: RandomNumberGenerator) -> String:
+	if not can_afford(run, e):
+		return ""
 	var msg: Array = []
 	if e.has("credits"):
-		run["credits"] = maxi(0, int(run["credits"]) + int(e["credits"]))
+		run["credits"] = int(run["credits"]) + int(e["credits"])
 		msg.append("%+d credits" % int(e["credits"]))
 	if e.has("damage"):
 		run["base_damage"] = mini(int(run["base_max"]) - 1, int(run["base_damage"]) + int(e["damage"]))
@@ -473,7 +475,14 @@ static func apply_effect(run: Dictionary, e: Dictionary, lib: CardLibrary, rng: 
 
 
 static func can_afford(run: Dictionary, e: Dictionary) -> bool:
-	return int(run["credits"]) + int(e.get("credits", 0)) >= 0 or int(e.get("credits", 0)) >= 0
+	return int(run["credits"]) + int(e.get("credits", 0)) >= 0
+
+
+static func spend_credits(run: Dictionary, price: int) -> bool:
+	if not can_afford(run, {"credits": -price}):
+		return false
+	run["credits"] = int(run["credits"]) - price
+	return true
 
 
 static func price(lib: CardLibrary, id: String) -> int:

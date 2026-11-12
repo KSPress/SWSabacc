@@ -157,3 +157,21 @@ static func fit_label(l: Label) -> Label:
 	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	l.clip_text = true
 	return l
+
+
+static func credit_label(text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 5)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var icon := TextureRect.new()
+	icon.texture = load("res://ui/kit/credit_symbol.png")
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.custom_minimum_size = Vector2(28, 28)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+	var amount := label(text, 18, Sabacc.C_GOLD)
+	amount.name = "Amount"
+	row.add_child(amount)
+	return row

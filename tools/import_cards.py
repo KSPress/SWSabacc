@@ -1142,6 +1142,124 @@ def saber_color(card: dict) -> str | None:
     return "red" if "Villainy" in (card.get("Aspects") or []) or "sith" in traits else "blue"
 
 
+PILOT_LEADER_STATS = {
+    "001": (3, 4), "003": (5, 5), "006": (5, 5), "008": (3, 4), "009": (4, 4),
+    "011": (3, 3), "012": (4, 5), "013": (2, 1), "015": (3, 5), "017": (3, 4), "018": (2, 3),
+}
+
+
+def compile_pilot_leader(card, number, back, front, abilities, missing):
+    def ab(trigger, effects, text=back, **extra):
+        return dict(trigger=trigger, effects=effects, text=text, **extra)
+
+    def target(**extra):
+        return dict(s="choose", kind="unit", **extra)
+
+    def damage(n, **extra):
+        return dict(op="damage", n=n, t=target(**extra))
+
+    def give(kw):
+        return dict(trigger="attached_kw", kw=kw)
+
+    def on_attack(effects, **extra):
+        return ab("on_attack", effects, granted=True, **extra)
+
+    def deploy(effects):
+        return ab("when_deployed_upgrade", effects)
+
+    def front_action(effects, resources=0):
+        return ab("action", effects, front, cost={"resources": resources, "exhaust": True})
+
+    blank = {"op": "blank_abilities", "t": target(side="friendly", opt=True, count=999)}
+    power, hp = PILOT_LEADER_STATS[number]
+    upgrade = {
+        "001": [give("grit"), on_attack([damage(1, side="friendly", opt=True),
+                                         dict(damage(1, side="enemy", arena_of_it=True), if_did=True)])],
+        "003": [give("sentinel"), deploy([dict(op="shield", t=target(different_arena=True, opt=True))])],
+        "006": [deploy([dict(op="token", name="tie_fighter", n=2)])],
+        "008": [on_attack([dict(op="discount_next", n=1, filter=dict(kind="card", trait="pilot"))])],
+        "009": [deploy([dict(op="split_unit_damage", n=4)])],
+        "011": [on_attack([dict(op="buff", p=1, t=target(other=True, same_arena=True, opt=True))])],
+        "012": [dict(trigger="constant", flag="enemy_defeat_immune"),
+                on_attack([damage(3, opt=True)], host_trait="fighter")],
+        "013": [ab("action", [{"op": "_reattach_pilot"}], cost={"resources": 1}, limit=1, limit_period="round")],
+        "015": [give("saboteur"), dict(trigger="continuous", target="self", p=1, host_trait="transport", granted=True)],
+        "017": [deploy([dict(op="ready_resource", amount="odd_permanent")])],
+        "018": [on_attack([blank])],
+    }[number]
+    card["pilot"] = dict(power=power, hp=hp, aspects=card["aspects"], abilities=upgrade, makes_leader=number != "013")
+    if number == "013":
+        card["pilot"]["flip_cost"] = 1
+        missing = []
+    if number == "001":
+        abilities = [front_action([damage(1, side="friendly"),
+                                   dict(damage(1, side="enemy", arena_of_it=True), if_did=True)])]
+    if number == "003":
+        abilities = [front_action([dict(op="play_from_hand", kind="card"),
+                                   {"op": "shield", "t": target(), "if": {"both_arenas": True}, "if_did": True}], 1)]
+        missing = []
+    if number == "006":
+        abilities[0]["effects"][0]["if"]["attacked_non_token"] = True
+    if number == "008":
+        abilities = [front_action([dict(op="play_from_hand", kind="upgrade", pilot_only=True, discount=1)])]
+        missing = []
+    if number == "009":
+        abilities = [ab("noncombat_damage", [
+            dict(op="exhaust", t={"s": "self"}, optional=True),
+            dict(op="indirect_damage", n=1, player="choose", if_did=True)], front)]
+        missing = []
+    if number == "015":
+        abilities = [front_action([dict(op="attack_with", t=target(side="friendly", arena="space", ready=True, can_attack=True),
+                                       pre=[{"op": "buff", "p": 1}, {"op": "gain_kw", "kw": "saboteur"}])], 1)]
+        missing = []
+    if number == "017":
+        abilities[0]["effects"][-1]["different_odd_power"] = True
+        missing = []
+    if number == "018":
+        abilities = [front_action([dict(op="blank_abilities", t=target(side="friendly")), dict(op="extra_action")])]
+        missing = []
+    unit_text = re.split(r"\n(?:Attached unit|This upgrade|When deployed as an upgrade)", back, maxsplit=1)[0]
+    if unit_text.startswith(("Attached unit", "This upgrade", "Action")):
+        unit_text = ""
+    leader_unit = card["leader_unit"]
+    leader_unit["text"] = unit_text
+    leader_unit["keywords"] = parse_keywords({}, unit_text)
+    leader_unit["abilities"] = [ab("on_attack", [blank])] if number == "018" else []
+    return abilities, missing
+
+
+def compile_special_base(card, abilities, missing):
+    cid = card["id"]
+    setup = {"JTL_021": {"opening_hand_delta": -1}, "JTL_024": {"deck_size_delta": 10},
+             "JTL_025": {"deck_size_delta": -5}, "JTL_028": {"opening_hand_delta": 3, "no_mulligan": True}}
+    if cid in setup:
+        card.update(setup[cid])
+        if cid != "JTL_028":
+            return [], []
+        return [dict(trigger="action_start", effects=[dict(op="_bottom_opening_hand", n=3)], text=card["text"])], []
+    if cid == "LOF_025":
+        return [dict(trigger="friendly_combat_damage_to_base", effects=[dict(op="force_token")], text=card["text"])], []
+    target = {"s": "choose", "kind": "unit"}
+    table = {
+        "LAW_019": ({"other": "defeat a friendly token"}, [{"op": "choose_one", "options": [
+            {"label": "Give an Experience token", "effects": [{"op": "experience", "t": target}]},
+            {"label": "Give a Shield token", "effects": [{"op": "shield", "t": target}]},
+            {"label": "Create a Credit token", "effects": [{"op": "token", "name": "credit"}]},
+        ]}]),
+        "LAW_029": ({"resources": 1}, [{"op": "_recycle_resource"}]),
+        "LAW_023": ({"other": "discard a unit from your hand"}, [{"op": "_search_named", "name": "The Sarlacc of Carkoon"}]),
+        "LAW_026": ({}, [{"op": "_mill_recover_top", "n": 3}]),
+        "TS26_010": ({}, [{"op": "play_from_hand", "kind": "unit", "discount_by_leaders": True}]),
+        "TS26_011": ({}, [{"op": "_per_leader", "effects": [{"op": "damage", "n": 2, "t": {**target, "opt": True}}]}]),
+        "TS26_009": ({}, [{"op": "_per_leader", "effects": [{"op": "experience", "t": target}]}]),
+        "TS26_012": ({}, [{"op": "_sundari"}]),
+    }
+    if cid not in table:
+        return abilities, missing
+    cost, effects = table[cid]
+    return [dict(trigger="action", epic=True, cost=cost, effects=effects, text=card["text"])], []
+
+
 def normalise(c: dict) -> dict:
     cid = card_id(c["Set"], c["Number"])
     typ = TYPE_MAP.get(c["Type"], c["Type"].lower())
@@ -1177,7 +1295,13 @@ def normalise(c: dict) -> dict:
         back_kw = parse_keywords({"Keywords": c.get("Keywords")}, c.get("BackText") or "")
         out["leader_unit"]["keywords"] = [k for k in back_kw if re.search(rf"\b{k['k']}\b", c.get("BackText") or "", re.I)]
         out["keywords"] = [k for k in out["keywords"] if re.search(rf"\b{k['k']}\b", text, re.I)]
-        b_ab, b_un, b_status = compile_text(c.get("BackText") or "", out["leader_unit"]["keywords"])
+        number = cid.removeprefix("JTL_")
+        if number in PILOT_LEADER_STATS and cid.startswith("JTL_"):
+            abilities, unparsed = compile_pilot_leader(out, number, out["leader_unit"]["text"], norm_text(text), abilities, unparsed)
+            b_ab, b_un, b_status = out["leader_unit"]["abilities"], [], "full"
+            status = "partial" if unparsed else "full"
+        else:
+            b_ab, b_un, b_status = compile_text(c.get("BackText") or "", out["leader_unit"]["keywords"])
         out["leader_unit"]["abilities"] = b_ab
         out["art_back"] = cid
         unparsed += b_un
@@ -1185,6 +1309,9 @@ def normalise(c: dict) -> dict:
             status = "partial"
         elif unparsed:
             status = "manual"
+    if typ == "base":
+        abilities, unparsed = compile_special_base(out, abilities, unparsed)
+        status = "partial" if unparsed and abilities else ("manual" if unparsed else "full")
     out["abilities"] = abilities
     out["unparsed"] = unparsed
     out["implemented"] = status
@@ -1192,6 +1319,62 @@ def normalise(c: dict) -> dict:
     if sc:
         out["saber"] = sc
     return out
+
+
+def complete_pilot_rules(card, pilot, unit, unit_missing, upgrade_missing):
+    cid = card["id"].removeprefix("JTL_")
+    def target(**extra):
+        return dict(s="choose", kind="unit", **extra)
+    def ability(trigger, effects, granted=False):
+        lines = upgrade_missing if trigger in {"when_played_upgrade", "host_attack_end"} or granted else unit_missing
+        return dict(trigger=trigger, effects=effects, granted=granted, text=" ".join(lines))
+    def attack(*effects):
+        return ability("on_attack", list(effects), True)
+    immune = dict(trigger="constant", flag="enemy_defeat_bounce_immune")
+    damaged = dict(trigger="continuous", target="self", condition={"enemy_damaged": True}, p=3)
+    pilots = dict(trigger="continuous", target="self", scale_by="other_pilots", p=1)
+    on_upgrade = {
+        "197": [ability("host_attack_end", [dict(op="bounce", t={"s": "self"}, optional=True)])],
+        "150": [dict(trigger="attached_kw", kw="overwhelm", host_trait="fighter"),
+                dict(trigger="continuous", target="self", h=1, host_trait="transport", granted=True),
+                dict(trigger="attached_kw", kw="grit", host_trait="speeder")],
+        "215": [ability("when_played_upgrade", [dict(op="_mill_return_odd", n=2)])],
+        "189": [ability("when_played_upgrade", [dict(op="_pilot_boba_damage")])],
+        "048": [attack(dict(op="_mill_defender_draw"))],
+        "103": [dict(immune, granted=True)],
+        "142": [attack(dict(op="_vader_pilot_damage", t=target(opt=True)))],
+        "139": [attack(dict(op="indirect_damage", n=2, player="choose", underworld_bonus=True))],
+        "203": [ability("when_played_upgrade", [dict(op="attack_with", t={"s": "attached"},
+                                                    optional=True, falcon_first_strike=True)])],
+        "141": [dict(damaged, granted=True)],
+        "109": [dict(trigger="continuous", target="self", condition={"both_arenas": True}, kw="sentinel", granted=True)],
+        "094": [dict(trigger="constant", flag="defeat_into_unit")],
+        "093": [dict(pilots, granted=True)],
+        "066": [attack(dict(op="split_unit_damage", n=2, heal=True))],
+    }
+    on_unit = {
+        "103": [immune],
+        "141": [damaged],
+        "093": [pilots],
+        "049": [dict(trigger="constant", flag="defeat_into_pilot")],
+        "100": [ability("when_played", [dict(op="token", name="x_wing"),
+                                       dict(op="_unit_into_pilot", optional=True)])],
+    }
+    if cid in on_upgrade:
+        pilot["abilities"].extend(on_upgrade[cid])
+        upgrade_missing.clear()
+    if cid in on_unit:
+        # Some compound lines were only partially compiled; replace their trigger as a whole.
+        if cid == "100":
+            unit[:] = [a for a in unit if a["trigger"] != "when_played"]
+            # The printed card and official card entry give Piloting cost 2.
+            pilot["cost"] = 2
+            for kw in card["keywords"]:
+                if kw["k"] == "piloting":
+                    kw["v"] = 2
+            card["text"] = card["text"].replace("Piloting [C=3", "Piloting [C=2")
+        unit.extend(on_unit[cid])
+        unit_missing.clear()
 
 
 def compile_pilot(card: dict, keyword: dict, stats: tuple[int, int]):
@@ -1227,6 +1410,7 @@ def compile_pilot(card: dict, keyword: dict, stats: tuple[int, int]):
             "This upgrade can be played on a friendly Vehicle unit with a Pilot on it.",
             'Attached unit gains: "You may play or deploy 1 additional Pilot on this unit."',
         }]
+    complete_pilot_rules(card, pilot, abilities, missing, upgrade_missing)
     card["pilot"] = pilot
     missing += upgrade_missing
     return abilities, missing, "partial" if missing else "full"

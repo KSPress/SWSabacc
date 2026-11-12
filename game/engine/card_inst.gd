@@ -76,6 +76,13 @@ func is_leader() -> bool:
 	return data.get("type", "") == "leader"
 
 
+func is_leader_unit() -> bool:
+	if not in_play():
+		return false
+	return is_leader() or upgrades.any(func(up):
+		return up.is_leader() and up.data.get("pilot", {}).get("makes_leader", false))
+
+
 func in_play() -> bool:
 	return zone == "ground" or zone == "space"
 
@@ -126,6 +133,8 @@ func printed_hp() -> int:
 ## Own abilities plus those granted by attached upgrades.
 func abilities() -> Array:
 	var out: Array = []
+	if mods.any(func(modifier): return modifier.get("blank_abilities", false)):
+		return out
 	var src: Array = data.get("leader_unit", {}).get("abilities", []) if deployed else data.get("abilities", [])
 	if is_pilot_upgrade():
 		src = upgrade_abilities()
@@ -137,12 +146,11 @@ func abilities() -> Array:
 	for u in upgrades:
 		for a in u.upgrade_abilities():
 			if a.get("granted", false):
-				if a.has("limit"):
-					var granted: Dictionary = a.duplicate()
-					granted["grant_source"] = u.uid
-					out.append(granted)
-				else:
-					out.append(a)
+				if a.has("host_trait") and not has_trait(a["host_trait"]):
+					continue
+				var granted: Dictionary = a.duplicate()
+				granted["grant_source"] = u.uid
+				out.append(granted)
 	return out
 
 
@@ -164,6 +172,8 @@ func _printed_keywords() -> Array:
 
 ## Sum of keyword values (Raid 2 + Raid 1 = 3). Returns 0 when absent, 1 for valueless keywords.
 func kw(k: String) -> int:
+	if mods.any(func(modifier): return modifier.get("blank_abilities", false)):
+		return 0
 	var match_game: Match = battle.get_ref() if battle else null
 	if match_game and in_play() and match_game.keyword_suppressed(self, k):
 		return 0
@@ -182,7 +192,7 @@ func kw(k: String) -> int:
 			total += int(e.get("v", 1))
 	for u in upgrades:
 		for a in u.upgrade_abilities():
-			if a.get("trigger", "") == "attached_kw" and a.get("kw", "") == k:
+			if a.get("trigger", "") == "attached_kw" and a.get("kw", "") == k and (not a.has("host_trait") or has_trait(a["host_trait"])):
 				found = true
 				total += int(a.get("v", 1)) if int(a.get("v", 0)) > 0 else 1
 	for m in mods:
@@ -269,7 +279,7 @@ func remaining_hp() -> int:
 
 func cost() -> int:
 	if is_pilot_upgrade():
-		return int(data["pilot"]["cost"])
+		return int(data["pilot"].get("cost", 0))
 	return int(data.get("cost", 0))
 
 

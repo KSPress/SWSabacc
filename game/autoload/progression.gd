@@ -4,6 +4,10 @@ extends Node
 signal changed
 
 var _pools: Dictionary = {}
+const PACK_PRICE := 1000
+const BATTLE_WIN := 100
+const BATTLE_LOSS := 50
+const RUN_BATTLE := 50
 const EMBLEM_CHANCE := 0.125
 const BACKGROUND_CHANCE := 0.05
 
@@ -50,13 +54,13 @@ func deck_owned(deck: Dictionary) -> bool:
 	return true
 
 
-func _pool(kind: String, rarity: String) -> Array:
-	var key := kind + ":" + rarity
+func _pool(kind: String, rarity: String, set_code: String) -> Array:
+	var key := set_code + ":" + kind + ":" + rarity
 	if not _pools.has(key):
 		var pool: Array = []
 		for id in CardDB.lib.cards:
 			var card := CardDB.card(id)
-			if card.get("custom", false) or card.get("type") == "token":
+			if card.get("custom", false) or card.get("set") != set_code:
 				continue
 			if kind == "main" and not card.get("type") in ["unit", "event", "upgrade"]:
 				continue
@@ -70,12 +74,49 @@ func _pool(kind: String, rarity: String) -> Array:
 	return _pools[key]
 
 
+func credits() -> int:
+	return maxi(0, int(Save.data.get("credits", 0)))
+
+
+func award_credits(identity: String, amount: int) -> int:
+	var claimed: Dictionary = state()["claimed"]
+	var key := "credits:" + identity
+	if amount <= 0 or claimed.has(key):
+		return 0
+	claimed[key] = true
+	Save.data["credits"] = credits() + amount
+	Save.write()
+	changed.emit()
+	return amount
+
+
+func buy_pack(set_code: String) -> String:
+	if credits() < PACK_PRICE or not set_code in CardLibrary.BOOSTER_SETS:
+		return ""
+	var id := _queue_pack("Purchased pack", set_code)
+	if id.is_empty():
+		return ""
+	Save.data["credits"] = credits() - PACK_PRICE
+	Save.write()
+	changed.emit()
+	return id
+
+
 func grant(source: String, identity: String) -> String:
-	if Cosmetics.state()["gm"]:
-		return ""
 	var s := state()
-	if s["claimed"].has(identity):
+	if Cosmetics.state()["gm"] or s["claimed"].has(identity):
 		return ""
+	var set_code: String = CardLibrary.BOOSTER_SETS.pick_random()
+	var id := _queue_pack(source, set_code)
+	if not id.is_empty():
+		s["claimed"][identity] = true
+		Save.write()
+		changed.emit()
+	return id
+
+
+func _queue_pack(source: String, set_code: String) -> String:
+	var s := state()
 	var random := RandomNumberGenerator.new()
 	random.randomize()
 	var cards: Array = []
@@ -86,23 +127,21 @@ func grant(source: String, identity: String) -> String:
 		"legendary" if random.randf() < 0.125 else "rare", "leader", "base"]
 	for slot in slots:
 		var kind: String = slot if slot in ["leader", "base"] else "main"
-		var pool := _pool(kind, "" if kind != "main" else slot)
+		var pool := _pool(kind, "" if kind != "main" else slot, set_code)
 		if pool.is_empty():
-			pool = _pool(kind, "")
+			pool = _pool(kind, "rare" if slot == "legendary" else "", set_code)
 		if pool.is_empty():
 			return ""
 		var fresh: Array = pool.filter(func(id): return not id in reserved)
-		var choices: Array = fresh if not fresh.is_empty() else pool
+		var unused: Array = pool.filter(func(id): return not id in cards)
+		var choices: Array = fresh if not fresh.is_empty() else (unused if not unused.is_empty() else pool)
 		var picked: String = choices[random.randi_range(0, choices.size() - 1)]
 		cards.append(picked)
 		reserved.append(picked)
 	s["sequence"] += 1
 	var id := "pack_%d" % s["sequence"]
-	s["packs"].append({"id": id, "source": source, "cards": cards, "revealed": [], "torn": false,
+	s["packs"].append({"id": id, "source": source, "set": set_code, "cards": cards, "revealed": [], "torn": false,
 		"bonus": roll_cosmetic(random), "bonus_revealed": false})
-	s["claimed"][identity] = true
-	Save.write()
-	changed.emit()
 	return id
 
 

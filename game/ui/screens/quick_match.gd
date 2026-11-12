@@ -167,7 +167,7 @@ func _fill_decks() -> void:
 	if _format == 0:
 		for d in Save.decks():
 			_choices.append(d)
-		_choices.append({"auto": true, "name": "Auto-build", "icon": "gear", "leader": _auto["leader"], "base": _auto["base"], "count": 50})
+		_choices.append({"auto": true, "name": "Auto-build", "icon": "gear", "leader": _auto["leader"], "base": _auto["base"], "count": DeckBuilder.minimum_size(CardDB.lib, RuleSet.premier(), _auto["base"])})
 		for d in CardDB.spotlight_for_mode("traditional"):
 			if Progression.deck_owned(d):
 				_choices.append(d)
@@ -266,8 +266,8 @@ func _start() -> void:
 	var you: Dictionary
 	if d.get("auto", false):
 		you = {"leader": _auto["leader"], "base": _auto["base"],
-			"list": DeckBuilder.auto_deck(CardDB.lib, _auto["leader"], _auto["base"], 50, rng, rules.arenas, 7, Progression.owned_ids())}
-		if you["list"].size() < 50:
+			"list": DeckBuilder.auto_deck(CardDB.lib, _auto["leader"], _auto["base"], rules.deck_min, rng, rules.arenas, 7, Progression.owned_ids())}
+		if you["list"].size() < DeckBuilder.minimum_size(CardDB.lib, rules, _auto["base"]):
 			_go.text = "Not enough unlocked cards · choose a starter deck"
 			return
 	else:

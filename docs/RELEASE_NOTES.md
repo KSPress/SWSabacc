@@ -1,16 +1,12 @@
-SWU Sabacc 0.7.5
+SWU Sabacc 0.7.7
 
-- Villainy victories now play the supplied Imperial March.
+- Earn 100 credits for a standard or custom match win and 50 for a loss. Buy a booster from your chosen card set for 1,000 credits.
+- Browse cards by set, buy and open packs, and build decks from the Collection Vault.
+- Roguelike battles earn run credits for shops and repairs. Cash out the remaining balance at the end of a run. Consecutive Saga chapter clears raise the payout multiplier to 1.5×, 2×, and 3×.
 
-- Fixed card pack reveal taps and added drag access to base actions, including Fortification actions.
-- Added the printed effects for all 15 Fortify cards in the current catalog, and completed the reported BD-1 and Qui-Gon Jinn abilities.
-- Attack animations start after On Attack choices resolve. The Razor Crest deals five combat damage before other modifiers when its discard bonus applies.
-- Made yellow vehicle bolts and impacts easier to see at mobile sizes.
-- Updated victory music and separated Vader and Anakin's voice clips.
-- Android Settings displays the installed version and links to the download page.
-
-The Android APK uses version code 15 and the existing signing identity.
-
-Extract the Windows ZIP and keep the EXE and PCK together. Physical Android testing was unavailable.
+- Drag a hand Pilot or a ready-to-deploy Pilot leader onto an eligible friendly Vehicle. The tap-and-choose flow is still available.
+- Drag a Fortification onto your base. Its card appears on the base tab, where you can inspect it or use its available actions. Tap or drag the base itself to open base actions.
+- Added the missing Pilot and base rules in the current catalog, including Poe's transfer, Pilot defeat replacements, opening-hand rules, and base Epic Actions.
+- The Android APK uses version code 17 and the existing signing identity. Extract the Windows ZIP and keep the EXE and PCK together.
 
 Unofficial, non-commercial fan project. Star Wars and Star Wars: Unlimited characters, card text and artwork belong to Lucasfilm Ltd. and Fantasy Flight Games.

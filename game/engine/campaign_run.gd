@@ -11,7 +11,8 @@ static func start(chapter: Dictionary, leader: String, seed_value: int) -> Dicti
 	return {
 		"chapter": chapter["id"], "leader": leader,
 		"deck": chapter.get("starting_deck", []).duplicate(),
-		"base_hp_bonus": 0, "base_damage": 0,
+		"base_hp_bonus": 0, "base_damage": 0, "credits": 0, "consecutive_clears": 0,
+		"starts_at_chapter_one": int(chapter.get("number", 1)) == 1, "card_upgrades": {},
 		"current": "", "visited": [], "treasures": [],
 		"node_seed": seed_value, "status": "active", "fights": 0,
 		"reward_id": "%s_%s" % [Time.get_unix_time_from_system(), seed_value],
@@ -74,7 +75,7 @@ static func match_config(run: Dictionary, chapter: Dictionary, node: Dictionary,
 				"preplaced": node.get("player_preplaced", []),
 				"bonus_hand": node.get("player_bonus_hand", []),
 				"extra_resources": te["extra_resources"], "first_unit_experience": te["first_unit_experience"],
-				"extra_hand": te["extra_hand"],
+				"extra_hand": te["extra_hand"], "card_upgrades": run.get("card_upgrades", {}),
 			},
 			{
 				"name": enemy.get("name", "Enemy"), "leader": enemy.get("leader", ""),

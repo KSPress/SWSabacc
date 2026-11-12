@@ -26,6 +26,10 @@ func _init() -> void:
 	test_campaign_krayt_call()
 	test_campaign_attack_pressure()
 	test_piloting()
+	test_pilot_catalog()
+	test_special_bases()
+	test_pilot_replacements()
+	test_base_and_fortify_catalog()
 	test_indirect_damage()
 	test_multi_mode_events()
 	test_play_discounts()
@@ -987,3 +991,165 @@ func test_support_and_recovery() -> void:
 	m3.submit_choice([m3.players[1].base.uid])
 	check(m3.players[0].ready_resources() == 1, "Support grants and resolves On Attack ability")
 	check(marine.abilities_with("on_attack").is_empty(), "Support's borrowed ability expires")
+
+func test_pilot_catalog() -> void:
+	var tested := 0
+	for id in lib.cards:
+		var data := lib.get_card(id)
+		if not data.has("pilot"):
+			continue
+		var m := funded_match()
+		var host := add_unit(m, 0, "SOR_237")
+		var enemy := add_unit(m, 1, "SOR_237")
+		var pilot := put_in_hand(m, id)
+		var action := "pilot"
+		if pilot.is_leader():
+			m.players[0].hand.erase(pilot)
+			pilot.zone = "leader"
+			m.players[0].leader = pilot
+			action = "deploy_pilot"
+		var before: int = m.players[0].available()
+		var rejected := not m.do_action({"a": action, "uid": pilot.uid, "target": enemy.uid})
+		check(rejected and before == m.players[0].available() and host.upgrades.is_empty(),
+			"%s rejects an enemy Vehicle before paying" % id)
+		check(m.do_action({"a": action, "uid": pilot.uid, "target": host.uid}) and pilot.attached_to == host
+			and pilot.printed_power() == data["pilot"]["power"] and pilot.printed_hp() == data["pilot"]["hp"],
+			"%s attaches directly with its upgrade stats" % id)
+		_resolve_catalog_prompts(m)
+		if pilot.is_leader():
+			check(host.is_leader_unit() == data["pilot"]["makes_leader"], "%s leader-unit status" % id)
+			m.defeat(host)
+			m.pump()
+			check(pilot.zone == "leader" and not pilot.deployed and pilot.exhausted
+				and pilot.epic_used != data["pilot"].has("flip_cost"), "%s returns to leader zone on host defeat" % id)
+		else:
+			var unit_match := funded_match()
+			var in_hand := put_in_hand(unit_match, id)
+			check(unit_match.do_action({"a": "play", "uid": in_hand.uid}) and in_hand.in_play(),
+				"%s can still be played as a unit" % id)
+			_resolve_catalog_prompts(unit_match)
+		check(data["implemented"] == "full", "%s has no uncompiled Pilot text" % id)
+		tested += 1
+	check(tested == 49, "All 38 hand Pilots and 11 Pilot leaders are covered")
+
+	var poe_match := funded_match()
+	var poe := poe_match._new_inst("JTL_013", 0)
+	poe_match.players[0].leader = poe
+	poe.zone = "leader"
+	var first := add_unit(poe_match, 0, "SOR_237")
+	var second := add_unit(poe_match, 0, "SOR_237")
+	check(poe_match.do_action({"a": "deploy_pilot", "uid": poe.uid, "target": first.uid})
+		and not poe.epic_used and not first.is_leader_unit(), "Poe flips without deploying or spending his Epic Action")
+	poe_match.active = 0
+	var action := {"a": "ability", "uid": poe.uid, "idx": 0}
+	check(poe_match.do_action(action) and poe_match.pending.get("options") == [second.uid]
+		and poe_match.submit_choice([second.uid]) and poe.attached_to == second, "Poe transfers without replaying")
+	poe_match.active = 0
+	check(action not in poe_match.legal_actions(0), "Poe can transfer only once per round")
+
+
+func _resolve_catalog_prompts(m: Match) -> void:
+	for i in 30:
+		if m.pending.is_empty():
+			return
+		var history_size := m.history.size()
+		AiBot.choose(m)
+		if m.history.size() == history_size:
+			check(false, "Catalog prompt rejected: %s" % [m.pending])
+			return
+	check(false, "Catalog prompt failed to finish")
+
+
+func _install_base(m: Match, id: String) -> CardInst:
+	var base := m._new_inst(id, 0)
+	base.zone = "base"
+	m.players[0].base = base
+	return base
+
+
+func test_special_bases() -> void:
+	var minimum := DeckBuilder.validate(lib, RuleSet.premier(), "JTL_012", "JTL_024", [])
+	check("minimum is 60" in minimum[0], "Data Vault raises the required deck size")
+	minimum = DeckBuilder.validate(lib, RuleSet.premier(), "JTL_012", "JTL_025", [])
+	check("minimum is 45" in minimum[0], "Thermal Oscillator lowers the required deck size")
+	var m := funded_match()
+	var base := _install_base(m, "JTL_028")
+	var hand := [put_in_hand(m, "SOR_095"), put_in_hand(m, "SOR_237"), put_in_hand(m, "SOR_083")]
+	m.push_ability(base, base.abilities_with("action_start")[0])
+	m.pump()
+	var order: Array = [hand[2].uid, hand[0].uid, hand[1].uid]
+	check(m.submit_choice(order) and m.players[0].deck.slice(-3) == [hand[2], hand[0], hand[1]], "Nabat keeps the player's chosen bottom order")
+	base = _install_base(m, "LOF_025")
+	var attacker := add_unit(m, 0, "SOR_095")
+	check(m.do_action({"a": "attack", "uid": attacker.uid, "target": m.players[1].base.uid})
+		and m.players[0].force_token, "Temple of Destruction grants Force after three combat damage")
+	m = funded_match()
+	base = _install_base(m, "LAW_029")
+	var resource: CardInst = m.players[0].resources[0]
+	var top: CardInst = m.players[0].deck[0]
+	check(m.do_action({"a": "ability", "uid": base.uid, "idx": 0}) and m.submit_choice([resource.uid])
+		and resource.zone == "hand" and resource not in m.players[0].resources and top.zone == "resource" and top.exhausted, "Citadel returns the selected resource and replaces it exhausted")
+	m = funded_match()
+	base = _install_base(m, "LAW_026")
+	var milled: CardInst = m.players[0].deck[1]
+	check(m.do_action({"a": "ability", "uid": base.uid, "idx": 0}) and milled.zone == "discard"
+		and m.submit_choice([milled.uid]) and m.players[0].deck[0] == milled, "Shipbreaking Yard returns only a card from its own mill")
+	m = funded_match()
+	base = _install_base(m, "LAW_019")
+	m.players[0].credits = 1
+	check(m.do_action({"a": "ability", "uid": base.uid, "idx": 0}) and m.submit_choice([0])
+		and m.players[0].credits == 0 and m.submit_choice([2]) and m.players[0].credits == 1,
+		"Alliance Outpost can defeat a Credit and choose to create a new one")
+
+
+func test_pilot_replacements() -> void:
+	var m := funded_match()
+	var host := add_unit(m, 0, "SOR_237")
+	var droid := add_unit(m, 0, "JTL_049")
+	m.attach_token(droid, "experience")
+	m.deal_damage(droid, droid.max_hp(), null)
+	m.pump()
+	check(host.uid in m.pending.get("options", []) and m.submit_choice([host.uid])
+		and droid.attached_to == host and droid.damage == 0 and droid.upgrades.is_empty(),
+		"L3-37 can replace defeat by becoming a Pilot")
+	m = funded_match()
+	host = add_unit(m, 0, "SOR_237")
+	var luke := put_in_hand(m, "JTL_094")
+	check(m.do_action({"a": "pilot", "uid": luke.uid, "target": host.uid}), "A Wing Commander attaches to a Vehicle")
+	m.defeat(host)
+	m.pump()
+	check(m.submit_choice([1]) and luke.zone == "ground" and luke.exhausted and luke.attached_to == null
+		and luke not in m.players[0].discard, "Luke can survive host defeat by moving to ground")
+	m = funded_match()
+	var ship := add_unit(m, 0, "SOR_237")
+	var poe := put_in_hand(m, "JTL_100")
+	check(m.do_action({"a": "play", "uid": poe.uid}) and m.pending.get("min") == 0
+		and ship.uid in m.pending.get("options", []) and m.pending.get("options", []).size() == 2,
+		"Poe's unit play offers both the new X-Wing and a preexisting Vehicle")
+	check(m.submit_choice([]) and poe.in_play(), "Poe may decline to become an upgrade")
+
+
+func test_base_and_fortify_catalog() -> void:
+	var base_count := 0
+	var fort_count := 0
+	for id in lib.cards:
+		var data := lib.get_card(id)
+		if data.get("custom", false):
+			continue
+		if data.get("type") == "base":
+			base_count += 1
+			check(data.get("implemented") == "full" and data.get("unparsed", []).is_empty(), "%s has no uncompiled base text" % id)
+		if not data.get("keywords", []).any(func(kw): return kw["k"] == "fortify"):
+			continue
+		fort_count += 1
+		var m := funded_match()
+		var upgrade := put_in_hand(m, id)
+		var home: CardInst = m.players[0].base
+		var hostile: CardInst = m.players[1].base
+		var before: int = m.players[0].available()
+		check(not m.do_action({"a": "play", "uid": upgrade.uid, "target": hostile.uid})
+			and m.players[0].available() == before and upgrade.zone == "hand", "%s rejects an enemy base without spending" % id)
+		check(m.do_action({"a": "play", "uid": upgrade.uid, "target": home.uid}) and upgrade.attached_to == home
+			and upgrade in home.upgrades and data.get("implemented") == "full", "%s attaches directly to its own base" % id)
+		_resolve_catalog_prompts(m)
+	check(base_count == 107 and fort_count == 15, "All 107 printed bases and 15 Fortifications are included")

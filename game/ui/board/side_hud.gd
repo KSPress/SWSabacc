@@ -5,6 +5,9 @@ extends Control
 
 signal leader_pressed(hud: SideHud)
 signal base_pressed(hud: SideHud)
+signal fortification_pressed(hud: SideHud, rect: Rect2)
+signal leader_dragged(hud: SideHud, at: Vector2)
+signal leader_dropped(hud: SideHud, at: Vector2)
 signal resources_pressed(hud: SideHud)
 signal inspect(id: String, rect: Rect2, inst: CardInst)
 
@@ -17,6 +20,8 @@ var info: Label
 var _ps: PlayerState
 var deck_back: TextureRect
 var profile_badge: ProfileBadge
+var fortification_tab: Button
+var _fortification_art := ""
 
 
 func _init(idx: int, p_friendly: bool) -> void:
@@ -29,6 +34,8 @@ func _ready() -> void:
 	leader_view = LeaderView.new()
 	leader_view.friendly = friendly
 	leader_view.pressed.connect(func(): leader_pressed.emit(self))
+	leader_view.dragged.connect(func(at): leader_dragged.emit(self, at))
+	leader_view.dropped.connect(func(at): leader_dropped.emit(self, at))
 	leader_view.inspect.connect(func(): inspect.emit(leader_view.card_id(), leader_view.get_global_rect(), _ps.leader))
 	add_child(leader_view)
 	base_view = BaseView.new()
@@ -36,6 +43,15 @@ func _ready() -> void:
 	base_view.pressed.connect(func(): base_pressed.emit(self))
 	base_view.inspect.connect(func(): inspect.emit(_ps.base.id, base_view.get_global_rect(), _ps.base))
 	add_child(base_view)
+	fortification_tab = Button.new()
+	fortification_tab.hide()
+	fortification_tab.focus_mode = Control.FOCUS_NONE
+	fortification_tab.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	fortification_tab.expand_icon = true
+	fortification_tab.add_theme_constant_override("icon_max_width", 19)
+	fortification_tab.add_theme_font_size_override("font_size", 14)
+	fortification_tab.pressed.connect(func(): fortification_pressed.emit(self, fortification_tab.get_global_rect()))
+	add_child(fortification_tab)
 	res_view = ResourceView.new()
 	res_view.pressed.connect(func(): resources_pressed.emit(self))
 	add_child(res_view)
@@ -63,6 +79,19 @@ func refresh() -> void:
 	if _ps == null:
 		return
 	base_view.queue_redraw()
+	var upgrades: Array = _ps.base.upgrades
+	fortification_tab.visible = not upgrades.is_empty()
+	if not upgrades.is_empty():
+		fortification_tab.text = upgrades[0].name() if upgrades.size() == 1 else "Fortifications (%d)" % upgrades.size()
+		fortification_tab.tooltip_text = "\n".join(upgrades.map(func(up): return up.name()))
+	var art_key: String = upgrades.back().data.get("art", upgrades.back().id) if not upgrades.is_empty() else ""
+	if art_key != _fortification_art:
+		_fortification_art = art_key
+		fortification_tab.icon = null
+		if art_key != "":
+			fortification_tab.icon = Art.request(art_key, func(tex):
+				if _fortification_art == art_key:
+					fortification_tab.icon = tex)
 	leader_view.refresh()
 	res_view.ready_n = _ps.ready_resources()
 	res_view.total = _ps.resources.size()
@@ -102,6 +131,8 @@ func arrange(r: Rect2, horizontal: bool) -> void:
 		info.position = Vector2(0, r.size.y * 0.9)
 		info.size = Vector2(w, 24)
 		info.size.x = maxf(20, w - 82)
+	fortification_tab.position = base_view.position + Vector2(3, 3)
+	fortification_tab.size = Vector2(maxf(40, base_view.size.x - 6), 26)
 	leader_view.queue_redraw()
 	base_view.queue_redraw()
 
@@ -275,9 +306,14 @@ class LeaderView extends Control:
 		set(v):
 			actionable = v
 			queue_redraw()
+	var pilot_actionable := false
 	var _tex: Texture2D
 	var _t := 0.0
 	var _press_t := -1.0
+	var _press_position := Vector2.ZERO
+	var _dragging := false
+	signal dragged(at: Vector2)
+	signal dropped(at: Vector2)
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
@@ -337,6 +373,8 @@ class LeaderView extends Control:
 		var label := inst.name()
 		if inst.deployed:
 			label = "DEPLOYED"
+		elif pilot_actionable:
+			label = "DRAG TO PILOT"
 		elif inst.exhausted:
 			label = "EXHAUSTED"
 		UIKit.draw_fit(self, Sabacc.font_title, strip.position + Vector2(0, 16), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 14, Sabacc.C_GOLD if actionable else Sabacc.C_TEXT)
@@ -349,10 +387,22 @@ class LeaderView extends Control:
 			elif ev.button_index == MOUSE_BUTTON_LEFT:
 				if ev.pressed:
 					_press_t = 0.0
+					_press_position = ev.position
+					_dragging = false
+				elif _dragging:
+					_dragging = false
+					dropped.emit(get_global_transform() * ev.position)
 				elif _press_t >= 0.0:
 					_press_t = -1.0
 					pressed.emit()
 			accept_event()
+		elif ev is InputEventMouseMotion and friendly and inst and not inst.deployed and inst.data.has("pilot"):
+			if _press_t >= 0.0 and _press_position.distance_to(ev.position) >= 14.0:
+				_dragging = true
+				_press_t = -1.0
+			if _dragging:
+				dragged.emit(get_global_transform() * ev.position)
+				accept_event()
 
 
 ## Resource pips: gold = ready, dim = exhausted.

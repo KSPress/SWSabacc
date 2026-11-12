@@ -42,9 +42,7 @@ func build() -> void:
 	var items := [
 		["Campaigns", "orbit", func(): Router.go("hub", {"section": "campaigns"}), false],
 		["Battles", "crossed_sabers", func(): Router.go("hub", {"section": "battles"}), true],
-		["Deck Builder", "hand", func(): Router.go("decks"), false],
 		["Collection Vault", "collection", func(): Router.go("collection"), false],
-		["Card Packs (%d)" % Progression.packs().size(), "booster", func(): Router.go("packs"), false],
 		["Customization", "sliders", func(): Router.go("customization"), false],
 		["Settings", "gear", func(): Router.go("settings"), true],
 		["Exit", "back", exit_application, false],
