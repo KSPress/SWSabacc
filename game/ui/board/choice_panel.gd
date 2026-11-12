@@ -62,7 +62,7 @@ func _build() -> void:
 			var b := SabaccButton.make(str(labels[i]), SabaccButton.Style.PRIMARY if i == 0 else SabaccButton.Style.GOLD)
 			b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			var idx: int = i
+			var idx: int = pending["options"][i]
 			b.pressed.connect(func(): _submit([idx]))
 			col.add_child(b)
 		if int(pending.get("min", 1)) == 0:

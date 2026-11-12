@@ -25,6 +25,7 @@ var epic_used := false
 var entered_phase := -1     # phase serial when it entered play (Hidden)
 var mods: Array = []        # lasting effects: {p, h, kw, v, lose_kw, dur, serial}
 var flags: Dictionary = {}  # campaign/scenario flags: protected, cannot_attack, ...
+var ability_uses: Dictionary = {}
 var is_token := false
 var battle: WeakRef
 var _calculating_aura := false
@@ -41,6 +42,8 @@ func _init(p_uid := 0, p_id := "", p_data := {}, p_owner := 0) -> void:
 
 
 func card_type() -> String:
+	if is_pilot_upgrade():
+		return "upgrade"
 	if deployed:
 		return "unit"
 	var t: String = data.get("type", "")
@@ -49,6 +52,14 @@ func card_type() -> String:
 	if t == "token_upgrade":
 		return "upgrade"
 	return t
+
+
+func is_pilot_upgrade() -> bool:
+	return zone == "upgrade" and data.has("pilot")
+
+
+func upgrade_abilities() -> Array:
+	return data["pilot"]["abilities"] if is_pilot_upgrade() else data.get("abilities", [])
 
 
 func name() -> String:
@@ -71,6 +82,8 @@ func in_play() -> bool:
 func arena() -> String:
 	if in_play():
 		return zone
+	if zone == "upgrade" and attached_to:
+		return attached_to.arena()
 	if deployed or is_leader():
 		return data.get("leader_unit", {}).get("arena", "ground")
 	var a = data.get("arena")
@@ -90,16 +103,20 @@ func has_trait(t: String) -> bool:
 
 
 func aspects() -> Array:
-	return data.get("aspects", [])
+	return data["pilot"]["aspects"] if is_pilot_upgrade() else data.get("aspects", [])
 
 
 func printed_power() -> int:
+	if is_pilot_upgrade():
+		return int(data["pilot"]["power"])
 	if deployed:
 		return int(data.get("leader_unit", {}).get("power", 0))
 	return int(data.get("power", 0))
 
 
 func printed_hp() -> int:
+	if is_pilot_upgrade():
+		return int(data["pilot"]["hp"])
 	if deployed:
 		return int(data.get("leader_unit", {}).get("hp", 0))
 	return int(data.get("hp", 0))
@@ -109,15 +126,22 @@ func printed_hp() -> int:
 func abilities() -> Array:
 	var out: Array = []
 	var src: Array = data.get("leader_unit", {}).get("abilities", []) if deployed else data.get("abilities", [])
+	if is_pilot_upgrade():
+		src = upgrade_abilities()
 	for a in src:
 		if not a.get("granted", false):
 			out.append(a)
 	for modifier in mods:
 		out.append_array(modifier.get("abilities", []))
 	for u in upgrades:
-		for a in u.data.get("abilities", []):
+		for a in u.upgrade_abilities():
 			if a.get("granted", false):
-				out.append(a)
+				if a.has("limit"):
+					var granted: Dictionary = a.duplicate()
+					granted["grant_source"] = u.uid
+					out.append(granted)
+				else:
+					out.append(a)
 	return out
 
 
@@ -130,6 +154,8 @@ func abilities_with(trigger: String) -> Array:
 
 
 func _printed_keywords() -> Array:
+	if is_pilot_upgrade():
+		return []
 	if deployed:
 		return data.get("leader_unit", {}).get("keywords", [])
 	return data.get("keywords", [])
@@ -154,7 +180,7 @@ func kw(k: String) -> int:
 			found = true
 			total += int(e.get("v", 1))
 	for u in upgrades:
-		for a in u.data.get("abilities", []):
+		for a in u.upgrade_abilities():
 			if a.get("trigger", "") == "attached_kw" and a.get("kw", "") == k:
 				found = true
 				total += int(a.get("v", 1)) if int(a.get("v", 0)) > 0 else 1
@@ -194,7 +220,7 @@ func power(attacking := false) -> int:
 	p += _continuous("p")
 	for u in upgrades:
 		if u.data.get("name", "") != "Shield":
-			p += int(u.data.get("power", 0))
+			p += u.printed_power()
 	for m in mods:
 		p += int(m.get("p", 0))
 	if has_kw("grit"):
@@ -209,7 +235,7 @@ func max_hp() -> int:
 	h += _continuous("h")
 	for u in upgrades:
 		if u.data.get("name", "") != "Shield":
-			h += int(u.data.get("hp", 0))
+			h += u.printed_hp()
 	for m in mods:
 		h += int(m.get("h", 0))
 	return h
@@ -232,6 +258,8 @@ func remaining_hp() -> int:
 
 
 func cost() -> int:
+	if is_pilot_upgrade():
+		return int(data["pilot"]["cost"])
 	return int(data.get("cost", 0))
 
 

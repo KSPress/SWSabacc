@@ -29,7 +29,7 @@ def main():
                "chewbacca": "chewbacca", "din_djarn": "din djarin", "han": "han solo",
                "jabba": "jabba", "krennic": "krennic", "luke": "luke skywalker",
                "maul": "maul", "obiwan": "obi_wan kenobi", "palpatine": "palpatine",
-               "tarkin": "tarkin", "vader": "darth vader"}
+               "tarkin": "tarkin", "vader": "darth vader", "windu": "mace windu"}
     for folder, dest in [("Sounds", "custom"), ("MUSIC", "music")]:
         source = GAME / folder
         (source / ".gdignore").touch()
@@ -58,6 +58,13 @@ def main():
                     effect = "tie_enter" if "fly" in name else "tie_shoot"
                 elif group == "lightsaber":
                     effect = "swing" if "whoosh" in name else "saber_hit"
+                elif group == "shielded":
+                    if "break" in name.split("_"):
+                        effect = "shield_break"
+                    elif "fortnite" in name:
+                        effect = "shield_rare"
+                    elif "halo" in name:
+                        effect = "shield_gain"
                 elif group == "land_melee":
                     effect = "melee"
                 elif group == "land_blaster":

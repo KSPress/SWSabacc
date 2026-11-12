@@ -126,6 +126,19 @@ func play_effect(key: String) -> void:
 		play_clip(paths.pick_random())
 
 
+func shield_cue(broken: bool, roll: float) -> String:
+	return "shield_break" if broken else ("shield_rare" if roll < 0.05 else "shield_gain")
+
+
+func shield_sound(broken := false) -> void:
+	var key := shield_cue(broken, randf())
+	if catalog.get("effects", {}).get(key, []).is_empty():
+		key = "shield_gain" if key == "shield_rare" else "shield"
+	if catalog.get("effects", {}).get(key, []).is_empty():
+		key = "shield"
+	play(key)
+
+
 func defeat_paths(data: Dictionary, roll: float) -> Array:
 	if not data.get("type", "") in ["unit", "token_unit", "leader"]:
 		return []

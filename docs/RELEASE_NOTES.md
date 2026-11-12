@@ -1,10 +1,12 @@
-SWU Sabacc 0.7.2
+SWU Sabacc 0.7.3
 
-- Feathered sprite edges so healing mist, Shield glow and the other board effects blend into the board.
-- Enlarged the white brackets for active Coordinate.
-- Overwhelm replays the unit's attack animation toward the enemy base when excess damage reaches it. Combat still resolves one attack and applies the calculated excess damage once.
+- Added Mace Windu's entry and defeat voice clips to his units and leaders.
+- Added Shield gain and break sounds, with a 5% chance of the Fortnite cue on gain.
+- Replaced saber and Creature attacks with target-centered sprite animations. Named Force characters keep a consistent saber color across card versions.
+- Blasters fire one to three bursts with a matching impact for every bolt. Vehicles fire paired bolts.
+- Fixed card rules including Rebel Assault sequencing, temporary control changes, upgrade searches, and several optional effects.
 
-Verified 21 live-board checks, 553 rules checks and 24 update manifest checks. The Android APK uses version code 12 and the existing signing identity.
+The Android APK uses version code 13 and the existing signing identity.
 
 Extract the Windows ZIP and keep the EXE and PCK together. Physical Android testing was unavailable.
 

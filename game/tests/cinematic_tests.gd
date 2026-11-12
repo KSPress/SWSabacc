@@ -26,18 +26,21 @@ func _run() -> void:
 			check(texture != null and texture.get_size() == Vector2(400, 550), "custom Sabacc face " + kind + face)
 	var card := CardInst.new()
 	card.zone = "ground"
-	card.data = {"name": "Test", "traits": ["force"], "aspects": ["heroism", "command"]}
-	check(AttackStyle.of(card)["style"] == "saber" and AttackStyle.of(card)["color"] == Sabacc.SABER_COLORS["green"], "Force/Command Heroism uses green saber")
+	card.data = {"name": "Yoda", "traits": ["force"], "aspects": ["heroism", "command"]}
+	check(AttackStyle.of(card)["style"] == "saber" and AttackStyle.of(card)["palette"] == "green", "Yoda uses green")
 	card.data["aspects"] = ["villainy", "vigilance"]
-	check(AttackStyle.of(card)["color"] == Sabacc.SABER_COLORS["red"], "Villainy uses red saber")
+	card.data["name"] = "Darth Vader"
+	check(AttackStyle.of(card)["palette"] == "red", "Villainy uses red saber")
 	card.data["aspects"] = ["heroism", "vigilance"]
-	check(AttackStyle.of(card)["color"] == Sabacc.SABER_COLORS["blue"], "Heroism/Vigilance uses blue saber")
+	card.data["name"] = "Luke Skywalker"
+	check(AttackStyle.of(card)["palette"] == "blue", "Luke uses blue")
 	card.data["traits"] = ["trooper"]
-	check(AttackStyle.of(card)["color"].r > 0.9, "Heroism blaster red")
+	card.data["name"] = "Test trooper"
+	check(AttackStyle.of(card)["palette"] == "red", "Heroism blaster red")
 	card.data["aspects"] = ["villainy"]
-	check(AttackStyle.of(card)["color"].g > 0.9, "Villainy blaster green")
+	check(AttackStyle.of(card)["palette"] == "green", "Villainy blaster green")
 	card.data["aspects"] = []
-	check(AttackStyle.of(card)["color"].g > 0.8 and AttackStyle.of(card)["color"].b < 0.3, "neutral blaster yellow")
+	check(AttackStyle.of(card)["palette"] == "yellow", "neutral blaster yellow")
 	await _size(1280, 720)
 	await _go("menu")
 	var stage := Control.new()

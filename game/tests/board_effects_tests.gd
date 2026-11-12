@@ -30,6 +30,10 @@ func _run() -> void:
 		get_tree().quit(1)
 		return
 	battle.players[1].is_ai = false
+	for card_id in ["TWI_015", "TWI_034", "SEC_187", "TS26_050", "HMW_008", "HMW_159"]:
+		var grievous := battle._new_inst(card_id, 0)
+		var style := AttackStyle.of(grievous)
+		check(style["style"] == "saber" and style["palette"] == "green", card_id + " uses a green slash without the Force trait")
 	for existing in battle.all_units():
 		battle.players[existing.controller].units.erase(existing)
 		existing.zone = "removed"
@@ -129,6 +133,55 @@ func _run() -> void:
 	previous_damage = enemy_base.damage
 	check(battle.do_action({"a": "attack", "uid": next_attacker.uid, "target": shielded_defender.uid}), "attack on Shield resolves")
 	check(enemy_base.damage == previous_damage and not battle.events.any(func(event): return event["t"] == "overwhelm"), "a Shield prevents the replay and base damage")
+
+	await screen._drain()
+	var tie := battle._new_inst("SOR_231", 0)
+	battle._put_in_play(tie, "space", false)
+	battle.take_events()
+	screen._sync()
+	await _wait(0.4)
+	var shots: Array[String] = []
+	var impacts: Array[Vector2] = []
+	var observe := func(node):
+		if node is CombatSprite:
+			if node.sheet_name.ends_with(" HIT"):
+				(func(): impacts.append(node.global_position)).call_deferred()
+			else:
+				shots.append(node.sheet_name)
+	screen.fx_layer.child_entered_tree.connect(observe)
+	screen._anim_attack(tie, enemy_base)
+	for frame in 120:
+		await get_tree().process_frame
+		if not shots.is_empty() and impacts.is_empty():
+			await _wait(0.10)
+			await _shot("06-twin-bolt-flight")
+			break
+	for frame in 120:
+		await get_tree().process_frame
+		if impacts.size() >= 2:
+			await _wait(0.09)
+			await _shot("07-twin-bolt-impact")
+			break
+	await _wait(0.85)
+	screen.fx_layer.child_entered_tree.disconnect(observe)
+	check(shots.size() in [2, 4, 6] and impacts.size() == shots.size(), "a vehicle fires one to three pairs with one impact per bolt")
+	if impacts.size() >= 2:
+		check(not impacts[0].is_equal_approx(impacts[1])
+			and ((impacts[0] + impacts[1]) * 0.5).distance_to(base_center) < 1.0,
+			"the two bolt impacts land on opposite sides of the base center")
+	var swordsman := battle._new_inst("TWI_034", 0)
+	battle._put_in_play(swordsman, "ground", false)
+	battle.take_events()
+	screen._sync()
+	await _wait(0.35)
+	screen._anim_attack(swordsman, enemy_base)
+	await _wait(0.36)
+	var slashes: Array = screen.fx_layer.get_children().filter(func(child):
+		return child is CombatSprite and child.sheet_name.begins_with("Slash Green "))
+	check(slashes.size() == 1 and slashes[0].global_position.distance_to(base_center) < 1.0,
+		"Grievous slash plays on the target after the lunge")
+	await _shot("08-grievous-slash")
+	await _wait(0.55)
 
 	print("BOARD EFFECTS: %d checks, %d failed" % [checks, failures])
 	if failures:

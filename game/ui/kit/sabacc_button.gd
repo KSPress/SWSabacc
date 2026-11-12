@@ -8,6 +8,7 @@ enum Style { PRIMARY, REBEL, EMPIRE, GOLD, GHOST }
 var style := Style.REBEL
 var breathe := false
 var glyph := ""
+var wrap_text := true
 var _icon: IconGlyph
 var _tw: Tween
 var _breath_t := 0.0
@@ -53,7 +54,7 @@ func _apply_style() -> void:
 	# Buttons with a set width (or that stretch) wrap long labels onto more lines;
 	# buttons sized by their text keep their natural width so nothing is cut.
 	var sized := custom_minimum_size.x >= 120.0 or size_flags_horizontal & Control.SIZE_EXPAND != 0
-	if sized and autowrap_mode == TextServer.AUTOWRAP_OFF:
+	if wrap_text and sized and autowrap_mode == TextServer.AUTOWRAP_OFF:
 		autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	for st in [["normal", UIKit.chamfer(Color(Sabacc.C_PANEL, 0.95), col, 10, 2, 6, Color(col, 0.35))],
 			["hover", UIKit.chamfer(Sabacc.C_PANEL_HI, col.lightened(0.25), 10, 2, 14, Color(col, 0.6))],

@@ -22,7 +22,8 @@ def main():
     for identity, card in sorted(source.items()):
         missing = list(card.get("unparsed", []))
         unsupported = sorted({entry["k"] for face in [card, card.get("leader_unit", {})]
-                              for entry in face.get("keywords", []) if entry["k"] in UNIMPLEMENTED_KEYWORDS})
+                              for entry in face.get("keywords", [])
+                              if entry["k"] in UNIMPLEMENTED_KEYWORDS and "pilot" not in card})
         rows.append({"id": identity, "type": card["type"], "compiler_status": card.get("implemented", "manual"),
                      "uncompiled_text": missing, "unsupported_keywords": unsupported,
                      "text_covered": card.get("implemented") == "full" and not missing and not unsupported})

@@ -1,13 +1,14 @@
 class_name AttackStyle
 extends RefCounted
 ## Decides how a unit's attack is animated, from its card data:
-##   saber   — Jedi/Sith/Inquisitors and known saber wielders: blade ignites and swings
+##   saber   — Jedi/Sith/Inquisitors and known saber wielders: target-centered slash
+##   claw    — Creature units: white claws
 ##   blaster — troopers, officials, scoundrels, droids…: rapid bolts
 ##   heavy   — ground vehicles (walkers, tanks, speeders): big cannon bolts
 ##   ship    — space units: strafing run with twin lasers
-##   melee   — creatures, Tuskens, Ewoks, astromechs…: the card leaps up and slams down
+##   melee   — Tuskens, Ewoks, astromechs…: the card lunges into contact
 ## Bolt colours follow the user's rule: Heroism fires RED, Villainy fires GREEN,
-## unaligned cards fire yellow. Force characters use an aspect-colored blade;
+## unaligned cards fire yellow. Named saber wielders keep their own palette;
 ## space units retain ship attacks. Style corrections live in data/attack_styles.json.
 
 const SABER_TRAITS := ["jedi", "sith", "inquisitor"]
@@ -22,6 +23,8 @@ const MELEE_TRAITS := ["creature", "ewok", "tusken", "gungan", "night", "undead"
 const MELEE_NAMES := ["r2-d2", "c-3po", "bb-8", "chopper", "k-2so", "d-o", "bd-1", "gonk", "jabba the hutt", "wampa", "rancor"]
 const HEAVY_TRAITS := ["walker", "tank", "speeder"]
 const SPACE_TRAITS := ["fighter", "capital ship", "transport"]
+const BLUE_NAMES := ["obi wan", "ben kenobi", "anakin", "luke", "kanan", "mace windu"]
+const GREEN_NAMES := ["yoda", "ahsoka", "qui gon", "general grievous"]
 
 static var _overrides: Dictionary = {}
 static var _loaded := false
@@ -36,7 +39,7 @@ static func _load_overrides() -> void:
 			_overrides = d.get("cards", {})
 
 
-## Returns {"style": String, "color": Color (bolt/blade colour)}.
+## The palette key is shared by a shot and its impact.
 static func of(c: CardInst) -> Dictionary:
 	if not _loaded:
 		_load_overrides()
@@ -46,9 +49,13 @@ static func of(c: CardInst) -> Dictionary:
 	var aspects: Array = data.get("aspects", [])
 	var style := ""
 	var ov: Dictionary = _overrides.get(c.id, {})
-	if c.zone == "space" or data.get("arena") == "space" or (_any(traits, SPACE_TRAITS) and data.get("arena") != "ground"):
+	if "creature" in traits:
+		style = "claw"
+	elif c.zone == "space" or data.get("arena") == "space" or (_any(traits, SPACE_TRAITS) and data.get("arena") != "ground"):
 		style = "ship"
-	elif "force" in traits:
+	elif "vehicle" in traits:
+		style = "heavy"
+	elif "force" in traits or name == "general grievous":
 		style = "saber"
 	elif ov.has("style"):
 		style = ov["style"]
@@ -60,17 +67,21 @@ static func of(c: CardInst) -> Dictionary:
 		style = "melee"
 	else:
 		style = "blaster"
-	var col: Color
+	var palette := "green" if "villainy" in aspects else ("red" if "heroism" in aspects else "yellow")
 	if style == "saber":
-		var sc := "red" if "villainy" in aspects else (("green" if "command" in aspects or "cunning" in aspects else "blue") if "heroism" in aspects else "yellow")
-		col = Sabacc.SABER_COLORS.get(sc, Color(0.35, 0.65, 1.0))
-	elif "villainy" in aspects:
-		col = Color(0.25, 1.0, 0.3)       # Imperial/Sith green bolts
-	elif "heroism" in aspects:
-		col = Color(1.0, 0.18, 0.12)      # Rebel/Republic red bolts
-	else:
-		col = Color(1.0, 0.86, 0.18)      # unaligned: yellow
-	return {"style": style, "color": col}
+		palette = _saber_palette(name, aspects)
+	return {"style": style, "palette": palette}
+
+
+static func _saber_palette(name: String, aspects: Array) -> String:
+	var normalized := name.replace("-", " ").replace("–", " ")
+	if GREEN_NAMES.any(func(character): return normalized.begins_with(character)):
+		return "green"
+	if BLUE_NAMES.any(func(character): return normalized.begins_with(character)):
+		return "blue"
+	if "villainy" in aspects:
+		return "red"
+	return "blue"
 
 
 ## Early-life versions of saber wielders that carry blasters instead

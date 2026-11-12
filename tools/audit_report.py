@@ -9,35 +9,47 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-audit = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+audits = [json.loads(Path(path).read_text(encoding="utf-8")) for path in sys.argv[1:]]
 cards = json.loads((ROOT / "game/ip/data/cards.json").read_text(encoding="utf-8"))["cards"]
+custom = json.loads((ROOT / "game/data/custom_cards.json").read_text(encoding="utf-8"))
+cards.update(custom.get("cards", custom))
 by_type = collections.defaultdict(lambda: collections.Counter())
 flagged = []
-for cid, r in sorted(audit.items()):
-    t = r["type"]
-    by_type[t]["cards"] += 1
-    by_type[t]["clean"] += 0 if r["issues"] else 1
-    by_type[t][r.get("implemented", "")] += 1
-    if r["issues"]:
-        flagged.append((cid, r))
+scenario_results = {}
+for audit in audits:
+    for cid, result in audit.items():
+        scenario_results[(result.get("scenario", "dense"), cid)] = result
+catalog = {}
+for (_, cid), result in sorted(scenario_results.items()):
+    catalog[cid] = result
+    counts = by_type[result["type"]]
+    counts["runs"] += 1
+    counts["clean"] += not result["issues"]
+    if result["issues"]:
+        flagged.append((cid, result))
+for result in catalog.values():
+    by_type[result["type"]]["cards"] += 1
+    by_type[result["type"]][result["implemented"]] += 1
 lines = ["# Engine card audit", "",
-         "Every card is run through the real rules engine on a staged board (play it, answer every choice, "
-         "attack, use action abilities, be defeated; leaders also deploy and attack; bases play a full bot game). "
-         "A card is *clean* when nothing errored, stalled or broke a game invariant, and every automated ability "
-         "visibly changed the game.", "",
-         "| Type | Cards | Clean | Text fully automated | Partly automated | Text not automated |", "|---|---|---|---|---|---|"]
-for t in ("leader", "base", "unit", "event", "upgrade"):
-    c = by_type[t]
-    lines.append(f"| {t} | {c['cards']} | {c['clean']} | {c['full']} | {c['partial']} | {c['manual']} |")
-total = sum(by_type[t]["cards"] for t in by_type)
+         "The staged runs exercise play, available choices, attacks, deployment, attachments and token behavior. "
+         "Each base runs a bot match. The duel declines optional effects, the dense board supplies many legal targets, "
+         "and the pressured board starts the acting player behind with a damaged base.", "",
+         "| Type | Cards | Runs | No audit flags | Full compile | Partial compile | Manual |", "|---|---|---|---|---|---|---|"]
+for t, c in sorted(by_type.items()):
+    lines.append(f"| {t} | {c['cards']} | {c['runs']} | {c['clean']} | {c['full']} | {c['partial']} | {c['manual']} |")
+total = sum(by_type[t]["runs"] for t in by_type)
 clean = sum(by_type[t]["clean"] for t in by_type)
-lines += ["", f"**{clean} / {total} cards clean.** *Clean* means the engine handles the card safely; abilities whose "
-          "text isn't automated yet are shown to the player as \"not automated\" and simply don't fire.", "",
-          "## Flagged", "", "| Card | Issue | Why |", "|---|---|---|"]
-why = {"no-op": "nothing on the audit board met its condition (expected)", "not usable": "its extra cost can't be met on the audit board (expected)"}
+lines += ["", f"**{clean} of {total} runs across {len(catalog)} cards finished without a staged audit flag.** Full compile means the importer "
+          "recognized the printed text. Verifying each interaction requires gameplay tests with its conditions and targets.", "",
+          "## Flagged", "", "| Card | Scenario | Issue | What the audit observed |", "|---|---|---|---|"]
+why = {"no-op": "The staged game recorded no state change for the effect.",
+       "not usable": "The action was unavailable on the staged board.",
+       "0 attachment targets": "The staged board had no eligible attachment target."}
 for cid, r in flagged:
     issue = "; ".join(r["issues"])
     reason = next((v for k, v in why.items() if k in issue), "")
-    lines.append(f"| {cid} {cards[cid]['name']} | {issue} | {reason} |")
+    if declined := r.get("optional_declined", 0):
+        reason = f"{reason} The scenario declined {declined} available optional choice(s).".strip()
+    lines.append(f"| {cid} {cards.get(cid, {}).get('name', '')} | {r.get('scenario', 'dense')} | {issue} | {reason} |")
 (ROOT / "docs/card_audit.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 print(f"wrote docs/card_audit.md ({clean}/{total} clean)")

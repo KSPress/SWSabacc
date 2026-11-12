@@ -37,6 +37,18 @@ func _run() -> void:
 	check(Sfx.defeat_paths(space, 0.0) != Sfx.catalog["effects"]["wilhelm"], "space units excluded from Wilhelm")
 	check(not Sfx.character_paths(villain, "action").is_empty(), "unlabeled character action clips")
 	check(Sfx.character_key({"name": "Ben Kenobi"}) == "obi_wan kenobi", "Obi-Wan alias")
+	var windu := {"name": "Mace Windu", "type": "leader", "traits": ["force", "jedi"]}
+	Sfx.entered(windu)
+	check(not Sfx.character_paths(windu, "played").is_empty() and heard.back() in Sfx.character_paths(windu, "played"),
+		"Mace Windu leader deployment uses the same PLAYED clip as his unit cards")
+	check(not Sfx.character_paths(windu, "lose").is_empty() and Sfx.character_paths(windu, "die") == Sfx.character_paths(windu, "lose"),
+		"Mace Windu shares the LOSE clip for defeat and a leader loss")
+	check(Sfx.shield_cue(false, 0.0499) == "shield_rare" and Sfx.shield_cue(false, 0.05) == "shield_gain",
+		"Fortnite replaces Halo only below five percent")
+	check(Sfx.shield_cue(true, 0.0) == "shield_break" and Sfx.shield_cue(true, 1.0) == "shield_break",
+		"Shield breaks always use the Break cue")
+	Sfx.shield_sound(true)
+	check(heard.back() in Sfx.catalog["effects"]["shield_break"], "Shield break audio is playable")
 	Sfx.entered(luke)
 	check(heard.back() in Sfx.character_paths(luke, "played"), "PLAYED on entry")
 	Sfx.entered({"name": "TIE Fighter"})

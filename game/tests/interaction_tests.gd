@@ -47,9 +47,17 @@ func _run() -> void:
 	check(not Router._busy and Router._fade.mouse_filter == Control.MOUSE_FILTER_IGNORE, "splash transition releases input")
 	Cosmetics.set_gm(true)
 	Cosmetics.equip("background", "emblem")
-	var routes := [["Campaigns", "mode_hub"], ["Battles", "mode_hub"], ["Deck Builder", "decks"], ["Collection Vault", "collection"], ["Card Packs", "pack_opening"], ["Settings", "settings_screen"], ["Profile", "customization"]]
+	var routes := [["Campaigns", "mode_hub"], ["Battles", "mode_hub"], ["Deck Builder", "decks"], ["Collection Vault", "collection"], ["Card Packs", "pack_opening"], ["Customization", "customization"], ["Settings", "settings_screen"], ["Profile", "customization"]]
 	for dims in [[360, 640], [540, 1200], [1280, 720], [2560, 1080]]:
 		await _size(dims[0], dims[1])
+		await _go("menu")
+		var menu := get_tree().current_scene
+		var bounds: Array[Rect2] = []
+		for button in menu._buttons.get_children():
+			var rect: Rect2 = button.get_global_rect()
+			check(menu.get_viewport_rect().encloses(rect), "menu button stays in view %s %s" % [button.text, dims])
+			check(not bounds.any(func(previous): return previous.intersects(rect)), "menu button stays separate %s %s" % [button.text, dims])
+			bounds.append(rect)
 		for route in routes:
 			await _go("menu")
 			var scene := get_tree().current_scene

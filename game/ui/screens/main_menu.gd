@@ -1,6 +1,8 @@
 extends ScreenBase
 ## Title screen. Floating showcase cards can be grabbed and flung around.
 
+const TitleButton = preload("res://ui/kit/menu_button.gd")
+
 var _title_box: VBoxContainer
 var _buttons: GridContainer
 var _floaters: Array = []
@@ -34,25 +36,26 @@ func build() -> void:
 	_title_box.add_child(banner)
 	_title_box.add_child(UIKit.label(Sabacc.GAME_SUBTITLE, 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	_buttons = GridContainer.new()
-	_buttons.add_theme_constant_override("h_separation", 16)
-	_buttons.add_theme_constant_override("v_separation", 14)
+	_buttons.add_theme_constant_override("h_separation", 12)
+	_buttons.add_theme_constant_override("v_separation", 6)
 	body.add_child(_buttons)
 	var items := [
-		["Campaigns", SabaccButton.Style.PRIMARY, "boss", func(): Router.go("hub", {"section": "campaigns"}), true],
-		["Battles", SabaccButton.Style.REBEL, "fight", func(): Router.go("hub", {"section": "battles"}), false],
-		["Deck Builder", SabaccButton.Style.GOLD, "deck", func(): Router.go("decks"), false],
-		["Collection Vault", SabaccButton.Style.GOLD, "collection", func(): Router.go("collection"), false],
-		["Card Packs (%d)" % Progression.packs().size(), SabaccButton.Style.GOLD, "star", func(): Router.go("packs"), false],
-		["Customization", SabaccButton.Style.PRIMARY, "gear", func(): Router.go("customization"), false],
-		["Settings", SabaccButton.Style.GHOST, "gear", func(): Router.go("settings"), false],
-		["Exit", SabaccButton.Style.EMPIRE, "back", exit_application, false],
+		["Campaigns", "orbit", func(): Router.go("hub", {"section": "campaigns"}), false],
+		["Battles", "crossed_sabers", func(): Router.go("hub", {"section": "battles"}), true],
+		["Deck Builder", "hand", func(): Router.go("decks"), false],
+		["Collection Vault", "collection", func(): Router.go("collection"), false],
+		["Card Packs (%d)" % Progression.packs().size(), "booster", func(): Router.go("packs"), false],
+		["Customization", "sliders", func(): Router.go("customization"), false],
+		["Settings", "gear", func(): Router.go("settings"), true],
+		["Exit", "back", exit_application, false],
 	]
 	var i := 0
 	for it in items:
-		var b := SabaccButton.make(it[0], it[1], it[2], it[4])
-		b.custom_minimum_size = Vector2(320, 72)
-		b.add_theme_font_size_override("font_size", 26)
-		b.pressed.connect(it[3])
+		var b := TitleButton.new()
+		b.text = it[0]
+		b.glyph = it[1]
+		b.pale = it[3]
+		b.pressed.connect(it[2])
 		_buttons.add_child(b)
 		UIKit.pop_in(b, 0.15 + i * 0.07)
 		i += 1
@@ -123,39 +126,44 @@ func relayout(p: bool, r: Rect2) -> void:
 	_profile_button.position = Vector2(r.size.x - 150, 0)
 	_profile_badge.position = Vector2(4, 0)
 	_buttons.columns = 1 if p else 2
-	_title_box.get_node("Logo").custom_minimum_size.y = 132 if p else 92
+	var row_count := ceili(_buttons.get_child_count() / float(_buttons.columns))
+	var button_width := minf(520.0, r.size.x - 12.0) if p else minf(390.0, (r.size.x - 36.0) / 2.0)
+	var button_height := clampf((r.size.y - (250.0 if p else 130.0)) / row_count - 6.0, 44.0, 83.0)
+	for button in _buttons.get_children():
+		button.custom_minimum_size = Vector2(button_width, button_height)
+	_title_box.get_node("Logo").custom_minimum_size.y = clampf(r.size.y * 0.13, 74.0, 132.0) if p else 92.0
 	_title_box.position = Vector2(0, maxf(72, r.size.y * 0.04) if p else 0.0)
 	_title_box.size = Vector2(r.size.x, 0)
 	await get_tree().process_frame
 	var bs := _buttons.get_combined_minimum_size()
 	_buttons.size = bs
 	# Reserve space for every button and the footer before placing the showcase.
-	# Seven portrait buttons used to extend below the window on a 16:9 phone.
 	var button_top := minf(r.size.y * (0.52 if p else 0.5), r.size.y - 70.0 - bs.y)
 	_buttons.position = Vector2((r.size.x - bs.x) / 2.0, button_top)
 	_foot.position = Vector2(0, r.size.y - 50)
 	_foot.size = Vector2(r.size.x, 40)
 	# Landscape: cards live in the side gutters left/right of the button grid.
-	var gutter := (r.size.x - bs.x) / 2.0 - 20.0
+	var gutter := (r.size.x - bs.x) / 2.0
 	var showcase_top := _title_box.position.y + _title_box.get_combined_minimum_size().y + 22.0
 	var showcase_height := maxf(0.0, button_top - showcase_top - 22.0)
-	var fsc := minf(r.size.y * 0.16, showcase_height * 0.8) / CardView.PORTRAIT.y if p else clampf(minf(r.size.y * 0.34 / CardView.PORTRAIT.y, gutter * 0.75 / CardView.LANDSCAPE.x), 0.25, 1.0)
+	var fsc := minf(r.size.y * 0.16, showcase_height * 0.8) / CardView.PORTRAIT.y if p else minf(r.size.y * 0.34 / CardView.PORTRAIT.y, maxf(0.0, gutter - 28.0) / CardView.LANDSCAPE.x)
 	for i in _floaters.size():
 		var cv: CardView = _floaters[i]
+		cv.visible = fsc >= 0.14
+		if not cv.visible:
+			continue
 		cv.home_scale = Vector2(fsc, fsc)
 		cv.scale = cv.home_scale
+		var cw := cv.size.x * fsc
 		var hp: Vector2
 		if p:
-			var cw := cv.size.x * fsc
 			hp = Vector2(r.size.x * (0.5 + (i - 1) * 0.31) - cw / 2.0, showcase_top)
-			# CardView scales about its centre, so compensate its pivot to place
-			# the visible top edge inside the showcase instead of over a button.
-			hp -= cv.pivot_offset * (1.0 - fsc)
 		else:
-			var left := i < 2
-			var x := gutter * 0.15 if left else r.size.x - gutter * 0.25 - cv.size.x * fsc
-			hp = Vector2(x, r.size.y * (0.18 + (i % 2) * 0.36))
+			var center := gutter * 0.5 if i < 2 else r.size.x - gutter * 0.5
+			hp = Vector2(center - cw / 2.0, r.size.y * (0.28 + (i % 2) * 0.36))
+		# CardView scales about its center, so compensate for its pivot.
+		hp -= cv.pivot_offset * (1.0 - fsc)
 		cv.home_pos = hp
 		cv.home_rot = (i - 1) * 0.12
-		if cv.position == Vector2.ZERO:
+		if not cv.is_dragging() and not cv.top_level:
 			cv.position = hp

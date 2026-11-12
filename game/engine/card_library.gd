@@ -11,7 +11,7 @@ const TOKEN_NAMES := {
 	"shield": "Shield", "experience": "Experience", "battle_droid": "Battle Droid",
 	"clone_trooper": "Clone Trooper", "tie_fighter": "TIE Fighter", "x_wing": "X-Wing",
 	"spy": "Spy", "mandalorian": "Mandalorian", "beast": "Beast", "credit": "Credit",
-	"force": "The Force", "advantage": "Advantage",
+	"force": "The Force", "advantage": "Advantage", "weakness": "Weakness",
 }
 
 var cards: Dictionary = {}

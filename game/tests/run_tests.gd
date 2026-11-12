@@ -452,6 +452,8 @@ func simulate_quick_modes(n: int) -> void:
 				rounds += m.round_num
 			else:
 				stuck += 1
+				print("  stuck quick seed=%d decks=%s/%s phase=%s round=%d pending=%s actions=%s" % [
+					g, a[0], b[0], m.phase, m.round_num, m.pending.get("kind", ""), m.legal_actions(m.active)])
 		print("  quick %-11s %d decks: p0 %d / p1 %d / draw %d / stuck %d, avg rounds %.1f" % [mode, decks.size(), wins[0], wins[1], wins[2], stuck, rounds / maxf(1.0, n - stuck)])
 		check(stuck == 0, "quick %s: no stuck games" % mode)
 
