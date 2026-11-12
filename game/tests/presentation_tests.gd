@@ -64,7 +64,8 @@ func _run() -> void:
 	heard.clear()
 	Sfx.result_cues(loser, winner, true, ["heroism", "villainy"])
 	check(heard[0] in Sfx.catalog["effects"]["hero_win"], "hero victory Cantina")
-	check(Sfx.catalog["effects"]["villain_win"][0].contains("march_of_the_troopers"), "villain victory uses the supplied march")
+	check(Sfx.catalog["effects"]["villain_win"] == ["res://ip/audio/custom/imperial_march.mp3"],
+		"Villainy victories use the supplied Imperial March")
 	check(Sfx.character_paths(villain, "lose").all(func(path): return not path.contains("liar")),
 		"Vader never uses the Anakin line")
 	for winning_leader in [winner, loser]:

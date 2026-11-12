@@ -43,7 +43,7 @@ def main():
             if dest == "music":
                 catalog["music"].append(resource)
                 if "march_of_the_troopers" in key:
-                    catalog["effects"].setdefault("villain_win", []).append(resource)
+                    catalog["effects"].setdefault("villain_win", [resource])
                 continue
             group = slug(relative.parts[0]) if len(relative.parts) > 1 else ""
             name = slug(path.stem)
@@ -57,7 +57,8 @@ def main():
                 if group == "boba_fett" and "blaster" in name:
                     catalog["effects"].setdefault("boba_shoot", []).append(resource)
             else:
-                effect = {"cantina_band": "hero_win", "wilhelmscream": "wilhelm"}.get(name, "")
+                effect = {"cantina_band": "hero_win", "imperial_march": "villain_win",
+                          "wilhelmscream": "wilhelm"}.get(name, "")
                 if name == "imperial_siren":
                     continue
                 if group == "tie":

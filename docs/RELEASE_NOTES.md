@@ -1,4 +1,6 @@
-SWU Sabacc 0.7.4
+SWU Sabacc 0.7.5
+
+- Villainy victories now play the supplied Imperial March.
 
 - Fixed card pack reveal taps and added drag access to base actions, including Fortification actions.
 - Added the printed effects for all 15 Fortify cards in the current catalog, and completed the reported BD-1 and Qui-Gon Jinn abilities.
@@ -7,7 +9,7 @@ SWU Sabacc 0.7.4
 - Updated victory music and separated Vader and Anakin's voice clips.
 - Android Settings displays the installed version and links to the download page.
 
-The Android APK uses version code 14 and the existing signing identity.
+The Android APK uses version code 15 and the existing signing identity.
 
 Extract the Windows ZIP and keep the EXE and PCK together. Physical Android testing was unavailable.
 
