@@ -1,8 +1,10 @@
-SWU Sabacc 0.7.1
+SWU Sabacc 0.7.2
 
-- Cantina Band and Imperial Siren play only on a player victory. The losing leader's voice cue remains available.
-- Added green healing mist, white brackets for active Coordinate, a red Sentinel arrow, a blue Shield bubble and a Shield shatter animation. Effects stack on the same unit and fade when their status ends. A remaining Shield returns after the break animation.
-- Verified 15 live-board effect checks, 119 presentation checks, 50 extended rules checks and 24 update manifest checks. The Android APK uses version code 11 and the existing signing identity.
+- Feathered sprite edges so healing mist, Shield glow and the other board effects blend into the board.
+- Enlarged the white brackets for active Coordinate.
+- Overwhelm replays the unit's attack animation toward the enemy base when excess damage reaches it. Combat still resolves one attack and applies the calculated excess damage once.
+
+Verified 21 live-board checks, 553 rules checks and 24 update manifest checks. The Android APK uses version code 12 and the existing signing identity.
 
 Extract the Windows ZIP and keep the EXE and PCK together. Physical Android testing was unavailable.
 

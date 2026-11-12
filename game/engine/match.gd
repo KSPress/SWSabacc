@@ -971,6 +971,7 @@ func resolve_combat() -> void:
 	var t_rem := t.remaining_hp()
 	var t_shielded := t.shield_count() > 0
 	deal_damage(t, ap, a)
+	var follow_through_index := events.size()
 	var early_damage := false
 	for ability in a.abilities_with("constant"):
 		if ability.get("flag") == "first_strike":
@@ -980,7 +981,10 @@ func resolve_combat() -> void:
 	else:
 		deal_damage(a, dp, t)
 	if a.has_kw("overwhelm") and not t_shielded and ap > t_rem:
-		deal_damage(players[opp(a.controller)].base, ap - t_rem, a)
+		var base: CardInst = players[opp(a.controller)].base
+		# Animate the follow-through before the attacker's retaliation reaction.
+		events.insert(follow_through_index, {"t": "overwhelm", "a": a.uid, "target": base.uid})
+		deal_damage(base, ap - t_rem, a)
 
 
 func end_attack() -> void:

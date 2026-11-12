@@ -404,8 +404,8 @@ func _drain() -> void:
 				await _wait(0.18)
 			"play":
 				await _anim_play(e)
-			"attack":
-				await _anim_attack(m.card(e["a"]), m.card(e["target"]))
+			"attack", "overwhelm":
+				await _anim_attack(m.card(e["a"]), m.card(e["target"]), e["t"] == "attack")
 			"damage":
 				_anim_damage(m.card(e["uid"]), int(e["n"]), m.card(int(e.get("src", 0))))
 				await _wait(0.12)
@@ -551,10 +551,11 @@ func _anim_play(e: Dictionary) -> void:
 		await _wait(0.75)
 
 
-func _anim_attack(a: CardInst, t: CardInst) -> void:
+func _anim_attack(a: CardInst, t: CardInst, announce_action := true) -> void:
 	if a == null or t == null:
 		return
-	Sfx.acted(a.data)
+	if announce_action:
+		Sfx.acted(a.data)
 	var at: UnitToken = tokens.get(a.uid)
 	if at == null:
 		return

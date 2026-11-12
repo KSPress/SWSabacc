@@ -36,7 +36,7 @@ func _run() -> void:
 
 	var unit := battle._new_inst("SOR_095", 0)
 	var ally := battle._new_inst("SOR_237", 0)
-	var third := battle._new_inst("SOR_225", 0)
+	var third := battle._new_inst("SOR_128", 0)
 	battle._put_in_play(unit, "ground", false)
 	battle._put_in_play(ally, "space", false)
 	unit.mods.append({"kw": "sentinel"})
@@ -91,6 +91,44 @@ func _run() -> void:
 	await _wait(0.3)
 	check(layers._opacity["sentinel"] == 0.0, "removed Sentinel fades")
 	await capture_effect("04-effects-cleared", token)
+
+	var attacker := battle._new_inst("SHD_172", 0)
+	var defender := battle._new_inst("SOR_095", 1)
+	battle._put_in_play(attacker, "ground", false)
+	battle._put_in_play(defender, "ground", false)
+	battle.take_events()
+	screen._sync()
+	await _wait(0.4)
+	battle.active = 0
+	var enemy_base: CardInst = battle.players[1].base
+	var previous_damage := enemy_base.damage
+	check(battle.do_action({"a": "attack", "uid": attacker.uid, "target": defender.uid}), "Overwhelm attack resolves")
+	check(enemy_base.damage == previous_damage + 7, "base takes only the excess damage")
+	var attack_events := battle.events.filter(func(event): return event["t"] in ["attack", "overwhelm"])
+	check(attack_events.size() == 2 and attack_events[0]["target"] == defender.uid and attack_events[1]["target"] == enemy_base.uid, "one unit attack and one base animation")
+	var attacker_token: UnitToken = screen.tokens[attacker.uid]
+	var base_center: Vector2 = screen._card_center(enemy_base)
+	screen._drain()
+	var reached_base := false
+	for i in 180:
+		await get_tree().process_frame
+		if attacker_token.z_index == 20 and attacker_token.center_global().distance_to(base_center) < 75.0:
+			reached_base = true
+			await _shot("05-overwhelm-base")
+			break
+	check(reached_base, "the same attack animation reaches the base")
+	await _wait(1.1)
+
+	var next_attacker := battle._new_inst("SHD_172", 0)
+	var shielded_defender := battle._new_inst("SOR_095", 1)
+	battle._put_in_play(next_attacker, "ground", false)
+	battle._put_in_play(shielded_defender, "ground", false)
+	battle.attach_token(shielded_defender, "shield")
+	battle.take_events()
+	battle.active = 0
+	previous_damage = enemy_base.damage
+	check(battle.do_action({"a": "attack", "uid": next_attacker.uid, "target": shielded_defender.uid}), "attack on Shield resolves")
+	check(enemy_base.damage == previous_damage and not battle.events.any(func(event): return event["t"] == "overwhelm"), "a Shield prevents the replay and base damage")
 
 	print("BOARD EFFECTS: %d checks, %d failed" % [checks, failures])
 	if failures:

@@ -14,9 +14,31 @@ const FPS := 20.0
 const PLAY_TIME := FRAME_COUNT / FPS
 const FADE_TIME := 0.18
 const SHIELD_RECT := Rect2(-21, -17, 174, 150)
+const COORDINATE_RECT := Rect2(-38, -11, 208, 139)
+const EDGE_SHADER := """
+shader_type canvas_item;
+render_mode blend_add, unshaded;
+
+varying vec4 tint;
+
+void vertex() {
+	tint = COLOR;
+}
+
+void fragment() {
+	vec2 pixel = UV / TEXTURE_PIXEL_SIZE;
+	float x = mod(pixel.x, 160.0);
+	float y = pixel.y < 213.0 ? pixel.y : pixel.y - 213.0;
+	float horizontal = smoothstep(3.0, 17.0, x) * (1.0 - smoothstep(143.0, 157.0, x));
+	float vertical = smoothstep(3.0, 14.0, y) * (1.0 - smoothstep(199.0, 210.0, y));
+	vec4 sprite = texture(TEXTURE, UV);
+	vec3 glow = max(sprite.rgb - vec3(0.015), vec3(0.0));
+	COLOR = vec4(glow * tint.rgb, sprite.a * tint.a * horizontal * vertical);
+}
+"""
 
 static var _textures := {}
-static var _blend: CanvasItemMaterial
+static var _blend: ShaderMaterial
 var _time := 0.0
 var _active := {"sentinel": false, "coordinate": false, "shield": false}
 var _opacity := {"sentinel": 0.0, "coordinate": 0.0, "shield": 0.0}
@@ -33,8 +55,10 @@ static func sheet(key: String) -> Texture2D:
 
 func _ready() -> void:
 	if _blend == null:
-		_blend = CanvasItemMaterial.new()
-		_blend.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		var shader := Shader.new()
+		shader.code = EDGE_SHADER
+		_blend = ShaderMaterial.new()
+		_blend.shader = shader
 	material = _blend
 	set_process(false)
 
@@ -76,7 +100,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var loop_frame := 7 if Sabacc.perf() else int(_time * 12.0) % FRAME_COUNT
 	_draw_frame("shield", loop_frame, SHIELD_RECT, _opacity["shield"] * 0.84)
-	_draw_frame("coordinate", loop_frame, Rect2(-16, 6, 164, 105), _opacity["coordinate"] * 0.78)
+	_draw_frame("coordinate", loop_frame, COORDINATE_RECT, _opacity["coordinate"] * 0.9)
 	_draw_frame("sentinel", loop_frame, Rect2(12, -32, 108, 35), _opacity["sentinel"])
 	_draw_one_shot("shield_break", _break_age, SHIELD_RECT)
 	_draw_one_shot("heal", _heal_age, Rect2(-12, 18, 156, 103))
@@ -96,5 +120,10 @@ func _draw_frame(key: String, frame: int, area: Rect2, opacity: float) -> void:
 		return
 	var crop: Vector2i = SHEETS[key]
 	var row_start := 213 if frame >= 8 else 0
-	var region := Rect2(3 + (frame % 8) * 160, row_start + crop.x, 154, crop.y - crop.x)
-	draw_texture_rect_region(texture, area, region, Color(1, 1, 1, opacity))
+	# Keep the original sprite placement while giving its vertical glow room to fade.
+	var pixels_to_units := area.size.y / float(crop.y - crop.x)
+	var frame_area := area
+	frame_area.position.y -= (crop.x - 3) * pixels_to_units
+	frame_area.size.y = 207.0 * pixels_to_units
+	var region := Rect2(3 + (frame % 8) * 160, row_start + 3, 154, 207)
+	draw_texture_rect_region(texture, frame_area, region, Color(1, 1, 1, opacity))
