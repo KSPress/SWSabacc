@@ -42,18 +42,24 @@ def main():
             resource = "res://" + output.relative_to(GAME).as_posix()
             if dest == "music":
                 catalog["music"].append(resource)
+                if "march_of_the_troopers" in key:
+                    catalog["effects"].setdefault("villain_win", []).append(resource)
                 continue
             group = slug(relative.parts[0]) if len(relative.parts) > 1 else ""
             name = slug(path.stem)
             event = next((e for e in ["played", "die", "lose"] if e in name.split("_")), "action")
             if event == "die":
                 event = "lose"
+            if group == "vader" and name == "liar_lose":
+                group = "anakin"
             if group in aliases:
                 catalog["characters"].setdefault(aliases[group], {}).setdefault(event, []).append(resource)
                 if group == "boba_fett" and "blaster" in name:
                     catalog["effects"].setdefault("boba_shoot", []).append(resource)
             else:
-                effect = {"cantina_band": "hero_win", "imperial_siren": "villain_win", "wilhelmscream": "wilhelm"}.get(name, "")
+                effect = {"cantina_band": "hero_win", "wilhelmscream": "wilhelm"}.get(name, "")
+                if name == "imperial_siren":
+                    continue
                 if group == "tie":
                     effect = "tie_enter" if "fly" in name else "tie_shoot"
                 elif group == "lightsaber":

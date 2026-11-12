@@ -198,10 +198,10 @@ func _update_slot(slot: Control) -> void:
 		card.face_down = not revealed
 		card.hover_lift = false
 		card.draggable = false
+	slot.add_child(card)
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for child in card.get_children():
 		child.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slot.add_child(card)
 	var name := _rarity(index)
 	var label := UIKit.label(name + (" · Cosmetic" if bonus else "") + (" · Unlocked" if revealed else " · Reveal"), 13, rarity_color(name), HORIZONTAL_ALIGNMENT_CENTER)
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS

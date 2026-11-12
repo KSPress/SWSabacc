@@ -39,7 +39,8 @@ func _ready() -> void:
 		check(expired == baseline, "expired effect leaves no pixels " + str(fixture[0]))
 		effect.queue_free()
 		await get_tree().process_frame
-	for sheet in ["Slash Blue 1", "Slash Green 2", "Slash Red 2", "Claw Slash",
+	for sheet in ["Slash Blue 1", "Slash Blue 2", "Slash Blue 3", "Slash Green 1", "Slash Green 2",
+			"Slash Green 3", "Slash Red 1", "Slash Red 2", "Claw Slash",
 			"Bolt Green", "Bolt Yellow", "Bolt Red", "Bolt Green HIT", "Bolt Yellow HIT", "Bolt Red HIT"]:
 		var sprite := CombatSprite.spawn(background, sheet, get_viewport().get_visible_rect().size / 2, 120.0, 1.0)
 		sprite.set_process(false)

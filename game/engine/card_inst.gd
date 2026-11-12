@@ -23,6 +23,7 @@ var attached_to: CardInst:
 var deployed := false       # leader is on its unit side
 var epic_used := false
 var entered_phase := -1     # phase serial when it entered play (Hidden)
+var entry_serial := 0
 var mods: Array = []        # lasting effects: {p, h, kw, v, lose_kw, dur, serial}
 var flags: Dictionary = {}  # campaign/scenario flags: protected, cannot_attack, ...
 var ability_uses: Dictionary = {}
@@ -185,7 +186,7 @@ func kw(k: String) -> int:
 				found = true
 				total += int(a.get("v", 1)) if int(a.get("v", 0)) > 0 else 1
 	for m in mods:
-		if m.get("kw", "") == k:
+		if m.get("kw", "") == k and modifier_active(m):
 			found = true
 			total += int(m.get("v", 1))
 	if found and total <= 0:
@@ -222,7 +223,8 @@ func power(attacking := false) -> int:
 		if u.data.get("name", "") != "Shield":
 			p += u.printed_power()
 	for m in mods:
-		p += int(m.get("p", 0))
+		if modifier_active(m):
+			p += int(m.get("p", 0))
 	if has_kw("grit"):
 		p += damage
 	if attacking:
@@ -239,6 +241,14 @@ func max_hp() -> int:
 	for m in mods:
 		h += int(m.get("h", 0))
 	return h
+
+
+func modifier_active(modifier: Dictionary) -> bool:
+	if not modifier.has("while_source"):
+		return true
+	var m: Match = battle.get_ref() if battle else null
+	var source := m.card(modifier["while_source"]) if m else null
+	return source != null and source.in_play() and source.entry_serial == modifier["source_entry"]
 
 
 func _continuous(field: String, keyword := "") -> int:

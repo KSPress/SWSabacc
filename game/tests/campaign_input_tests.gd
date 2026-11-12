@@ -5,6 +5,19 @@ extends "res://tests/interaction_tests.gd"
 func _run() -> void:
 	Save.data = Save.default_data()
 	await _size(570, 1280)
+	var pack_id := Progression.grant("Input test", "pack-input-test")
+	Progression.tear(pack_id)
+	await _go("menu")
+	var menu := get_tree().current_scene
+	check(menu._buttons.get_child(0).get_script().resource_path.ends_with("/menu_button.gd"),
+		"Portrait menu uses the redesigned menu buttons")
+	await _click(_button(menu, "Card Packs"))
+	var pack_screen := get_tree().current_scene
+	var slots: Array = pack_screen._slots.duplicate()
+	for slot in slots:
+		await _click(slot)
+	check(not pack_screen._done.disabled and pack_screen._pack["revealed"].size() == 10,
+		"All portrait pack rewards reveal through their artwork and enable collection")
 	var chapter := CardDB.chapter("ep4_ch1_tatooine")
 	var node := CampaignRun.node_by_id(chapter, "n7")
 	var run := CampaignRun.start(chapter, "SEC_015", 212)
@@ -96,6 +109,26 @@ func _run() -> void:
 			await _click(picker._views[pilot.uid])
 			await _click(_button(picker, "Confirm"))
 			check(pilot.zone == "discard" and not host.has_kw("sentinel"), "The chosen upgrade is removed")
+	m.active = 0
+	var base := m._new_inst("LOF_028", 0)
+	base.zone = "base"
+	m.players[0].base = base
+	screen.hud[0].bind(m.players[0])
+	var payer := m._new_inst("SOR_095", 0)
+	m._put_in_play(payer, "ground", false)
+	m.players[0].force_token = false
+	screen._sync()
+	await _wait(0.35)
+	var tile: Control = screen.hud[0].base_view
+	var from := tile.get_global_rect().get_center()
+	await _drag(from, from + Vector2(0, -45))
+	await _wait(0.4)
+	var use := _button(screen, "Action [exhaust a friendly unit]")
+	check(use != null and not use.disabled, "Dragging the base opens its legal action")
+	if use:
+		await _click(use)
+		await _click(screen.tokens[payer.uid])
+		check(payer.exhausted and m.players[0].force_token, "Tomb of Eilram exhausts the chosen unit and grants the Force")
 	print("CAMPAIGN INPUT: %d checks, %d failed" % [checks, failures])
 	if failures:
 		get_tree().quit(1)

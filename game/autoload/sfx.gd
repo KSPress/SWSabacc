@@ -80,7 +80,7 @@ func play_clip(path: String, channel := "effect") -> void:
 	_next = (_next + 1) % POOL
 	player.stream = _clips[path]
 	player.pitch_scale = 1.0
-	player.set_meta("gain", -14.0 if channel == "result" else -8.0)
+	player.set_meta("gain", -8.0)
 	player.volume_db = linear_to_db(volume) + player.get_meta("gain")
 	player.play()
 	cue_played.emit(path)
@@ -187,7 +187,9 @@ func attack_sound(data: Dictionary, style: String) -> String:
 
 func result_cues(winner: CardInst, loser: CardInst, player_won: bool, deck_aspects: Array = []) -> void:
 	if player_won:
-		var aspects: Array = winner.data.get("aspects", []) if deck_aspects.is_empty() else deck_aspects
+		var aspects: Array = winner.data.get("aspects", [])
+		if not ("heroism" in aspects or "villainy" in aspects):
+			aspects = deck_aspects
 		var paths: Array = catalog.get("effects", {}).get("villain_win" if "villainy" in aspects else ("hero_win" if "heroism" in aspects else ""), [])
 		if not paths.is_empty():
 			play_clip(paths.pick_random(), "result")

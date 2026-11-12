@@ -8,6 +8,8 @@ func _init() -> void:
 	test_continuous_rules()
 	test_capture_and_bounty()
 	test_plot_and_fortify()
+	test_fortifications()
+	test_reported_card_abilities()
 	test_early_combat_and_tokens()
 	test_support_and_recovery()
 	test_coordinate_triggers()
@@ -37,6 +39,147 @@ func _init() -> void:
 	test_upgrade_search_filters()
 	print("EXTENDED RULES: %d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
+
+
+func test_reported_card_abilities() -> void:
+	var m := funded_match()
+	var razor := add_unit(m, 0, "ASH_172")
+	var payment := put_in_hand(m, "SOR_095")
+	var base: CardInst = m.players[1].base
+	check(m.do_action({"a": "attack", "uid": razor.uid, "target": base.uid})
+		and m.submit_choice([1]) and m.submit_choice([payment.uid]), "Razor Crest discards a selected card")
+	check(base.damage == 5 and payment.zone == "discard" and razor.power() == 3,
+		"Razor Crest hits for five after discard and loses the attack bonus afterwards")
+	var other := funded_match()
+	var ally := add_unit(other, 0, "SOR_095")
+	var bd := put_in_hand(other, "LOF_191")
+	check(other.do_action({"a": "play", "uid": bd.uid}) and other.submit_choice([ally.uid])
+		and ally.power() == ally.printed_power() + 1 and ally.has_kw("saboteur"), "BD-1 buffs the chosen ally")
+	other.return_to_hand(bd)
+	check(ally.power() == ally.printed_power() and not ally.has_kw("saboteur"), "BD-1 bonus ends when it leaves")
+	var force_match := funded_match()
+	var qui_gon := force_match._new_inst("LOF_016", 0)
+	qui_gon.zone = "leader"
+	force_match.players[0].leader = qui_gon
+	force_match.players[0].force_token = true
+	var returned := add_unit(force_match, 0, "ASH_172")
+	var cheap := put_in_hand(force_match, "SOR_095")
+	var resources: int = force_match.players[0].available()
+	check(force_match.do_action({"a": "ability", "uid": qui_gon.uid, "idx": 0})
+		and force_match.submit_choice([returned.uid]) and returned.zone == "hand"
+		and not force_match.players[0].force_token, "Qui-Gon spends the Force and returns the chosen unit")
+	check(cheap.uid in force_match.pending.get("options", []) and returned.uid not in force_match.pending.get("options", [])
+		and force_match.submit_choice([cheap.uid])
+		and cheap.in_play() and force_match.players[0].available() == resources, "Qui-Gon plays a cheaper non-Villainy unit for free")
+
+
+func test_fortifications() -> void:
+	var m := funded_match()
+	var home: CardInst = m.players[0].base
+	var shield := put_in_hand(m, "HMW_081")
+	check(m.do_action({"a": "play", "uid": shield.uid}) and m.pending.get("options") == [home.uid]
+		and m.submit_choice([home.uid]), "Fortify attaches through the normal play action")
+	var before: int = m.players[0].hand.size()
+	check(m.deal_damage(home, 4, null) == 4 and shield.zone == "upgrade", "Shield Generator ignores hits under five")
+	check(m.deal_damage(home, 5, null, true) == 5 and shield.zone == "upgrade", "Unpreventable damage bypasses Shield Generator")
+	check(m.deal_damage(home, 7, null) == 0 and home.damage == 9 and shield.zone == "discard"
+		and m.players[0].hand.size() == before + 1, "Shield Generator prevents the full hit, defeats itself and draws")
+
+	var ally := add_unit(m, 0, "SOR_095")
+	var ship := add_unit(m, 0, "SOR_237")
+	var enemy := add_unit(m, 1, "SOR_095")
+	for id in ["HMW_112", "HMW_126", "HMW_271", "HMW_113", "HMW_070"]:
+		m.attach_upgrade(m._new_inst(id, 0), home)
+	check(ally.has_kw("overwhelm") and ally.kw("raid") == 1 and ship.power() == ship.printed_power() + 1
+		and enemy.kw("raid") == 0, "Academy, Fortress and Landing Pad apply only to eligible allies")
+	m.defeat(ally)
+	m.pump()
+	check(home.damage == 8, "War Memorial heals after a friendly unit is defeated")
+	var hand_size: int = m.players[0].hand.size()
+	m.push_frame([{"op": "_regroup_triggers"}], {"ctl": 0})
+	m.pump()
+	check(home.damage == 10 and m.players[0].hand.size() == hand_size + 1, "Dark Sanctum draws then damages its base")
+
+	var lab := funded_match()
+	var lab_base: CardInst = lab.players[0].base
+	var target := add_unit(lab, 0, "SOR_095")
+	target.damage = 2
+	var bacta := lab._new_inst("HMW_037", 0)
+	lab.attach_upgrade(bacta, lab_base)
+	lab.pump()
+	check(lab.submit_choice([target.uid]) and lab.submit_choice([1]) and target.damage == 1, "Bacta Tank can heal less than the maximum")
+	var recover := add_unit(lab, 0, "SOR_095")
+	lab.defeat(recover)
+	check(lab.do_action({"a": "ability", "uid": bacta.uid, "idx": 0}) and lab.submit_choice([recover.uid])
+		and lab.players[0].deck[0] == recover and bacta.zone == "discard", "Bacta Tank puts the unit on top after paying its cost")
+	lab.active = 0
+	var chamber := lab._new_inst("HMW_095", 0)
+	lab.attach_upgrade(chamber, lab_base)
+	target.exhausted = true
+	check(lab.do_action({"a": "ability", "uid": chamber.uid, "idx": 0}) and lab.submit_choice([target.uid]), "Carbonite Chamber targets a non-Vehicle")
+	for cycle in 2:
+		lab.push_frame([{"op": "_ready_all"}], {"ctl": 0})
+		lab.pump()
+		check(target.exhausted == (cycle == 0), "Carbonite lasts exactly one regroup")
+
+	var siege := funded_match()
+	var siege_base: CardInst = siege.players[0].base
+	var camp := siege._new_inst("HMW_216", 0)
+	siege.attach_upgrade(camp, siege_base)
+	var trooper := put_in_hand(siege, "SOR_095")
+	check(siege.do_action({"a": "play", "uid": trooper.uid}) and siege.submit_choice([1])
+		and camp.zone == "discard" and not trooper.exhausted, "Insurgent Camp sacrifices itself to ready the played unit")
+	var trap := siege._new_inst("HMW_171", 0)
+	siege.attach_upgrade(trap, siege_base)
+	var intruder := siege.create_unit_token(1, "battle_droid")
+	siege.pump()
+	check(siege.submit_choice([1]) and trap.zone == "discard" and not intruder.in_play(), "Trap Field hits an entering token")
+
+	var intel := funded_match()
+	var discarded := intel._new_inst("SOR_095", 1)
+	discarded.zone = "hand"
+	intel.players[1].hand.append(discarded)
+	intel.attach_upgrade(intel._new_inst("HMW_205", 0), intel.players[0].base)
+	intel.pump()
+	var deck_before: int = intel.players[1].deck.size()
+	check(intel.pending.get("player") == 0 and intel.submit_choice([discarded.uid])
+		and discarded.zone == "discard" and intel.players[1].deck.size() == deck_before - 1,
+		"Intelligence Agency lets its controller choose the opposing discard and gives the opponent a draw")
+	var arsenal := funded_match()
+	var arsenal_base: CardInst = arsenal.players[0].base
+	var victim := add_unit(arsenal, 1, "SOR_095")
+	var cannon := arsenal._new_inst("HMW_172", 0)
+	var hand_before: int = arsenal.players[0].hand.size()
+	arsenal.attach_upgrade(cannon, arsenal_base)
+	arsenal.pump()
+	check(arsenal.players[0].hand.size() == hand_before + 1, "Heavy Ion Cannon draws when played")
+	var cannon_action := {"a": "ability", "uid": arsenal_base.uid, "idx": 0}
+	var ammo := put_in_hand(arsenal, "SOR_095")
+	check(arsenal.do_action(cannon_action) and arsenal.submit_choice([ammo.uid])
+		and arsenal.submit_choice([victim.uid]) and victim.damage == 2, "Heavy Ion Cannon grants the base a discard action")
+	arsenal.active = 0
+	check(cannon_action not in arsenal.legal_actions(0), "Heavy Ion Cannon is limited to once per phase")
+	var doctrine := arsenal._new_inst("HMW_206", 0)
+	arsenal.attach_upgrade(doctrine, arsenal_base)
+	arsenal.pump()
+	var lair := put_in_hand(arsenal, "HMW_147")
+	check(arsenal.do_action({"a": "play", "uid": lair.uid}) and arsenal.submit_choice([arsenal_base.uid]),
+		"Beast Lair attaches to its base")
+	check(victim.uid in arsenal.pending.get("options", []) and arsenal.submit_choice([victim.uid]) and victim.exhausted,
+		"Tarkin Doctrine reacts to a Fortification play")
+	arsenal.start_action_phase()
+	arsenal.pump()
+	var bait := put_in_hand(arsenal, "SOR_095")
+	check(arsenal.submit_choice([1]) and arsenal.submit_choice([bait.uid])
+		and arsenal.players[0].units.any(func(unit): return unit.is_token and unit.name() == "Beast" and unit.exhausted),
+		"Beast Lair creates an exhausted Beast after the discard")
+	arsenal.attach_upgrade(arsenal._new_inst("HMW_160", 0), arsenal_base)
+	var top := arsenal._new_inst("ASH_172", 0)
+	arsenal.players[0].deck.push_front(top)
+	arsenal.push_frame([{"op": "_regroup_triggers"}], {"ctl": 0})
+	arsenal.pump()
+	check(arsenal.submit_choice([victim.uid]) and victim.zone == "discard" and arsenal.players[0].deck[0] == top,
+		"Noxious Refinery reveals an Aggression card and leaves it on top")
 
 
 func test_upgrade_search_filters() -> void:

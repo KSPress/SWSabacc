@@ -138,6 +138,7 @@ class BaseView extends Control:
 	var _flash := 0.0
 	var _shown_hp := -1.0
 	var _press_t := -1.0
+	var _press_position := Vector2.ZERO
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
@@ -228,12 +229,19 @@ class BaseView extends Control:
 		_light_overlay()
 
 	func _gui_input(ev: InputEvent) -> void:
+		if ev is InputEventMouseMotion and friendly and _press_t >= 0.0:
+			if ev.position.distance_to(_press_position) >= 18.0:
+				_press_t = -1.0
+				pressed.emit()
+				accept_event()
+			return
 		if ev is InputEventMouseButton:
 			if ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
 				inspect.emit()
 			elif ev.button_index == MOUSE_BUTTON_LEFT:
 				if ev.pressed:
 					_press_t = 0.0
+					_press_position = ev.position
 				elif _press_t >= 0.0:
 					_press_t = -1.0
 					pressed.emit()

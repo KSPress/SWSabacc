@@ -180,6 +180,8 @@ func can_act(p: int) -> bool:
 
 ## Cost to play `c` for player p, including aspect penalties (+2 per missing icon).
 func play_cost(p: int, c: CardInst, smuggle := false, opts := {}) -> int:
+	if opts.get("free", false):
+		return 0
 	var cost := c.cost()
 	var needed: Array = c.aspects()
 	if smuggle:
@@ -750,12 +752,18 @@ func _put_in_play(u: CardInst, arena: String, exhausted := true) -> void:
 	arena = arena_for(u, arena)
 	_remove_from_zones(u)
 	u.flags.erase("return_control_at_regroup")
+	u.flags.erase("skip_regroup_ready")
+	u.entry_serial += 1
 	u.zone = arena
 	u.exhausted = exhausted
 	u.entered_phase = phase_serial
 	u.damage = 0 if not u.deployed else u.damage
 	players[u.controller].units.append(u)
 	events.append({"t": "enter", "uid": u.uid, "p": u.controller})
+	if phase != "setup" and u.arena() == "ground" and not u.is_leader():
+		for source in trigger_sources():
+			for ability in source.abilities_with("nonleader_ground_enters"):
+				push_ability(source, ability, {"subject": u.uid})
 
 
 ## opts (from abilities like "Play a unit from your hand. It costs 1 less."):
@@ -949,6 +957,13 @@ func deal_damage(target: CardInst, n: int, source: CardInst, unpreventable := fa
 				return 0
 	elif target.zone != "base":
 		return 0
+	elif not unpreventable and n >= 5:
+		for up in target.upgrades:
+			if up.abilities_with("constant").any(func(a): return a.get("flag") == "base_damage_shield"):
+				defeat(up)
+				draw(up.controller, 1)
+				events.append({"t": "shield_break", "uid": target.uid, "remaining": 0})
+				return 0
 	target.damage += n
 	events.append({"t": "damage", "uid": target.uid, "n": n, "src": source.uid if source else 0})
 	if target.zone == "base":
@@ -1023,6 +1038,9 @@ func defeat(u: CardInst, departing_host := false) -> void:
 		if source.controller == opp(p):
 			for ability in source.abilities_with("enemy_unit_defeated"):
 				push_ability(source, ability, {"subject_player": p})
+		else:
+			for ability in source.abilities_with("friendly_unit_defeated"):
+				push_ability(source, ability, {"subject": u.uid})
 	for ab in abil:
 		push_ability(u, ab, {"lki_arena": u.arena()})
 	for bounty in bounties:
@@ -1124,7 +1142,6 @@ func begin_attack(a: CardInst, t: CardInst) -> void:
 	exhaust(a)
 	attack = {"a": a.uid, "t": t.uid}
 	attacked_with[p].append(a.uid)
-	events.append({"t": "attack", "a": a.uid, "target": t.uid})
 	_log("%s attacks %s." % [a.title(), t.title() if t.zone != "base" else "the enemy base"])
 	push_frame([{"op": "_before_combat"}, {"op": "_combat"}, {"op": "_attack_end"}], {"src": a.uid, "ctl": p})
 	for ability in t.abilities_with("when_attacked"):
@@ -1148,6 +1165,8 @@ func resolve_combat() -> void:
 	var t := card(attack["t"])
 	if a == null or not a.in_play():
 		return
+	if t:
+		events.append({"t": "attack", "a": a.uid, "target": t.uid})
 	if attack.get("defender_defeated", false):
 		_overwhelm(a, a.power(true), events.size())
 		return
@@ -1326,7 +1345,7 @@ func continuous_bonus(target: CardInst, field: String, keyword: String) -> int:
 					if target.upgrades.is_empty():
 						continue
 				"ground", "space":
-					if target.zone != filter_trait:
+					if target.arena() != filter_trait:
 						continue
 				_:
 					if filter_trait != "" and not target.has_trait(filter_trait) and not filter_trait in target.aspects():

@@ -403,6 +403,11 @@ func _drain() -> void:
 				log_text.append_text(e["text"] + "\n")
 			"control":
 				_position_tokens()
+			"reveal_top":
+				var revealed := m.card(e["uid"])
+				if revealed:
+					Fx.banner(fx_layer, revealed.name(), Sabacc.C_GOLD, "Revealed from deck")
+					await _wait(0.8)
 			"enter":
 				_ensure_token(m.card(e["uid"]), true)
 				if m.card(e["uid"]):
@@ -646,14 +651,16 @@ func _anim_burst(attacker: UnitToken, target: Vector2, style: String, palette: S
 func _launch_bolt(origin: Vector2, target: Vector2, sheet: String, cue: String, travel: float, scale_factor: float) -> void:
 	Sfx.play(cue)
 	var duration := Sabacc.anim(travel)
-	var bolt := CombatSprite.spawn(fx_layer, sheet, origin, 82.0 * scale_factor,
+	var bolt := CombatSprite.spawn(fx_layer, sheet, origin, maxf(62.0, 94.0 * scale_factor),
 		duration, (target - origin).angle(), 0.8)
 	bolt.free_on_finish = false
+	bolt.first_frame = 4
+	bolt.last_frame = 8
 	var flight := create_tween()
 	flight.tween_property(bolt, "global_position", target, duration)
 	await flight.finished
 	bolt.queue_free()
-	CombatSprite.spawn(fx_layer, sheet + " HIT", target, 96.0 * scale_factor, Sabacc.anim(0.38))
+	CombatSprite.spawn(fx_layer, sheet + " HIT", target, maxf(64.0, 100.0 * scale_factor), Sabacc.anim(0.38))
 	Sfx.play("hit")
 
 
@@ -984,16 +991,21 @@ func _on_base_pressed(h: SideHud) -> void:
 		_try_attack(_selected, b.uid)
 		return
 	if h.player_idx == HUMAN:
-		var abilities := b.abilities_with("action")
-		if not abilities.is_empty():
-			var opts: Array = []
-			var legal := _legal_for(b.uid, "ability")
+		var can_peek := b.abilities_with("constant").any(func(ability): return ability.get("flag") == "peek_own_deck")
+		var opts: Array = []
+		for source in [b] + b.upgrades:
+			var abilities: Array = source.abilities_with("action")
+			var legal: Array = _legal_for(source.uid, "ability")
 			for i in abilities.size():
-				var action := {"a": "ability", "uid": b.uid, "idx": i}
+				var action := {"a": "ability", "uid": source.uid, "idx": i}
 				var reason := ""
 				if action not in legal:
-					reason = "Epic Action already used" if abilities[i].get("epic", false) and b.epic_used else "Unavailable this action"
-				opts.append([abilities[i].get("text", "Base action"), action, reason])
+					reason = "Epic Action already used" if abilities[i].get("epic", false) and source.epic_used else "Unavailable this action"
+				var label: String = abilities[i].get("text", "Base action")
+				opts.append([label if source == b else "%s · %s" % [source.name(), label], action, reason])
+		if not opts.is_empty() or can_peek:
+			if can_peek and not m.players[HUMAN].deck.is_empty():
+				opts.append(["Look at top card", {"inspect": m.players[HUMAN].deck[0].uid}])
 			opts.append(["Inspect base", {"inspect": b.uid}])
 			_popup_menu(h.base_view.get_global_rect(), opts)
 			return

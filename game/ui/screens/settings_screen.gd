@@ -89,6 +89,7 @@ func build() -> void:
 	_box.add_child(orient)
 	if OS.has_feature("android"):
 		_toggle("Download game updates automatically", "auto_update")
+		_box.add_child(UIKit.label("Installed version " + ReleaseInfo.VERSION_NAME, 17, Sabacc.C_DIM))
 		var update_status := UIKit.label(Updater.status, 17, Sabacc.C_DIM)
 		update_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_box.add_child(update_status)
@@ -104,6 +105,9 @@ func build() -> void:
 				Updater.install()
 			else:
 				Updater.check())
+		var downloads := SabaccButton.make("Open GitHub downloads", SabaccButton.Style.GHOST)
+		downloads.pressed.connect(func(): OS.shell_open(Updater.RELEASES_URL))
+		_box.add_child(downloads)
 		refresh.call()
 	var stats: Dictionary = Save.data.get("stats", {})
 	_box.add_child(UIKit.label("Matches %d · Wins %d · Vault %d cards" % [int(stats.get("matches", 0)), int(stats.get("wins", 0)), Save.data.get("vault", []).size()], 18, Sabacc.C_DIM))

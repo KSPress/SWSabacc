@@ -28,6 +28,8 @@ static var _material: ShaderMaterial
 
 var sheet_name := ""
 var free_on_finish := true
+var first_frame := 0
+var last_frame := COLUMNS * ROWS - 1
 var _sheet: Texture2D
 var _cell := Vector2.ZERO
 var _width := 0.0
@@ -82,7 +84,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if not _sheet or _duration <= 0.0:
 		return
-	var frame := mini(COLUMNS * ROWS - 1, int(_age / _duration * COLUMNS * ROWS))
+	var frame := mini(last_frame, first_frame + int(_age / _duration * (last_frame - first_frame + 1)))
 	var source := Rect2(Vector2(frame % COLUMNS, floori(float(frame) / COLUMNS)) * _cell, _cell)
 	var size_px := Vector2(_width, _width * _cell.y / _cell.x)
 	var destination := Rect2(-size_px * Vector2(_anchor_x, 0.5), size_px)

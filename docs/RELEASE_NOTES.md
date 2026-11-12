@@ -1,12 +1,13 @@
-SWU Sabacc 0.7.3
+SWU Sabacc 0.7.4
 
-- Added Mace Windu's entry and defeat voice clips to his units and leaders.
-- Added Shield gain and break sounds, with a 5% chance of the Fortnite cue on gain.
-- Replaced saber and Creature attacks with target-centered sprite animations. Named Force characters keep a consistent saber color across card versions.
-- Blasters fire one to three bursts with a matching impact for every bolt. Vehicles fire paired bolts.
-- Fixed card rules including Rebel Assault sequencing, temporary control changes, upgrade searches, and several optional effects.
+- Fixed card pack reveal taps and added drag access to base actions, including Fortification actions.
+- Added the printed effects for all 15 Fortify cards in the current catalog, and completed the reported BD-1 and Qui-Gon Jinn abilities.
+- Attack animations start after On Attack choices resolve. The Razor Crest deals five combat damage before other modifiers when its discard bonus applies.
+- Made yellow vehicle bolts and impacts easier to see at mobile sizes.
+- Updated victory music and separated Vader and Anakin's voice clips.
+- Android Settings displays the installed version and links to the download page.
 
-The Android APK uses version code 13 and the existing signing identity.
+The Android APK uses version code 14 and the existing signing identity.
 
 Extract the Windows ZIP and keep the EXE and PCK together. Physical Android testing was unavailable.
 

@@ -4,7 +4,8 @@ extends Node
 
 signal status_changed
 
-const MANIFEST_URL := "https://github.com/KSPress/SWSabacc/releases/latest/download/sabacc-update.json"
+const RELEASES_URL := "https://github.com/KSPress/SWSabacc/releases/latest"
+const MANIFEST_URL := RELEASES_URL + "/download/sabacc-update.json"
 const DIR := "user://updates"
 const PART := DIR + "/download.part"
 const APK := DIR + "/swu_sabacc.apk"
@@ -47,7 +48,7 @@ func check() -> void:
 	_http.timeout = 15.0
 	_http.body_size_limit = 16384
 	_set_status("Checking for updates…")
-	if _http.request(MANIFEST_URL, ["User-Agent: SWSabacc/" + ReleaseInfo.VERSION_NAME]) != OK:
+	if _http.request(MANIFEST_URL, ["User-Agent: SWSabacc/" + ReleaseInfo.VERSION_NAME, "Cache-Control: no-cache"]) != OK:
 		_fail("Could not check for updates. You can keep playing offline.")
 
 
