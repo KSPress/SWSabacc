@@ -47,11 +47,16 @@ func _run() -> void:
 	var winner := CardInst.new(1, "", villain)
 	var loser := CardInst.new(2, "", luke)
 	heard.clear()
-	Sfx.result_cues(winner, loser)
+	Sfx.result_cues(winner, loser, true)
 	check(heard[0] in Sfx.catalog["effects"]["villain_win"] and heard[1] in Sfx.character_paths(luke, "lose"), "villain win and losing leader")
 	heard.clear()
-	Sfx.result_cues(loser, winner)
+	Sfx.result_cues(loser, winner, true)
 	check(heard[0] in Sfx.catalog["effects"]["hero_win"], "hero victory Cantina")
+	for winning_leader in [winner, loser]:
+		var losing_leader := loser if winning_leader == winner else winner
+		heard.clear()
+		Sfx.result_cues(winning_leader, losing_leader, false)
+		check(heard.size() == 1 and heard[0] in Sfx.character_paths(losing_leader.data, "lose"), "player defeat has only the losing leader cue")
 	Sabacc.set_setting("music_enabled", true)
 	var tracks: Array = [Music.current_path]
 	for i in 5:

@@ -411,10 +411,21 @@ func _drain() -> void:
 				await _wait(0.12)
 			"heal":
 				var hc := m.card(e["uid"])
+				var healed_token: UnitToken = tokens.get(e["uid"])
+				if healed_token:
+					healed_token.effects.heal()
+					healed_token.queue_redraw()
 				Fx.float_text(fx_layer, _card_center(hc), "+%d" % int(e["n"]), Sabacc.C_GOOD)
 			"shield_break":
-				Fx.shatter(fx_layer, _card_center(m.card(e["uid"])))
-				await _wait(0.15)
+				var shielded_token: UnitToken = tokens.get(e["uid"])
+				if shielded_token and UnitEffects.sheet("shield_break"):
+					shielded_token.effects.break_shield(int(e["remaining"]) > 0)
+					shielded_token.queue_redraw()
+					Sfx.play("shield")
+					await _wait(0.55)
+				else:
+					Fx.shatter(fx_layer, _card_center(m.card(e["uid"])))
+					await _wait(0.15)
 			"token":
 				var tk: UnitToken = tokens.get(e["on"])
 				if tk:
@@ -1251,9 +1262,11 @@ func _game_over() -> void:
 	if menu_popup:
 		menu_popup.queue_free()
 		menu_popup = null
-	Sfx.play("win" if won else "lose")
+	Sfx.play("draw" if m.winner == 2 else ("win" if won else "lose"))
 	if m.winner in [0, 1]:
-		Sfx.result_cues(m.players[m.winner].leader, m.players[1 - m.winner].leader, Appearance.aspects_for([m.players[m.winner].leader.data, m.players[m.winner].base.data]))
+		var victor: PlayerState = m.players[m.winner]
+		var aspects := Appearance.aspects_for([victor.leader.data, victor.base.data])
+		Sfx.result_cues(victor.leader, m.players[1 - m.winner].leader, won, aspects)
 	var layer := CanvasLayer.new()
 	layer.layer = 45
 	add_child(layer)

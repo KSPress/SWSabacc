@@ -172,11 +172,12 @@ func attack_sound(data: Dictionary, style: String) -> String:
 	return "blaster"
 
 
-func result_cues(winner: CardInst, loser: CardInst, deck_aspects: Array = []) -> void:
-	var aspects: Array = winner.data.get("aspects", []) if deck_aspects.is_empty() else deck_aspects
-	var paths: Array = catalog.get("effects", {}).get("villain_win" if "villainy" in aspects else ("hero_win" if "heroism" in aspects else ""), [])
-	if not paths.is_empty():
-		play_clip(paths.pick_random(), "result")
+func result_cues(winner: CardInst, loser: CardInst, player_won: bool, deck_aspects: Array = []) -> void:
+	if player_won:
+		var aspects: Array = winner.data.get("aspects", []) if deck_aspects.is_empty() else deck_aspects
+		var paths: Array = catalog.get("effects", {}).get("villain_win" if "villainy" in aspects else ("hero_win" if "heroism" in aspects else ""), [])
+		if not paths.is_empty():
+			play_clip(paths.pick_random(), "result")
 	var loss := character_paths(loser.data, "lose")
 	if not loss.is_empty():
 		play_clip(loss.pick_random(), "voice")

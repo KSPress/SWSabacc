@@ -2,6 +2,7 @@
 game/.godot/
 tools/godot_tool/.godot/
 build/
+/.codex-remote-attachments/
 
 # --- IP-bearing assets: never commit (spec section 1) ---
 # Card DB + converted art + fonts + UI art + audio live here, regenerated locally.

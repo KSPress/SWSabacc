@@ -766,7 +766,7 @@ func deal_damage(target: CardInst, n: int, source: CardInst) -> int:
 			if up.data.get("name", "") == "Shield":
 				target.upgrades.erase(up)
 				by_uid.erase(up.uid)
-				events.append({"t": "shield_break", "uid": target.uid})
+				events.append({"t": "shield_break", "uid": target.uid, "remaining": target.shield_count()})
 				return 0
 	elif target.zone != "base":
 		return 0
@@ -788,6 +788,8 @@ func defeat(u: CardInst) -> void:
 		var host := u.attached_to
 		if host:
 			host.upgrades.erase(u)
+			if u.data.get("name", "") == "Shield":
+				events.append({"t": "shield_break", "uid": host.uid, "remaining": host.shield_count()})
 			events.append({"t": "buff", "uid": host.uid})
 		u.attached_to = null
 		u.zone = "removed" if u.is_token else "discard"
@@ -955,9 +957,11 @@ func resolve_combat() -> void:
 		return
 	if a.has_kw("saboteur"):
 		var kept: Array = []
+		var remaining_shields := t.shield_count()
 		for up in t.upgrades:
 			if up.data.get("name", "") == "Shield":
-				events.append({"t": "shield_break", "uid": t.uid})
+				remaining_shields -= 1
+				events.append({"t": "shield_break", "uid": t.uid, "remaining": remaining_shields})
 				by_uid.erase(up.uid)
 			else:
 				kept.append(up)

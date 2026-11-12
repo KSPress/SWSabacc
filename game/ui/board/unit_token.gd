@@ -28,6 +28,7 @@ var _t := 0.0
 var _flash := 0.0
 var _flash_col := Color.WHITE
 var _badges: HBoxContainer
+var effects: UnitEffects
 var _press := false
 var _press_t := 0.0
 var _press_pos := Vector2.ZERO
@@ -51,6 +52,8 @@ func _ready() -> void:
 	size = SIZE
 	pivot_offset = Vector2(SIZE.x / 2.0, HEX_H / 2.0)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	effects = UnitEffects.new()
+	add_child(effects)
 	_badges = HBoxContainer.new()
 	_badges.add_theme_constant_override("separation", 1)
 	_badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -73,6 +76,11 @@ func refresh() -> void:
 	for c in _badges.get_children():
 		c.queue_free()
 	var kws := inst.keyword_list()
+	var coordinate_active := false
+	if inst.has_kw("coordinate") and inst.battle:
+		var battle: Match = inst.battle.get_ref()
+		coordinate_active = battle != null and battle.players[inst.controller].units.size() >= 3
+	effects.set_status(inst.has_kw("sentinel"), coordinate_active, inst.shield_count() > 0)
 	for k in kws.slice(0, 4):
 		var ic := IconGlyph.new()
 		ic.glyph = k["k"]
@@ -198,8 +206,9 @@ func _draw() -> void:
 	var sh := inst.shield_count()
 	if sh > 0:
 		var r := SIZE.x * 0.56
-		draw_arc(c, r, 0, TAU, 40, Color(0.45, 0.85, 1.0, 0.35 + 0.2 * k), 4.0, true)
-		draw_arc(c, r + 4, _t, _t + PI * 0.6, 16, Color(0.7, 0.95, 1.0, 0.8), 2.0, true)
+		if UnitEffects.sheet("shield") == null:
+			draw_arc(c, r, 0, TAU, 40, Color(0.45, 0.85, 1.0, 0.35 + 0.2 * k), 4.0, true)
+			draw_arc(c, r + 4, _t, _t + PI * 0.6, 16, Color(0.7, 0.95, 1.0, 0.8), 2.0, true)
 		if sh > 1:
 			UIKit.draw_fit(self, Sabacc.font_title, c + Vector2(r - 10, -r + 16), "x%d" % sh, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.7, 0.95, 1))
 	# upgrades pips (non-shield)
