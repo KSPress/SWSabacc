@@ -47,7 +47,17 @@ func all_items() -> Array:
 		items.append({"key": "cardback:" + entry["id"], "id": entry["id"], "kind": "cardback", "name": entry["name"] + " card back"})
 	for entry in catalog.get("scenes", []):
 		items.append({"key": "background:" + entry["id"], "id": entry["id"], "kind": "background", "name": entry["name"] + " scene"})
+	var art := preload("res://ui/kit/set_art.gd")
+	for code in art.SETS:
+		var id := art.background_id(code)
+		items.append({"key": "background:" + id, "id": id, "kind": "background", "name": CardLibrary.expansion_title(code)})
 	return items
+
+
+func background_texture(id: String) -> Texture2D:
+	if id.begins_with("set_"):
+		return preload("res://ui/kit/set_art.gd").texture(id.trim_prefix("set_").to_upper(), "background")
+	return Art.ui_texture(id)
 
 
 func known(key: String) -> bool:
@@ -98,14 +108,14 @@ func set_gm(enabled: bool) -> void:
 	changed.emit()
 
 
-func record_match(won: bool, identity: String, winner := -1, aspects := [], leader_id := "") -> Dictionary:
+func record_match(won: bool, identity: String, winner := -1, aspects := [], leader_id := "", played_aspects := {}) -> Dictionary:
 	var s := state()
 	if identity.is_empty() or identity in s["recorded"]:
 		return {}
 	s["recorded"].append(identity)
 	if s["recorded"].size() > 256:
 		s["recorded"].pop_front()
-	Progression.track_match((0 if won else 1) if winner == -1 else winner, aspects, leader_id)
+	Progression.track_match((0 if won else 1) if winner == -1 else winner, aspects, leader_id, played_aspects)
 	var reward: Dictionary = {}
 	if won:
 		if not s["gm"]:

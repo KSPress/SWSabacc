@@ -97,7 +97,7 @@ func _populate() -> void:
 				var scene := TextureRect.new()
 				scene.clip_contents = true
 				scene.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				scene.texture = Art.ui_texture(item["id"])
+				scene.texture = Cosmetics.background_texture(item["id"])
 				scene.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 				scene.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 				scene.custom_minimum_size = Vector2(190, 130)

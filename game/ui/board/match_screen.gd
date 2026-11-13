@@ -1356,7 +1356,7 @@ func _game_over() -> void:
 	var identity := "%s_%s" % [Time.get_unix_time_from_system(), get_instance_id()]
 	var player: PlayerState = m.players[HUMAN]
 	var leader_id := player.leader.id if player.leader else ""
-	var cosmetic_reward := Cosmetics.record_match(won, identity, m.winner, player.aspect_pool(), leader_id)
+	var cosmetic_reward := Cosmetics.record_match(won, identity, m.winner, player.aspect_pool(), leader_id, m.played_aspect_counts[HUMAN])
 	var credits_earned := 0
 	if params.get("mode", "quick") == "quick" and m.winner != 2:
 		credits_earned = Progression.award_credits("battle:" + identity, Progression.BATTLE_WIN if won else Progression.BATTLE_LOSS)

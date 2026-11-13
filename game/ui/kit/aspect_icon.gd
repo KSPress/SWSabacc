@@ -51,11 +51,12 @@ static var _tex_cache: Dictionary = {}
 static func texture(a: String) -> Texture2D:
 	if _tex_cache.has(a):
 		return _tex_cache[a]
-	var t: Texture2D = Art.ui_texture("aspects/" + a)
+	var path := "res://ui/art/aspects/%s.png" % a
+	var t: Texture2D = load(path) if a in ORDER and ResourceLoader.exists(path) else Art.ui_texture("aspects/" + a)
 	if t:
 		_tex_cache[a] = t
 		return t
-	var path := "res://ip/ui/aspects/%s.png" % a
+	path = "res://ip/ui/aspects/%s.png" % a
 	if FileAccess.file_exists(path):
 		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
 		if img:

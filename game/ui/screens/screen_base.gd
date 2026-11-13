@@ -9,7 +9,7 @@ var body: Control
 var title_label: Label
 var portrait := true
 var _back_target := ""
-var _account_credit: HBoxContainer
+var _account_credit: Button
 
 
 func _ready() -> void:
@@ -24,12 +24,10 @@ func _ready() -> void:
 	header = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 12)
 	add_child(header)
-	_account_credit = UIKit.credit_label("")
-	_account_credit.alignment = BoxContainer.ALIGNMENT_BEGIN
+	_account_credit = preload("res://ui/kit/wallet_badge.gd").new()
 	_account_credit.name = "AccountCredits"
 	add_child(_account_credit)
-	Progression.changed.connect(_refresh_account_credit)
-	_refresh_account_credit()
+	Progression.changed.connect(_account_credit.refresh)
 	get_viewport().size_changed.connect(_on_resize)
 	build()
 	Appearance.changed.connect(func(): theme = UIKit.build_theme())
@@ -67,10 +65,6 @@ func set_header(text: String, back_to := "menu") -> void:
 	header.add_child(v)
 
 
-func _refresh_account_credit() -> void:
-	_account_credit.get_node("Amount").text = "%d credits" % Progression.credits()
-
-
 func safe_rect() -> Rect2:
 	var vs := get_viewport_rect().size
 	var safe := DisplayServer.get_display_safe_area()
@@ -87,7 +81,6 @@ func _on_resize() -> void:
 	var r := safe_rect()
 	portrait = r.size.y >= r.size.x
 	_account_credit.position = r.position
-	_account_credit.size = Vector2(r.size.x, 28)
 	var header_offset := 32.0
 	header.position = r.position + Vector2(0, header_offset)
 	header.size = Vector2(r.size.x, 64)

@@ -49,7 +49,7 @@ func _run() -> void:
 	Cosmetics.equip("background", "emblem")
 	Progression.award_credits("stats-test", 1200)
 	Progression.buy_pack("ASH")
-	Cosmetics.record_match(true, "stats-win", 0, ["command", "command", "heroism"], "SOR_017")
+	Cosmetics.record_match(true, "stats-win", 0, ["command", "command", "heroism"], "SOR_017", {"aggression": 5})
 	Cosmetics.record_match(false, "stats-loss", 1, ["command", "villainy"], "SOR_017")
 	Cosmetics.record_match(false, "stats-draw", 2, ["aggression"], "SOR_009")
 	Save.load_save()
@@ -61,7 +61,17 @@ func _run() -> void:
 	await _click(stats_menu._stats_button)
 	check(get_tree().current_scene.scene_file_path.ends_with("account_stats.tscn"), "Main menu stats icon opens Account Stats")
 	var stats_screen := get_tree().current_scene
-	check(stats_screen.get_node("AccountCredits/Amount").text == "200 credits", "Account Stats shows the shared balance")
+	await _shot("account-stats")
+	var wallet := stats_screen.get_node("AccountCredits")
+	check(wallet._amount.text == "200", "Account Stats shows the shared balance without a suffix")
+	check(stats["played_aspects"].get("aggression", 0) == 5 and not stats["played_aspects"].has("command"),
+		"Favorite aspect uses cards played rather than the leader and base")
+	Progression.award_credits("wallet-million-test", 1000100)
+	check(wallet._amount.text == "1m", "Wallet abbreviates seven-digit balances")
+	await _click(wallet)
+	check(wallet._amount.text == "1000300", "Wallet tap shows the exact balance")
+	await _click(wallet)
+	check(wallet._amount.text == "1m", "Wallet tap collapses the balance")
 	await _go("menu")
 	var routes := [["Campaigns", "mode_hub"], ["Battles", "mode_hub"], ["Collection Vault", "collection"], ["Customization", "customization"], ["Settings", "settings_screen"], ["Profile", "customization"]]
 	for dims in [[360, 640], [540, 1200], [1280, 720], [2560, 1080]]:

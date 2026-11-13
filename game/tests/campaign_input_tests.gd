@@ -7,6 +7,8 @@ func _run() -> void:
 	await _size(570, 1280)
 	var pack_id := Progression.grant("Input test", "pack-input-test")
 	Progression.tear(pack_id)
+	var initial_pack: Dictionary = Progression.packs()[0]
+	Save.unlock([initial_pack["cards"][0]])
 	await _go("menu")
 	var menu := get_tree().current_scene
 	check(menu._buttons.get_child(0).get_script().resource_path.ends_with("/menu_button.gd"),
@@ -25,15 +27,24 @@ func _run() -> void:
 		await _click(slot)
 	check(not pack_screen._done.disabled and pack_screen._pack["revealed"].size() == 10,
 		"All portrait pack rewards reveal through their artwork and enable collection")
+	check(slots[0].get_child(1).text == "Duplicate" and int(initial_pack["refunds"]["0"]) >= 50,
+		"An owned card completes its animation as a credit refund")
 	await _go("collection")
 	vault = get_tree().current_scene
 	Progression.award_credits("input-test-funds", 1000)
+	var before_purchase := Progression.credits()
 	await _click(_button(vault, "Card Packs"))
-	await _click(_button(vault, "Buy pack"))
+	await _shot("booster-shop")
+	var hoth := _button(vault, "Buy pack · Intro Battle: Hoth")
+	var scroll := hoth.get_parent().get_parent() as ScrollContainer
+	scroll.ensure_control_visible(hoth)
+	await _wait(0.2)
+	await _click(hoth)
 	var purchased := get_tree().current_scene
-	check(purchased._pack["source"] == "Purchased pack" and purchased._pack["set"] == "SOR"
-		and purchased._pack["id"] != pack_id and Progression.credits() == 0,
+	check(purchased._pack["source"] == "Purchased pack" and purchased._pack["set"] == "IBH"
+		and purchased._pack["id"] != pack_id and Progression.credits() == before_purchase - Progression.PACK_PRICE,
 		"Portrait Vault purchases and opens the selected set pack")
+	check(purchased._foil.get_child(0).art != null, "Opening uses the selected set wrapper")
 	var chapter := CardDB.chapter("ep4_ch1_tatooine")
 	var node := CampaignRun.node_by_id(chapter, "n7")
 	var run := CampaignRun.start(chapter, "SEC_015", 212)

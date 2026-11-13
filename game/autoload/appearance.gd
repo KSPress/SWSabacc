@@ -29,6 +29,9 @@ func preset() -> Dictionary:
 	if background in ["datapad", "emblem"]:
 		var accent := Cosmetics.emblem_color() if background == "emblem" else Color("9fdcff")
 		return {"name": "Emblem hologram" if background == "emblem" else "Datapad", "kind": "datapad", "accent": accent, "base": accent.darkened(0.95), "emblem": background == "emblem"}
+	if background.begins_with("set_"):
+		return {"name": CardLibrary.expansion_title(background.trim_prefix("set_").to_upper()), "kind": "planet",
+			"art": background, "accent": Color("9fdcff"), "base": Color("060a13")}
 	return PRESETS.get("planet_" + background, PRESETS["datapad_republic"])
 
 

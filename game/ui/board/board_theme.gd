@@ -45,7 +45,7 @@ func _apply_theme() -> void:
 	var spec := Appearance.preset()
 	_datapad.visible = spec["kind"] == "datapad"
 	_planet = null
-	_photo = Art.ui_texture(spec.get("art", "")) if spec["kind"] == "planet" else null
+	_photo = Cosmetics.background_texture(spec.get("art", "")) if spec["kind"] == "planet" else null
 	queue_redraw()
 
 

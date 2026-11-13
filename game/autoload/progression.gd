@@ -54,24 +54,10 @@ func deck_owned(deck: Dictionary) -> bool:
 	return true
 
 
-func _pool(kind: String, rarity: String, set_code: String) -> Array:
-	var key := set_code + ":" + kind + ":" + rarity
-	if not _pools.has(key):
-		var pool: Array = []
-		for id in CardDB.lib.cards:
-			var card := CardDB.card(id)
-			if card.get("custom", false) or card.get("set") != set_code:
-				continue
-			if kind == "main" and not card.get("type") in ["unit", "event", "upgrade"]:
-				continue
-			if kind != "main" and card.get("type") != kind:
-				continue
-			if rarity != "" and str(card.get("rarity", "")).to_lower() != rarity:
-				continue
-			pool.append(id)
-		pool.sort()
-		_pools[key] = pool
-	return _pools[key]
+func _pool(set_code: String) -> Array:
+	if not _pools.has(set_code):
+		_pools[set_code] = CardDB.lib.query("", {"set": set_code})
+	return _pools[set_code]
 
 
 func account_stats() -> Dictionary:
@@ -90,7 +76,7 @@ func count_stat(category: String, id: String) -> void:
 		counts[id] = int(counts.get(id, 0)) + 1
 
 
-func track_match(winner: int, aspects: Array, leader_id: String) -> void:
+func track_match(winner: int, aspects: Array, leader_id: String, played_aspects := {}) -> void:
 	var stats := account_stats()
 	stats["matches"] = int(stats["matches"]) + 1
 	if winner == 0:
@@ -102,6 +88,9 @@ func track_match(winner: int, aspects: Array, leader_id: String) -> void:
 		if not seen.has(aspect):
 			count_stat("aspects", aspect)
 			seen[aspect] = true
+	var totals: Dictionary = stats["played_aspects"]
+	for aspect in played_aspects:
+		totals[aspect] = int(totals.get(aspect, 0)) + int(played_aspects[aspect])
 	count_stat("leaders", leader_id)
 
 
@@ -124,7 +113,7 @@ func award_credits(identity: String, amount: int) -> int:
 
 
 func buy_pack(set_code: String) -> String:
-	if credits() < PACK_PRICE or not set_code in CardLibrary.BOOSTER_SETS:
+	if credits() < PACK_PRICE or not set_code in preload("res://ui/kit/set_art.gd").SETS:
 		return ""
 	var id := _queue_pack("Purchased pack", set_code)
 	if id.is_empty():
@@ -154,28 +143,15 @@ func _queue_pack(source: String, set_code: String) -> String:
 	var random := RandomNumberGenerator.new()
 	random.randomize()
 	var cards: Array = []
-	var reserved: Array = Save.data.get("vault", []).duplicate()
-	for pack in s["packs"]:
-		reserved.append_array(pack["cards"])
-	var slots := ["common", "common", "common", "common", "common", "uncommon", "uncommon",
-		"legendary" if random.randf() < 0.125 else "rare", "leader", "base"]
-	for slot in slots:
-		var kind: String = slot if slot in ["leader", "base"] else "main"
-		var pool := _pool(kind, "" if kind != "main" else slot, set_code)
-		if pool.is_empty():
-			pool = _pool(kind, "rare" if slot == "legendary" else "", set_code)
-		if pool.is_empty():
-			return ""
-		var fresh: Array = pool.filter(func(id): return not id in reserved)
-		var unused: Array = pool.filter(func(id): return not id in cards)
-		var choices: Array = fresh if not fresh.is_empty() else (unused if not unused.is_empty() else pool)
-		var picked: String = choices[random.randi_range(0, choices.size() - 1)]
-		cards.append(picked)
-		reserved.append(picked)
+	var pool := _pool(set_code)
+	if pool.is_empty():
+		return ""
+	for index in 10:
+		cards.append(pool[random.randi_range(0, pool.size() - 1)])
 	s["sequence"] += 1
 	var id := "pack_%d" % s["sequence"]
 	s["packs"].append({"id": id, "source": source, "set": set_code, "cards": cards, "revealed": [], "torn": false,
-		"bonus": roll_cosmetic(random), "bonus_revealed": false})
+		"bonus": roll_cosmetic(random, set_code), "bonus_revealed": false})
 	return id
 
 
@@ -195,8 +171,16 @@ func reveal(id: String, index: int) -> bool:
 		if pack["id"] != id or not pack["torn"] or index < 0 or index >= pack["cards"].size() or index in pack["revealed"]:
 			continue
 		pack["revealed"].append(index)
-		Save.unlock([pack["cards"][index]])
-		changed.emit()
+		var card_id: String = pack["cards"][index]
+		if card_id in Save.data["vault"]:
+			var amount := randi_range(50, 100)
+			var refunds: Dictionary = pack.get("refunds", {})
+			refunds[str(index)] = amount
+			pack["refunds"] = refunds
+			award_credits("duplicate:%s:%d" % [id, index], amount)
+		else:
+			Save.unlock([card_id])
+			changed.emit()
 		return true
 	return false
 
@@ -211,7 +195,7 @@ func finish(id: String) -> bool:
 	return false
 
 
-func roll_cosmetic(random: RandomNumberGenerator) -> Dictionary:
+func roll_cosmetic(random: RandomNumberGenerator, set_code := "") -> Dictionary:
 	var roll := random.randf()
 	var kind := "background" if roll < BACKGROUND_CHANCE else ("emblem" if roll < BACKGROUND_CHANCE + EMBLEM_CHANCE else "")
 	if kind.is_empty():
@@ -223,6 +207,11 @@ func roll_cosmetic(random: RandomNumberGenerator) -> Dictionary:
 	var choices: Array = Cosmetics.all_items().filter(func(item): return item["kind"] == kind and not item["key"] in reserved)
 	if choices.is_empty():
 		return {}
+	var set_background := preload("res://ui/kit/set_art.gd").background_id(set_code)
+	if kind == "background":
+		var matching := choices.filter(func(item): return item["id"] == set_background)
+		if not matching.is_empty():
+			choices = matching
 	var reward: Dictionary = choices[random.randi_range(0, choices.size() - 1)].duplicate()
 	reward["rarity"] = "Legendary" if kind == "background" else "Rare"
 	return reward

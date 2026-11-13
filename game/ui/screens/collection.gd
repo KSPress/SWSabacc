@@ -130,52 +130,79 @@ func _add_set_option(options: OptionButton, code: String) -> void:
 
 
 func _pack_shop() -> void:
-	var panel := ModalPanel.open(self, 550.0, Sabacc.C_GOLD)
+	var panel := ModalPanel.open(self, 790.0, Sabacc.C_GOLD)
 	panel.dismiss_on_backdrop = true
 	panel.text("Card Packs", 30, Sabacc.C_GOLD)
-	var balance := UIKit.credit_label("")
-	panel.add(balance)
-	var sets := OptionButton.new()
-	sets.custom_minimum_size.y = 50
-	for code in CardLibrary.BOOSTER_SETS:
-		_add_set_option(sets, code)
-	panel.add(sets)
-	var buy := SabaccButton.make("Buy pack · 1,000 credits", SabaccButton.Style.GOLD)
-	var open := SabaccButton.make("", SabaccButton.Style.PRIMARY)
-	var waiting_sets := OptionButton.new()
-	waiting_sets.custom_minimum_size.y = 50
-	var waiting_by_set := {}
+	panel.add(UIKit.credit_label(str(Progression.credits())))
+	var waiting := OptionButton.new()
+	waiting.custom_minimum_size.y = 50
 	for pack in Progression.packs():
 		var code: String = pack.get("set", "")
-		if not waiting_by_set.has(code):
-			waiting_by_set[code] = []
-		waiting_by_set[code].append(pack["id"])
-	for code in waiting_by_set:
 		var title := "Mixed set rewards" if code.is_empty() else CardLibrary.expansion_title(code)
-		waiting_sets.add_item("%s (%d)" % [title, waiting_by_set[code].size()])
-		waiting_sets.set_item_metadata(waiting_sets.item_count - 1, waiting_by_set[code][0])
-	var update := func():
-		balance.get_node("Amount").text = "%d credits available" % Progression.credits()
-		buy.disabled = Progression.credits() < Progression.PACK_PRICE
-		var waiting := Progression.packs().size()
-		open.text = "Open packs (%d)" % waiting
-		open.disabled = waiting == 0
-	buy.pressed.connect(func():
-		var id := Progression.buy_pack(sets.get_item_metadata(sets.selected))
-		update.call()
-		if not id.is_empty():
-			buy.disabled = true
-			open.disabled = true
-			Router.go("packs", {"pack_id": id}))
-	open.pressed.connect(func(): Router.go("packs", {"pack_id": waiting_sets.get_selected_metadata()}))
-	panel.add(buy)
-	panel.add(waiting_sets)
-	waiting_sets.visible = waiting_sets.item_count > 0
-	panel.add(open)
-	update.call()
+		waiting.add_item(title)
+		waiting.set_item_metadata(waiting.item_count - 1, pack["id"])
+	if waiting.item_count > 0:
+		panel.add(waiting)
+		var open := SabaccButton.make("Open packs (%d)" % waiting.item_count, SabaccButton.Style.PRIMARY)
+		open.pressed.connect(func(): Router.go("packs", {"pack_id": waiting.get_selected_metadata()}))
+		panel.add(open)
+	var art := preload("res://ui/kit/set_art.gd")
+	for code in art.SETS:
+		var button := _booster_button(code, art.texture(code, "art"), art.texture(code, "logo"))
+		button.pressed.connect(func():
+			if Router._busy:
+				return
+			var id := Progression.buy_pack(code)
+			if not id.is_empty():
+				Router.go("packs", {"pack_id": id}))
+		panel.add(button)
 	var close := SabaccButton.make("Back", SabaccButton.Style.GHOST)
 	close.pressed.connect(panel.close)
-	panel.add(close)
+	panel.add_action(close)
+
+
+func _booster_button(code: String, picture: Texture2D, logo: Texture2D) -> Button:
+	var button := Button.new()
+	button.text = "Buy pack · " + CardLibrary.expansion_title(code)
+	button.tooltip_text = button.text
+	button.custom_minimum_size.y = 230
+	button.clip_contents = true
+	button.disabled = Progression.credits() < Progression.PACK_PRICE
+	button.add_theme_color_override("font_color", Color.TRANSPARENT)
+	button.add_theme_color_override("font_hover_color", Color.TRANSPARENT)
+	button.add_theme_color_override("font_focus_color", Color.TRANSPARENT)
+	button.add_theme_color_override("font_pressed_color", Color.TRANSPARENT)
+	button.add_theme_color_override("font_disabled_color", Color.TRANSPARENT)
+	var art := TextureRect.new()
+	art.texture = picture
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UIKit.fill_rect(art)
+	button.add_child(art)
+	var badge := TextureRect.new()
+	badge.texture = logo
+	badge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	badge.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	badge.position = Vector2(12, 10)
+	badge.size = Vector2(172, 66)
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(badge)
+	var price := UIKit.panel(Color("171522"), Sabacc.C_GOLD)
+	price.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	price.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	price.offset_left = -158
+	price.offset_top = -54
+	price.offset_right = -10
+	price.offset_bottom = -9
+	var amount := UIKit.credit_label("1,000")
+	price.add_child(amount)
+	button.add_child(price)
+	button.mouse_entered.connect(func(): price.modulate = Color("ffe5a4") if not button.disabled else Color.WHITE)
+	button.mouse_exited.connect(func(): price.modulate = Color.WHITE)
+	if button.disabled:
+		art.modulate = Color(0.55, 0.55, 0.55)
+	return button
 
 
 func _sync_toggles() -> void:

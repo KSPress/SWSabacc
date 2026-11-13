@@ -39,6 +39,7 @@ var objective: Objective
 var attack: Dictionary = {}
 var defeated_this_phase := [0, 0]
 var attacked_with := [[], []]
+var played_aspect_counts := [{}, {}]
 var played_this_phase := [[], []]         # CardInst played this phase, per player
 var defeated_cards_this_phase := [[], []]  # CardInst (controller's side) defeated this phase
 var history: Array = []         # [{"a":..}, {"choice":[..]}] for deterministic replays
@@ -808,6 +809,9 @@ func _play_card(p: int, c: CardInst, smuggle: bool, opts := {}) -> void:
 	var record := {"kind": "upgrade" if piloting else c.card_type(), "traits": c.traits(),
 		"aspects": c.data["pilot"]["aspects"] if piloting else (_kw_entry(c, "smuggle").get("aspects", c.aspects()) if smuggle else c.aspects()),
 		"phase": phase_serial}
+	for aspect in record["aspects"]:
+		var counts: Dictionary = played_aspect_counts[p]
+		counts[aspect] = int(counts.get(aspect, 0)) + 1
 	ps.played_for_cost.append(record)
 	for rule in ps.next_play_discounts:
 		if rule["phase"] == phase_serial and _matches_play(record, rule["filter"]):

@@ -39,19 +39,21 @@ func _run() -> void:
 	var id: String = pack["id"]
 	var cards: Array = pack["cards"].duplicate()
 	check(cards.size() == 10, "ten-card pack")
-	check(CardDB.card(cards[8])["type"] == "leader" and CardDB.card(cards[9])["type"] == "base", "guaranteed leader and base")
-	check(CardDB.card(cards[7])["rarity"] in ["Rare", "Legendary"], "rare-or-better slot")
-	var unique := {}
-	for card in cards:
-		unique[card] = true
-	check(unique.size() == 10, "no duplicate slots in fresh pack")
+	check(cards.all(func(card_id): return CardDB.card(card_id)["set"] == pack["set"]), "all ten random draws belong to the pack set")
+	Save.unlock([cards[0]])
+	var balance := Progression.credits()
 	check(not Progression.reveal(id, 0), "sealed pack cannot reveal")
 	check(not Progression.finish(id), "unopened pack cannot disappear")
 	Progression.tear(id)
-	check(Progression.reveal(id, 0) and Progression.owns(cards[0]), "reveal permanently unlocks card")
+	check(Progression.reveal(id, 0), "duplicate card can be revealed")
+	var refund: int = pack.get("refunds", {}).get("0", 0)
+	check(refund >= 50 and refund <= 100 and Progression.credits() == balance + refund, "duplicate pays 50 to 100 credits")
+	check(Progression.account_stats()["credits_earned"] == refund, "duplicate refund counts toward lifetime credits")
 	check(not Progression.reveal(id, 0), "duplicate flip ignored")
 	Save.load_save()
 	check(Progression.packs()[0]["cards"] == cards and Progression.packs()[0]["revealed"] == [0], "pack contents and reveal survive restart")
+	check(not Progression.reveal(id, 0) and Progression.credits() == balance + refund
+		and Progression.packs()[0]["refunds"]["0"] == refund, "saved duplicate refund cannot pay twice")
 	for index in range(1, 10):
 		check(Progression.reveal(id, index), "reveal remaining slot")
 	if not Progression.packs()[0].get("bonus", {}).is_empty():

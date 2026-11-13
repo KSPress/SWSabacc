@@ -40,7 +40,7 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), spec["base"])
 	if spec["kind"] == "datapad":
 		return
-	var photo: Texture2D = Art.ui_texture(spec.get("art", "")) if spec["kind"] == "planet" else null
+	var photo: Texture2D = Cosmetics.background_texture(spec.get("art", "")) if spec["kind"] == "planet" else null
 	if photo:
 		var ts := photo.get_size()
 		var sc := maxf(size.x / ts.x, size.y / ts.y) * (1.08 + 0.03 * sin(_t * 0.07))

@@ -30,7 +30,7 @@ func default_data() -> Dictionary:
 			"run": {},               # active chapter run (see CampaignRun)
 		},
 		"stats": {"matches": 0, "wins": 0, "draws": 0, "credits_earned": 0,
-			"aspects": {}, "leaders": {}, "boosters": {}},
+			"aspects": {}, "played_aspects": {}, "leaders": {}, "boosters": {}},
 	}
 
 

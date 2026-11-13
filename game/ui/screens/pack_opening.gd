@@ -8,6 +8,9 @@ var _slots: Array = []
 var _busy := false
 var _drag_start := Vector2.INF
 var _tear_progress := 0.0
+const SET_ART = preload("res://ui/kit/set_art.gd")
+const WRAPPER_HEIGHT := 360.0
+const TEAR_FRACTION := 140.0 / WRAPPER_HEIGHT
 
 
 func build() -> void:
@@ -27,6 +30,8 @@ func _load_pack(preferred := "") -> void:
 	_slots.clear()
 	if is_instance_valid(_foil):
 		_foil.queue_free()
+	_drag_start = Vector2.INF
+	_tear_progress = 0.0
 	_pack = Progression.packs()[0] if not Progression.packs().is_empty() else {}
 	for waiting in Progression.packs():
 		if waiting["id"] == preferred:
@@ -40,20 +45,22 @@ func _load_pack(preferred := "") -> void:
 		_deal(false)
 	else:
 		_hint.text = "%s · %d pack(s) waiting\nDrag across the seal or tap to rip it open" % [_pack["source"], Progression.packs().size()]
+		var wrapper := SET_ART.texture(_pack.get("set", ""), "booster")
+		var width := WRAPPER_HEIGHT * wrapper.get_width() / wrapper.get_height() if wrapper else 240.0
 		_foil = Control.new()
-		_foil.custom_minimum_size = Vector2(240, 360)
-		_foil.size = Vector2(240, 360)
+		_foil.size = Vector2(width, WRAPPER_HEIGHT)
 		_foil.mouse_filter = Control.MOUSE_FILTER_STOP
 		_foil.gui_input.connect(_foil_input)
 		body.add_child(_foil)
 		for top in [true, false]:
 			var half := Foil.new()
 			half.top = top
+			half.art = wrapper
 			half.position.y = 0 if top else 140
-			half.size = Vector2(240, 140 if top else 220)
+			half.size = Vector2(width, 140 if top else 220)
 			half.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_foil.add_child(half)
-			if not top:
+			if not top and not wrapper:
 				var badge := ProfileBadge.new()
 				badge.size = Vector2(110, 110)
 				badge.position = Vector2(65, 8)
@@ -104,14 +111,14 @@ func _rip() -> void:
 	Progression.tear(_pack["id"])
 	Sfx.play("deploy")
 	var anticipation := create_tween()
-	anticipation.tween_property(_foil, "scale", Vector2.ONE * 1.06, Sabacc.anim(0.14)).set_trans(Tween.TRANS_BACK)
+	anticipation.tween_property(_foil, "scale", _foil.scale * 1.06, Sabacc.anim(0.14)).set_trans(Tween.TRANS_BACK)
 	await anticipation.finished
 	var burst := PackBurst.new()
-	burst.position = _foil.position + _foil.size / 2
+	burst.position = _foil.position + _foil.size * _foil.scale / 2
 	burst.color = rarity_color("Legendary" if not _pack.get("bonus", {}).is_empty() else "Rare")
 	body.add_child(burst)
-	Fx.impact(body, _foil.position + _foil.size / 2, Sabacc.C_GOLD, true)
-	Fx.shockwave(body, _foil.position + _foil.size / 2)
+	Fx.impact(body, burst.position, Sabacc.C_GOLD, true)
+	Fx.shockwave(body, burst.position)
 	var animation := create_tween().set_parallel(true)
 	for half in _foil.get_children():
 		animation.tween_property(half, "position", half.position + Vector2(130 if half.top else -80, -200 if half.top else 160), Sabacc.anim(0.5)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
@@ -124,7 +131,7 @@ func _rip() -> void:
 
 
 func _deal(animated: bool) -> void:
-	_hint.text = "Tap cards to reveal · tap revealed cards to inspect\nEach unlock grants a legal playset for your decks"
+	_hint.text = "Tap to reveal · tap a card again to inspect\nDuplicates convert to credits"
 	var total: int = _pack["cards"].size() + (0 if _pack.get("bonus", {}).is_empty() else 1)
 	for index in total:
 		var slot := Panel.new()
@@ -171,7 +178,11 @@ func _rarity(index: int) -> String:
 	return _pack["bonus"]["rarity"] if index >= _pack["cards"].size() else str(CardDB.card(_pack["cards"][index]).get("rarity", "Common"))
 
 
-func _update_slot(slot: Control) -> void:
+func _refund(index: int) -> int:
+	return int(_pack.get("refunds", {}).get(str(index), 0))
+
+
+func _update_slot(slot: Control, show_duplicate_card := false) -> void:
 	for child in slot.get_children():
 		slot.remove_child(child)
 		child.queue_free()
@@ -179,7 +190,15 @@ func _update_slot(slot: Control) -> void:
 	var bonus: bool = index >= _pack["cards"].size()
 	var revealed: bool = _pack.get("bonus_revealed", false) if bonus else index in _pack["revealed"]
 	var card: Control
-	if bonus and revealed:
+	var refund := _refund(index)
+	if refund > 0 and not show_duplicate_card:
+		card = Control.new()
+		card.size = CardView.PORTRAIT
+		var reward := UIKit.credit_label("+%d" % refund)
+		reward.scale = Vector2.ONE * 2.2
+		reward.position = Vector2(45, 138)
+		card.add_child(reward)
+	elif bonus and revealed:
 		card = Control.new()
 		card.size = CardView.PORTRAIT
 		var reward: Dictionary = _pack["bonus"]
@@ -191,7 +210,7 @@ func _update_slot(slot: Control) -> void:
 			card.add_child(badge)
 		else:
 			var scene := TextureRect.new()
-			scene.texture = Art.ui_texture(reward["id"])
+			scene.texture = Cosmetics.background_texture(reward["id"])
 			scene.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			scene.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 			scene.size = Vector2(230, 270)
@@ -207,12 +226,21 @@ func _update_slot(slot: Control) -> void:
 		card.face_down = not revealed
 		card.hover_lift = false
 		card.draggable = false
+		if refund > 0:
+			card.modulate = Color(1.4, 1.08, 0.42)
+	if refund > 0:
+		var style: StyleBoxFlat = slot.get_theme_stylebox("panel").duplicate()
+		style.border_color = Sabacc.C_GOLD
+		style.shadow_color = Color(Sabacc.C_GOLD, 0.65)
+		style.shadow_size = 12
+		slot.add_theme_stylebox_override("panel", style)
 	slot.add_child(card)
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for child in card.get_children():
 		child.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var name := _rarity(index)
-	var label := UIKit.label(name + (" · Cosmetic" if bonus else "") + (" · Unlocked" if revealed else " · Reveal"), 13, rarity_color(name), HORIZONTAL_ALIGNMENT_CENTER)
+	var caption := name + (" · Cosmetic" if bonus else "") + (" · Unlocked" if revealed else " · Reveal")
+	var label := UIKit.label("Duplicate" if refund > 0 else caption, 13, Sabacc.C_GOLD if refund > 0 else rarity_color(name), HORIZONTAL_ALIGNMENT_CENTER)
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	label.clip_text = true
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -249,16 +277,27 @@ func _flip(slot: Control) -> void:
 		Progression.reveal(_pack["id"], index)
 	var tween := create_tween()
 	tween.tween_property(slot, "scale:x", 0.0, Sabacc.anim(0.15))
-	tween.tween_callback(func(): _update_slot(slot); Sfx.play("draw"); Fx.impact(body, slot.position + slot.size / 2, rarity_color(_rarity(index)), _rarity(index) in ["Rare", "Legendary"]))
+	var refund := _refund(index)
+	tween.tween_callback(func():
+		_update_slot(slot, refund > 0)
+		Sfx.play("draw")
+		Fx.impact(body, slot.position + slot.size / 2, Sabacc.C_GOLD if refund > 0 else rarity_color(_rarity(index)), refund > 0 or _rarity(index) in ["Rare", "Legendary"]))
 	tween.tween_property(slot, "scale:x", 1.0, Sabacc.anim(0.2)).set_trans(Tween.TRANS_BACK)
-	tween.tween_callback(func(): slot.set_meta("flipping", false); _refresh_done())
+	if refund > 0:
+		tween.tween_interval(Sabacc.anim(0.36))
+		tween.tween_property(slot, "scale", Vector2.ONE * 0.24, Sabacc.anim(0.25)).set_trans(Tween.TRANS_CUBIC)
+		tween.tween_callback(func(): _update_slot(slot))
+		tween.tween_property(slot, "scale", Vector2.ONE, Sabacc.anim(0.22)).set_trans(Tween.TRANS_BACK)
+	tween.tween_callback(func():
+		slot.set_meta("flipping", false)
+		_refresh_done())
 
 
 func _refresh_done() -> void:
 	var total: int = _pack["cards"].size() + (0 if _pack.get("bonus", {}).is_empty() else 1)
 	var revealed: int = _pack["revealed"].size() + (1 if _pack.get("bonus_revealed", false) else 0)
 	_done.text = "Collect & continue" if revealed == total else "Reveal rewards · %d / %d" % [revealed, total]
-	_done.disabled = revealed != total
+	_done.disabled = revealed != total or _slots.any(func(slot): return slot.get_meta("flipping", false))
 
 
 func relayout(p: bool, rect: Rect2) -> void:
@@ -267,7 +306,7 @@ func relayout(p: bool, rect: Rect2) -> void:
 	_done.position = Vector2(maxf(0, (rect.size.x - 320) / 2), rect.size.y - 62)
 	_done.size = Vector2(minf(320, rect.size.x), 56)
 	if is_instance_valid(_foil):
-		var foil_scale := minf(1.0, (rect.size.y - 160) / 360)
+		var foil_scale := clampf((rect.size.y - 160) / WRAPPER_HEIGHT, 0.1, 1.0)
 		_foil.scale = Vector2.ONE * foil_scale
 		_foil.position = (rect.size - _foil.size * foil_scale) / 2
 		_foil.pivot_offset = Vector2.ZERO
@@ -293,6 +332,7 @@ func relayout(p: bool, rect: Rect2) -> void:
 
 class Foil extends Control:
 	var top := true
+	var art: Texture2D
 	var progress := 0.0
 	var _time := 0.0
 	func _process(delta: float) -> void:
@@ -300,19 +340,27 @@ class Foil extends Control:
 			_time += delta
 			queue_redraw()
 	func _draw() -> void:
-		for i in 40:
-			var band := Rect2(0, i * size.y / 40, size.x, size.y / 40 + 1)
-			var sheen := pow(maxf(0, sin(i * 0.10 - _time * 0.7)), 12)
-			draw_rect(band, Color("101a2a").lerp(Cosmetics.emblem_color().darkened(0.3), sheen * 0.6))
+		if art:
+			var dimensions := art.get_size()
+			var seam := dimensions.y * TEAR_FRACTION
+			var region := Rect2(0, 0 if top else seam, dimensions.x, seam if top else dimensions.y - seam)
+			draw_texture_rect_region(art, Rect2(Vector2.ZERO, size), region)
+		else:
+			for i in 40:
+				var band := Rect2(0, i * size.y / 40, size.x, size.y / 40 + 1)
+				var sheen := pow(maxf(0, sin(i * 0.10 - _time * 0.7)), 12)
+				draw_rect(band, Color("101a2a").lerp(Cosmetics.emblem_color().darkened(0.3), sheen * 0.6))
 		draw_rect(Rect2(Vector2.ZERO, size), Sabacc.C_GOLD, false, 2)
 		for i in 12:
 			var x := i * 22.0
 			if x < size.x:
 				draw_line(Vector2(x, 0), Vector2(minf(x + 90, size.x), size.y), Color(Cosmetics.emblem_color("", 1), 0.25), 1.2, true)
 		for i in 20:
-			var x := i * 12.0
+			var x := i * size.x / 20.0
 			var y := size.y - 4 if top else 4.0
 			draw_line(Vector2(x, y), Vector2(x + 6, y - 5 if top else y + 5), Color("fff0b5") if i / 20.0 < progress else Sabacc.C_GOLD, 3 if i / 20.0 < progress else 1)
+		if art:
+			return
 		if top:
 			draw_string(Sabacc.font_title, Vector2(18, 72), "SABACC", HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Sabacc.C_GOLD)
 			draw_string(Sabacc.font_title, Vector2(18, 104), "SEALED ARCHIVE", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Sabacc.C_TEXT)
