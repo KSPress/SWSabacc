@@ -11,29 +11,13 @@ func _run() -> void:
 	var menu := get_tree().current_scene
 	check(menu._buttons.get_child(0).get_script().resource_path.ends_with("/menu_button.gd"),
 		"Portrait menu uses the redesigned menu buttons")
-	check(_button(menu, "Card Packs") == null and _button(menu, "Deck Builder") == null,
-		"Card Packs and Deck Builder live inside the Collection Vault")
-	await _click(_button(menu, "Collection Vault"))
-	var vault := get_tree().current_scene
-	check(_button(vault, "Deck Builder") != null, "Collection Vault exposes Deck Builder")
-	await _click(_button(vault, "Card Packs"))
-	check(_button(vault, "Buy pack").disabled, "Insufficient credits disable pack purchases")
-	await _click(_button(vault, "Open packs"))
+	await _click(_button(menu, "Card Packs"))
 	var pack_screen := get_tree().current_scene
 	var slots: Array = pack_screen._slots.duplicate()
 	for slot in slots:
 		await _click(slot)
 	check(not pack_screen._done.disabled and pack_screen._pack["revealed"].size() == 10,
 		"All portrait pack rewards reveal through their artwork and enable collection")
-	await _go("collection")
-	vault = get_tree().current_scene
-	Progression.award_credits("input-test-funds", 1000)
-	await _click(_button(vault, "Card Packs"))
-	await _click(_button(vault, "Buy pack"))
-	var purchased := get_tree().current_scene
-	check(purchased._pack["source"] == "Purchased pack" and purchased._pack["set"] == "SOR"
-		and purchased._pack["id"] != pack_id and Progression.credits() == 0,
-		"Portrait Vault purchases and opens the selected set pack")
 	var chapter := CardDB.chapter("ep4_ch1_tatooine")
 	var node := CampaignRun.node_by_id(chapter, "n7")
 	var run := CampaignRun.start(chapter, "SEC_015", 212)
@@ -206,27 +190,6 @@ func _run() -> void:
 			await _click(screen.tokens[payer.uid])
 			check(fortification.zone == "discard" and payer.flags.get("skip_regroup_ready", false) and not tab.visible,
 				"Using the Fortification action applies its effect and removes the tab")
-
-	var cantina_run := CampaignRun.start(chapter, chapter["leader_options"][0], 616)
-	cantina_run["credits"] = 50
-	cantina_run["base_damage"] = 10
-	for parent in chapter["map"]["edges"]:
-		if "rest" in chapter["map"]["edges"][parent]:
-			cantina_run["current"] = parent
-			break
-	Save.set_run(cantina_run)
-	var wallet_before := Progression.credits()
-	await _go("chapter", {"chapter_id": chapter["id"]})
-	var map := get_tree().current_scene
-	await _click(map._nodes["rest"])
-	var repair := _button(map, "Repair 8 base damage")
-	check(repair != null and not repair.disabled, "Cantina offers a repair for run credits")
-	if repair:
-		await _click(repair)
-		await _wait(1.5)
-		check(Save.run()["credits"] == 30 and Save.run()["base_damage"] == 2
-			and "rest" in Save.run()["visited"] and Progression.credits() == wallet_before,
-			"Cantina spends 20 from the run and leaves the Vault wallet alone")
 
 	print("CAMPAIGN INPUT: %d checks, %d failed" % [checks, failures])
 	if failures:

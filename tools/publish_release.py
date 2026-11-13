@@ -23,6 +23,7 @@ REPO = "KSPress/SWSabacc"
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--publish", action="store_true", help="Publish after all uploads complete")
+    parser.add_argument("--keep-latest", action="store_true", help="Publish a historical release without changing latest")
     args = parser.parse_args()
     manifest_path = ROOT / "build/android/sabacc-update.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -100,7 +101,7 @@ def main():
         kind = "application/vnd.android.package-archive" if path.suffix == ".apk" else "application/octet-stream"
         api(url, "POST", path.read_bytes(), kind)
     if args.publish:
-        release = api(f"/repos/{REPO}/releases/{release['id']}", "PATCH", {"draft": False, "make_latest": "true"})
+        release = api(f"/repos/{REPO}/releases/{release['id']}", "PATCH", {"draft": False, "make_latest": "false" if args.keep_latest else "true"})
     print("Published:" if args.publish else "Draft ready:", release["html_url"], flush=True)
 
 

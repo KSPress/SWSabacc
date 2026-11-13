@@ -19,29 +19,10 @@ var _aspect := ""
 var _set := ""
 var _unlocked_only := false
 var _count: Label
-var _tools: HBoxContainer
-var _set_filters: HBoxContainer
-var _wallet: Label
-var _packs: Button
 
 
 func build() -> void:
 	set_header("Collection Vault")
-	_tools = HBoxContainer.new()
-	_tools.alignment = BoxContainer.ALIGNMENT_CENTER
-	_tools.add_theme_constant_override("separation", 10)
-	body.add_child(_tools)
-	var credit := UIKit.credit_label("")
-	_wallet = credit.get_node("Amount")
-	_tools.add_child(credit)
-	var decks := SabaccButton.make("Deck Builder", SabaccButton.Style.GHOST)
-	decks.pressed.connect(func(): Router.go("decks"))
-	_tools.add_child(decks)
-	_packs = SabaccButton.make("", SabaccButton.Style.GOLD)
-	_packs.pressed.connect(_pack_shop)
-	_tools.add_child(_packs)
-	Progression.changed.connect(_update_wallet)
-	_update_wallet()
 	_search = LineEdit.new()
 	_search.placeholder_text = "Search name, trait or text…"
 	_search.custom_minimum_size.y = 52
@@ -75,34 +56,24 @@ func build() -> void:
 			_page = 0
 			_refresh())
 		_aspects.add_child(chip)
-	_set_filters = HBoxContainer.new()
-	_set_filters.add_theme_constant_override("separation", 8)
-	body.add_child(_set_filters)
 	_set_opt = OptionButton.new()
-	_set_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_set_opt.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_set_opt.add_item("All sets")
-	_set_opt.set_item_metadata(0, "")
 	var sets := {}
-	for card in CardDB.lib.cards.values():
-		if not card.get("custom", false) and card.get("set", "") != "":
-			sets[card["set"]] = true
-	for code in CardLibrary.SET_NAMES:
-		if sets.erase(code):
-			_add_set_option(_set_opt, code)
-	for code in sets:
-		_add_set_option(_set_opt, code)
-	_set_opt.item_selected.connect(func(i):
-		_set = _set_opt.get_item_metadata(i)
-		_page = 0
-		_refresh())
-	_set_filters.add_child(_set_opt)
+	for id in CardDB.lib.cards:
+		if not CardDB.lib.cards[id].get("custom", false):
+			sets[CardDB.lib.cards[id].get("set", "")] = true
+	var keys := sets.keys()
+	keys.sort()
+	for s in keys:
+		_set_opt.add_item(s)
+	_set_opt.item_selected.connect(func(i): _set = "" if i == 0 else _set_opt.get_item_text(i); _page = 0; _refresh())
+	_aspects.add_child(_set_opt)
 	var unl := SabaccButton.make("Unlocked only", SabaccButton.Style.GOLD)
 	unl.toggle_mode = true
 	unl.custom_minimum_size = Vector2(0, 46)
 	unl.add_theme_font_size_override("font_size", 16)
 	unl.toggled.connect(func(on): _unlocked_only = on; _page = 0; _refresh())
-	_set_filters.add_child(unl)
+	_aspects.add_child(unl)
 	_grid = GridContainer.new()
 	_grid.add_theme_constant_override("h_separation", 10)
 	_grid.add_theme_constant_override("v_separation", 10)
@@ -122,65 +93,6 @@ func build() -> void:
 	_count = UIKit.label("", 15, Sabacc.C_DIM)
 	body.add_child(_count)
 	_refresh()
-
-
-func _update_wallet() -> void:
-	_wallet.text = "%d credits" % Progression.credits()
-	_packs.text = "Card Packs (%d)" % Progression.packs().size()
-
-
-func _add_set_option(options: OptionButton, code: String) -> void:
-	options.add_item(CardLibrary.expansion_title(code))
-	options.set_item_metadata(options.item_count - 1, code)
-
-
-func _pack_shop() -> void:
-	var panel := ModalPanel.open(self, 550.0, Sabacc.C_GOLD)
-	panel.dismiss_on_backdrop = true
-	panel.text("Card Packs", 30, Sabacc.C_GOLD)
-	var balance := UIKit.credit_label("")
-	panel.add(balance)
-	var sets := OptionButton.new()
-	sets.custom_minimum_size.y = 50
-	for code in CardLibrary.BOOSTER_SETS:
-		_add_set_option(sets, code)
-	panel.add(sets)
-	var buy := SabaccButton.make("Buy pack · 1,000 credits", SabaccButton.Style.GOLD)
-	var open := SabaccButton.make("", SabaccButton.Style.PRIMARY)
-	var waiting_sets := OptionButton.new()
-	waiting_sets.custom_minimum_size.y = 50
-	var waiting_by_set := {}
-	for pack in Progression.packs():
-		var code: String = pack.get("set", "")
-		if not waiting_by_set.has(code):
-			waiting_by_set[code] = []
-		waiting_by_set[code].append(pack["id"])
-	for code in waiting_by_set:
-		var title := "Mixed set rewards" if code.is_empty() else CardLibrary.expansion_title(code)
-		waiting_sets.add_item("%s (%d)" % [title, waiting_by_set[code].size()])
-		waiting_sets.set_item_metadata(waiting_sets.item_count - 1, waiting_by_set[code][0])
-	var update := func():
-		balance.get_node("Amount").text = "%d credits available" % Progression.credits()
-		buy.disabled = Progression.credits() < Progression.PACK_PRICE
-		var waiting := Progression.packs().size()
-		open.text = "Open packs (%d)" % waiting
-		open.disabled = waiting == 0
-	buy.pressed.connect(func():
-		var id := Progression.buy_pack(sets.get_item_metadata(sets.selected))
-		update.call()
-		if not id.is_empty():
-			buy.disabled = true
-			open.disabled = true
-			Router.go("packs", {"pack_id": id}))
-	open.pressed.connect(func(): Router.go("packs", {"pack_id": waiting_sets.get_selected_metadata()}))
-	panel.add(buy)
-	panel.add(waiting_sets)
-	waiting_sets.visible = waiting_sets.item_count > 0
-	panel.add(open)
-	update.call()
-	var close := SabaccButton.make("Back", SabaccButton.Style.GHOST)
-	close.pressed.connect(panel.close)
-	panel.add(close)
 
 
 func _sync_toggles() -> void:
@@ -217,7 +129,7 @@ func _show_page() -> void:
 	var cols := _cols
 	var rows := _rows
 	var avail_w := body.size.x - (cols - 1) * 10
-	var avail_h := maxf(48, body.size.y - _grid.position.y - 96)
+	var avail_h := body.size.y - _grid.position.y - 96
 	var sc := minf(avail_w / cols / CardView.PORTRAIT.x, (avail_h - (rows - 1) * 10) / rows / CardView.PORTRAIT.y)
 	var i := 0
 	for id in _results.slice(start, start + per):
@@ -252,31 +164,27 @@ func _center_grid() -> void:
 
 
 func relayout(p: bool, r: Rect2) -> void:
-	var top := 296.0
-	_tools.position = Vector2.ZERO
-	_tools.size = Vector2(r.size.x, 56)
+	var top := 172.0
 	if p:
-		_search.position = Vector2(0, 64)
+		_search.position = Vector2.ZERO
 		_search.size = Vector2(r.size.x, 52)
-		_filters.position = Vector2(0, 124)
+		_filters.position = Vector2(0, 60)
 		_filters.size = Vector2(r.size.x, 46)
-		_aspects.position = Vector2(0, 186)
+		_aspects.position = Vector2(0, 114)
 		_aspects.size = Vector2(r.size.x, 46)
 	else:
 		# one compact row: search | type filters, then aspects/sets
 		var sw := r.size.x * 0.32
-		_search.position = Vector2(0, 64)
+		_search.position = Vector2.ZERO
 		_search.size = Vector2(sw, 52)
-		_filters.position = Vector2(sw + 12, 64)
+		_filters.position = Vector2(sw + 12, 3)
 		_filters.size = Vector2(r.size.x - sw - 12, 46)
-		_aspects.position = Vector2(0, 124)
+		_aspects.position = Vector2(0, 60)
 		_aspects.size = Vector2(r.size.x, 46)
-		top = 174.0
-	_set_filters.position = Vector2(0 if p else 300, 240 if p else 124)
-	_set_filters.size = Vector2(r.size.x - (0 if p else 300), 46)
+		top = 116.0
 	_grid.position = Vector2(0, top)
 	# as many readable cards (>= ~230 px tall) as fit
-	var avail_h := maxf(48, r.size.y - top - 96)
+	var avail_h := r.size.y - top - 96
 	_rows = clampi(int(avail_h / 180.0), 1, 3)
 	var card_h := (avail_h - (_rows - 1) * 10) / _rows
 	var card_w := card_h * CardView.PORTRAIT.x / CardView.PORTRAIT.y

@@ -6,8 +6,7 @@ var chapter: Dictionary
 var run: Dictionary
 var _map: Control
 var _nodes: Dictionary = {}       # node id -> NodeButton
-var _hud: HFlowContainer
-var _resolving := false
+var _hud: HBoxContainer
 var _panel: ModalPanel
 var _start_box: VBoxContainer
 
@@ -36,23 +35,7 @@ func _build_start(failed: bool) -> void:
 	if failed:
 		var f := UIKit.title("Run failed", 40, Sabacc.C_EMPIRE)
 		_start_box.add_child(f)
-		var payout := int(Router.params.get("payout", 0))
-		if payout > 0:
-			_start_box.add_child(UIKit.credit_label("+%d credits to Collection Vault" % payout))
 		_start_box.add_child(UIKit.label("Your base fell. The chapter resets — try a different route.", 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
-	var next: String = chapter.get("next_chapter", "")
-	if run.get("chapter") == chapter["id"] and CampaignFlow.can_continue(run, next):
-		_start_box.add_child(UIKit.credit_label("%d credits available to cash out" % CampaignFlow.payout(run)))
-		var advance := SabaccButton.make("Continue to next chapter", SabaccButton.Style.PRIMARY)
-		advance.pressed.connect(func(): Router.go("chapter", {"chapter_id": next}))
-		_start_box.add_child(advance)
-		var claim := SabaccButton.make("Cash out episode run", SabaccButton.Style.GOLD)
-		claim.pressed.connect(func():
-			CampaignFlow.cash_out(run)
-			Router.go("collection"))
-		_start_box.add_child(claim)
-	elif CampaignFlow.can_continue(run, chapter["id"]):
-		_start_box.add_child(UIKit.credit_label("%d run credits carry into this chapter" % int(run.get("credits", 0))))
 	var intro := UIKit.label(chapter.get("intro", ""), 20, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_start_box.add_child(intro)
@@ -94,13 +77,12 @@ func _build_start(failed: bool) -> void:
 
 func _build_map() -> void:
 	Appearance.set_deck(run.get("leader", ""), chapter.get("base_sequence", [""])[0], run.get("deck", []))
-	_hud = HFlowContainer.new()
-	_hud.add_theme_constant_override("h_separation", 10)
+	_hud = HBoxContainer.new()
+	_hud.add_theme_constant_override("separation", 14)
 	body.add_child(_hud)
 	var maxhp := CampaignRun.max_base_hp(run, chapter)
 	var hp := maxhp - int(run.get("base_damage", 0))
 	_hud.add_child(_chip("resource", "Base %d/%d" % [hp, maxhp], Sabacc.C_HP))
-	_hud.add_child(UIKit.credit_label("%d run credits" % int(run.get("credits", 0))))
 	var deck_btn := SabaccButton.make("Deck %d" % run["deck"].size(), SabaccButton.Style.GHOST, "deck")
 	deck_btn.pressed.connect(func(): _show_deck(run["deck"]))
 	_hud.add_child(deck_btn)
@@ -113,11 +95,9 @@ func _build_map() -> void:
 		_hud.add_child(_chip("star", ", ".join(names), Sabacc.C_GOLD))
 	var abandon := SabaccButton.make("Abandon", SabaccButton.Style.EMPIRE)
 	abandon.pressed.connect(func():
-		if abandon.text != "Tap again to cash out":
-			abandon.text = "Tap again to cash out"
-			return
-		var payout := CampaignFlow.cash_out(run)
-		Router.go("chapter", {"chapter_id": chapter["id"], "failed": true, "payout": payout}))
+		run["status"] = "lost"
+		Save.set_run(run)
+		Router.go("chapter", {"chapter_id": chapter["id"]}))
 	_hud.add_child(abandon)
 	_map = Control.new()
 	_map.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -172,10 +152,9 @@ func relayout(p: bool, r: Rect2) -> void:
 	if _hud == null:
 		return
 	_hud.position = Vector2.ZERO
-	_hud.size = Vector2(r.size.x, 0)
-	var top := maxf(_hud.get_combined_minimum_size().y, _hud.size.y) + 14
-	_map.position = Vector2(0, top)
-	_map.size = Vector2(r.size.x, r.size.y - top)
+	_hud.size = Vector2(r.size.x, 56)
+	_map.position = Vector2(0, 70)
+	_map.size = Vector2(r.size.x, r.size.y - 70)
 	var rows: Array = chapter.get("map", {}).get("rows", [])
 	var n := rows.size()
 	for ri in n:
@@ -220,9 +199,7 @@ func _open_node(n: Dictionary) -> void:
 				b.pressed.connect(func(): _resolve_event(n, ch))
 				mp.add(b)
 		"rest":
-			if n.get("shop", false):
-				_cantina(mp, n)
-			var opts: Array = [] if n.get("shop", false) else n.get("rest", {}).get("options", ["heal"])
+			var opts: Array = n.get("rest", {}).get("options", ["heal"])
 			if "heal" in opts:
 				var h := _wrap_button("Repair base (heal 8)", SabaccButton.Style.PRIMARY, "heal")
 				h.pressed.connect(func(): _finish_simple(n, {"heal": 8}))
@@ -262,26 +239,6 @@ func _open_node(n: Dictionary) -> void:
 	mp.add(close)
 
 
-func _cantina(panel: ModalPanel, node: Dictionary) -> void:
-	var funds := int(run.get("credits", 0))
-	panel.add(UIKit.credit_label("%d run credits" % funds))
-	var repair := _wrap_button("Repair 8 base damage · 20 credits", SabaccButton.Style.PRIMARY)
-	repair.disabled = funds < 20 or int(run.get("base_damage", 0)) == 0
-	repair.pressed.connect(func(): _finish_simple(node, {"heal": 8, "cost": 20}))
-	panel.add(repair)
-	var upgrades: Dictionary = run.get("card_upgrades", {})
-	var units: Array = run["deck"].filter(func(id):
-		return CardDB.card(id).get("type") == "unit" and not upgrades.has(id))
-	var upgrade := _wrap_button("Upgrade a unit with Experience · 20 credits", SabaccButton.Style.GOLD)
-	upgrade.disabled = funds < 20 or units.is_empty()
-	upgrade.pressed.connect(func():
-		_show_deck(units, func(id: String): _finish_simple(node, {"upgrade": id, "cost": 20}), "Choose a unit to upgrade"))
-	panel.add(upgrade)
-	var skip := _wrap_button("Continue without spending", SabaccButton.Style.GHOST)
-	skip.pressed.connect(func(): _finish_simple(node, {}))
-	panel.add(skip)
-
-
 func _wrap_button(label: String, style: SabaccButton.Style, glyph := "", breathe := false) -> SabaccButton:
 	var b := SabaccButton.make(label, style, glyph, breathe)
 	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -298,15 +255,6 @@ func _resolve_event(n: Dictionary, choice: Dictionary) -> void:
 
 
 func _finish_simple(n: Dictionary, e: Dictionary) -> void:
-	var cost := int(e.get("cost", 0))
-	if _resolving or cost > int(run.get("credits", 0)):
-		return
-	_resolving = true
-	run["credits"] = int(run.get("credits", 0)) - cost
-	if e.has("upgrade"):
-		var upgrades: Dictionary = run.get("card_upgrades", {})
-		upgrades[e["upgrade"]] = ["experience"]
-		run["card_upgrades"] = upgrades
 	var msg := CampaignRun.apply_effect(run, chapter, e)
 	CampaignRun.complete_node(run, n["id"])
 	Save.set_run(run)
@@ -324,9 +272,9 @@ func _remove_card_then(n: Dictionary) -> void:
 
 
 ## Deck viewer; with `pick` set, tapping a card selects it. Reflows on rotation.
-func _show_deck(ids: Array, pick := Callable(), prompt := "Choose a card to remove") -> void:
+func _show_deck(ids: Array, pick := Callable()) -> void:
 	var mp := ModalPanel.open(self, 2000.0, Sabacc.C_GOLD, true)
-	var t := mp.text((prompt if pick.is_valid() else "Deck (%d)" % ids.size()).to_upper(), 28, Sabacc.C_GOLD)
+	var t := mp.text(("Choose a card to remove" if pick.is_valid() else "Deck (%d)" % ids.size()).to_upper(), 28, Sabacc.C_GOLD)
 	t.add_theme_font_override("font", Sabacc.font_title)
 	var grid := GridContainer.new()
 	grid.add_theme_constant_override("h_separation", 8)

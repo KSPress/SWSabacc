@@ -1353,14 +1353,10 @@ func _game_over() -> void:
 		return
 	_result_recorded = true
 	var won := m.winner == HUMAN
-	var identity := "%s_%s" % [Time.get_unix_time_from_system(), get_instance_id()]
-	var cosmetic_reward := Cosmetics.record_match(won, identity)
-	var credits_earned := 0
-	if params.get("mode", "quick") == "quick" and m.winner != 2:
-		credits_earned = Progression.award_credits("battle:" + identity, Progression.BATTLE_WIN if won else Progression.BATTLE_LOSS)
+	var cosmetic_reward := Cosmetics.record_match(won, "%d_%d" % [Time.get_unix_time_from_system(), get_instance_id()])
 	var pack_reward := ""
 	if params.get("mode", "quick") == "quick" and params.get("traditional", params.get("format", -1) == 0):
-		pack_reward = Progression.traditional_result(identity)
+		pack_reward = Progression.traditional_result("%s_%s" % [Time.get_unix_time_from_system(), get_instance_id()])
 	for c in get_tree().root.find_children("*", "", true, false):
 		if c is ChoicePanel or c is InspectOverlay:
 			c.get_parent().queue_free()
@@ -1397,10 +1393,6 @@ func _game_over() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 16)
 	v.add_child(row)
-	if credits_earned > 0:
-		var credit_reward := UIKit.credit_label("+%d credits" % credits_earned)
-		v.add_child(credit_reward)
-		v.move_child(credit_reward, row.get_index())
 	if not pack_reward.is_empty():
 		v.add_child(UIKit.label("Card pack earned! Open it from Card Packs.", 23, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 		var open_pack := SabaccButton.make("Open earned pack", SabaccButton.Style.GOLD, "star")

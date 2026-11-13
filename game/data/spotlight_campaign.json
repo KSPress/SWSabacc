@@ -1,6 +1,6 @@
 {
   "_comment": "Spotlight Campaign tuning + content (IP-free). Card ids only.",
-  "start": {"cards": 20, "base_hp": 30, "credits": 0, "deck_min": 20},
+  "start": {"cards": 20, "base_hp": 30, "credits": 20, "deck_min": 20},
   "rows": [
     {"fight": 6, "event": 2, "objective": 2},
     {"fight": 4, "elite": 2, "shop": 2, "event": 2},
@@ -60,5 +60,5 @@
       {"label": "Open it: gain a random perk, lose 5 max base HP", "effect": {"perk": "random", "max_hp": -5}},
       {"label": "Sell it for 35 credits", "effect": {"credits": 35}}]}
   ],
-  "prices": {"card_base": 18, "card_per_cost": 5, "card_rare": 12, "remove": 35, "heal6": 20, "upgrade": 20, "perk": 70}
+  "prices": {"card_base": 18, "card_per_cost": 5, "card_rare": 12, "remove": 35, "heal6": 20, "upgrade": 45, "perk": 70}
 }

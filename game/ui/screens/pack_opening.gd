@@ -11,29 +11,25 @@ var _tear_progress := 0.0
 
 
 func build() -> void:
-	set_header("Card Packs", "collection")
+	set_header("Card Packs")
 	_hint = UIKit.label("", 20, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(_hint)
 	_done = SabaccButton.make("", SabaccButton.Style.PRIMARY, "star")
 	_done.pressed.connect(_advance)
 	body.add_child(_done)
-	_load_pack(Router.params.get("pack_id", ""))
+	_load_pack()
 
 
-func _load_pack(preferred := "") -> void:
+func _load_pack() -> void:
 	for slot in _slots:
 		slot.queue_free()
 	_slots.clear()
 	if is_instance_valid(_foil):
 		_foil.queue_free()
 	_pack = Progression.packs()[0] if not Progression.packs().is_empty() else {}
-	for waiting in Progression.packs():
-		if waiting["id"] == preferred:
-			_pack = waiting
-			break
 	if _pack.is_empty():
-		_hint.text = "No unopened packs. Visit the Collection Vault to buy a pack."
+		_hint.text = "No unopened packs. Complete an Episode, finish a Spotlight run with a battle win, or play two traditional battles."
 		_done.text = "Back to collection"
 		_done.disabled = false
 	elif _pack["torn"]:
@@ -60,11 +56,6 @@ func _load_pack(preferred := "") -> void:
 				half.add_child(badge)
 		_done.text = "Rip open pack"
 		_done.disabled = false
-	if not _pack.is_empty():
-		var set_code: String = _pack.get("set", "")
-		title_label.text = (CardLibrary.expansion_title(set_code) if not set_code.is_empty() else "Card Packs").to_upper()
-	else:
-		title_label.text = "CARD PACKS"
 	_on_resize()
 
 

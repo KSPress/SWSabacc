@@ -16,8 +16,6 @@ func build() -> void:
 	_box = VBoxContainer.new()
 	_box.add_theme_constant_override("separation", 14)
 	body.add_child(_box)
-	if int(res.get("run_credits", 0)) > 0:
-		_box.add_child(UIKit.credit_label("+%d run credits" % int(res["run_credits"])))
 	if res.get("boss", false):
 		_build_clear()
 		return
@@ -121,20 +119,10 @@ func _build_clear() -> void:
 		UIKit.pop_in(cv, i * 0.05)
 		i += 1
 	var next: String = chapter.get("next_chapter", "")
-	var run := Save.run()
-	var paid := int(res.get("payout", 0))
-	if paid > 0:
-		_box.add_child(UIKit.credit_label("+%d credits to Collection Vault · ×%s" % [paid, CampaignFlow.multiplier(run)]))
-	if CampaignFlow.can_continue(run, next):
-		_box.add_child(UIKit.credit_label("%d run credits · ×%s if you cash out now" % [int(run.get("credits", 0)), CampaignFlow.multiplier(run)]))
+	if next != "":
 		var b := SabaccButton.make("Next chapter", SabaccButton.Style.PRIMARY, "play", true)
 		b.pressed.connect(func(): Router.go("chapter", {"chapter_id": next}))
 		_box.add_child(b)
-		var cash := SabaccButton.make("Cash out %d credits" % CampaignFlow.payout(run), SabaccButton.Style.GOLD)
-		cash.pressed.connect(func():
-			CampaignFlow.cash_out(run)
-			Router.go("collection"))
-		_box.add_child(cash)
 	var back := SabaccButton.make("Campaign", SabaccButton.Style.GHOST, "back")
 	back.pressed.connect(func(): Router.go("episodes"))
 	_box.add_child(back)

@@ -120,58 +120,6 @@ func _run() -> void:
 	await _shot("pack_all_revealed")
 	screen._advance()
 	check(Progression.packs().is_empty(), "UI collect completes pack")
-	_test_credits_and_episode()
 	print("PROGRESSION: %d checks, %d failed" % [checks, failures])
 	if failures:
 		get_tree().quit(1)
-
-
-func _test_credits_and_episode() -> void:
-	Save.data = Save.default_data()
-	check(Progression.credits() == 0, "wallet starts at zero")
-	check(Progression.award_credits("battle:win", Progression.BATTLE_WIN) == 100, "win credits")
-	check(Progression.award_credits("battle:loss", Progression.BATTLE_LOSS) == 50, "loss credits")
-	check(Progression.award_credits("battle:win", 100) == 0 and Progression.credits() == 150, "battle credits pay once")
-	check(Progression.buy_pack("TWI").is_empty() and Progression.credits() == 150, "unaffordable pack leaves the wallet alone")
-	Progression.award_credits("fund-purchase", 850)
-	check(Progression.buy_pack("unknown").is_empty() and Progression.credits() == 1000, "unknown set leaves the wallet alone")
-	var purchased := Progression.buy_pack("TWI")
-	check(not purchased.is_empty() and Progression.credits() == 0, "purchase consumes exactly 1,000 credits")
-	Save.load_save()
-	var pack: Dictionary = Progression.packs()[0]
-	check(pack["id"] == purchased and pack["set"] == "TWI"
-		and pack["cards"].all(func(id): return CardDB.card(id)["set"] == "TWI")
-		and Progression.credits() == 0, "single-set purchase and wallet persist together")
-
-	var chapters: Array = CardDB.episodes[4]["chapters"]
-	for index in chapters.size():
-		var ch: Dictionary = chapters[index]
-		CampaignFlow.start_run(ch, ch["leader_options"][0])
-		var run := Save.run()
-		check(int(run["credits"]) == [0, 30, 80][index], "Saga carries the remaining run balance")
-		var game := Match.new()
-		var boss := CampaignRun.node_by_id(ch, "boss")
-		game.setup(CardDB.lib, CampaignRun.match_config(run, ch, boss, CampaignFlow.treasures_for(ch)))
-		game.winner = 0
-		var outcome := CampaignFlow.on_match_end({"chapter_id": ch["id"], "node_id": "boss"}, game)
-		check(CampaignFlow.multiplier(run) == [1.5, 2.0, 3.0][index], "consecutive Saga clear increases the payout multiplier")
-		if index == 0:
-			run["credits"] = int(run["credits"]) - 20
-			Save.set_run(run)
-			Save.load_save()
-		if index < 2:
-			check(Progression.credits() == 0, "checkpoint retains run credits outside the wallet")
-		else:
-			check(outcome.get("payout", 0) == 390 and Progression.credits() == 390, "full run pays three times the net credits")
-			check(CampaignFlow.cash_out(run) == 0, "Saga cash-out is idempotent")
-
-	var spot: Dictionary = SpotlightFlow.spots()[0]
-	var spotlight := SpotlightFlow.start(spot["id"])
-	var next: String = SpotlightRun.available_nodes(spotlight)[0]
-	SpotlightRun.on_battle_end(spotlight, next, true, 3, CardDB.lib)
-	check(spotlight["credits"] == 50 and Progression.credits() == 390, "Spotlight battle funds the run")
-	SpotlightRun.apply_effect(spotlight, {"credits": -20, "heal": 6}, CardDB.lib, RandomNumberGenerator.new())
-	check(spotlight["credits"] == 30 and Progression.credits() == 390, "Spotlight shop only spends run credits")
-	spotlight["status"] = "abandoned"
-	check(SpotlightFlow.finish(spotlight) == 30 and Progression.credits() == 420, "Spotlight deposits the unspent balance")
-	check(SpotlightFlow.finish(spotlight) == 0, "Spotlight cash-out is idempotent")
