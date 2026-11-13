@@ -172,7 +172,10 @@ func _run() -> void:
 	screen._sync()
 	await _wait(0.5)
 	await _drag(screen.hud[0].leader_view.get_global_rect().get_center(), screen.tokens[host.uid].get_global_rect().get_center())
-	await _wait(0.6)
+	for i in 50:
+		if not screen.busy:
+			break
+		await _wait(0.15)
 	check(leader.attached_to == host and host.is_leader_unit(), "Dragging the leader tile deploys it directly onto a Vehicle")
 	m.active = 0
 	for i in 6 - m.players[0].resources.size():
@@ -188,7 +191,10 @@ func _run() -> void:
 		if child is CardView and child.inst == fortification:
 			await _drag(child.get_global_rect().get_center(), tile.get_global_rect().get_center())
 			break
-	await _wait(0.55)
+	for i in 50:
+		if not screen.busy:
+			break
+		await _wait(0.15)
 	var tab: Button = screen.hud[0].fortification_tab
 	check(fortification.attached_to == base and tab.visible and tab.text == fortification.name(),
 		"Dragging Fortify onto the base displays the named attachment")

@@ -13,6 +13,7 @@ const SCREENS := {
 	"match": "res://ui/screens/match_screen.tscn",
 	"reward": "res://ui/screens/reward_screen.tscn",
 	"collection": "res://ui/screens/collection.tscn",
+	"stats": "res://ui/screens/account_stats.tscn",
 	"settings": "res://ui/screens/settings_screen.tscn",
 	"quick": "res://ui/screens/quick_match.tscn",
 	"decks": "res://ui/screens/decks.tscn",

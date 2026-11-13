@@ -10,6 +10,7 @@ var _foot: Label
 var _t := 0.0
 var _profile_button: SabaccButton
 var _profile_badge: ProfileBadge
+var _stats_button: SabaccButton
 
 
 func build() -> void:
@@ -17,6 +18,11 @@ func build() -> void:
 	_profile_button.custom_minimum_size = Vector2(150, 54)
 	_profile_button.pressed.connect(func(): Router.go("customization"))
 	body.add_child(_profile_button)
+	_stats_button = SabaccButton.make("", SabaccButton.Style.GOLD, "stats")
+	_stats_button.custom_minimum_size = Vector2(58, 56)
+	_stats_button.tooltip_text = "Account stats"
+	_stats_button.pressed.connect(func(): Router.go("stats"))
+	add_child(_stats_button)
 	_profile_badge = ProfileBadge.new()
 	_profile_badge.size = Vector2(76, 76)
 	body.add_child(_profile_badge)
@@ -121,6 +127,8 @@ func _process(dt: float) -> void:
 
 
 func relayout(p: bool, r: Rect2) -> void:
+	var safe := safe_rect()
+	_stats_button.position = Vector2(safe.end.x - 58, safe.position.y)
 	_profile_button.position = Vector2(r.size.x - 150, 0)
 	_profile_badge.position = Vector2(4, 0)
 	_buttons.columns = 1 if p else 2

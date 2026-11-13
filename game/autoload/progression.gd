@@ -74,6 +74,37 @@ func _pool(kind: String, rarity: String, set_code: String) -> Array:
 	return _pools[key]
 
 
+func account_stats() -> Dictionary:
+	if not Save.data.get("stats") is Dictionary:
+		Save.data["stats"] = {}
+	var stats: Dictionary = Save.data["stats"]
+	stats.merge(Save.default_data()["stats"])
+	# Older saves only kept the current wallet. It is a lower bound on lifetime earnings.
+	stats["credits_earned"] = maxi(int(stats["credits_earned"]), credits())
+	return stats
+
+
+func count_stat(category: String, id: String) -> void:
+	if not id.is_empty():
+		var counts: Dictionary = account_stats()[category]
+		counts[id] = int(counts.get(id, 0)) + 1
+
+
+func track_match(winner: int, aspects: Array, leader_id: String) -> void:
+	var stats := account_stats()
+	stats["matches"] = int(stats["matches"]) + 1
+	if winner == 0:
+		stats["wins"] = int(stats["wins"]) + 1
+	elif winner == 2:
+		stats["draws"] = int(stats["draws"]) + 1
+	var seen := {}
+	for aspect in aspects:
+		if not seen.has(aspect):
+			count_stat("aspects", aspect)
+			seen[aspect] = true
+	count_stat("leaders", leader_id)
+
+
 func credits() -> int:
 	return maxi(0, int(Save.data.get("credits", 0)))
 
@@ -84,6 +115,8 @@ func award_credits(identity: String, amount: int) -> int:
 	if amount <= 0 or claimed.has(key):
 		return 0
 	claimed[key] = true
+	var stats := account_stats()
+	stats["credits_earned"] = int(stats["credits_earned"]) + amount
 	Save.data["credits"] = credits() + amount
 	Save.write()
 	changed.emit()
@@ -96,6 +129,7 @@ func buy_pack(set_code: String) -> String:
 	var id := _queue_pack("Purchased pack", set_code)
 	if id.is_empty():
 		return ""
+	count_stat("boosters", set_code)
 	Save.data["credits"] = credits() - PACK_PRICE
 	Save.write()
 	changed.emit()

@@ -21,7 +21,6 @@ var _unlocked_only := false
 var _count: Label
 var _tools: HBoxContainer
 var _set_filters: HBoxContainer
-var _wallet: Label
 var _packs: Button
 
 
@@ -31,17 +30,14 @@ func build() -> void:
 	_tools.alignment = BoxContainer.ALIGNMENT_CENTER
 	_tools.add_theme_constant_override("separation", 10)
 	body.add_child(_tools)
-	var credit := UIKit.credit_label("")
-	_wallet = credit.get_node("Amount")
-	_tools.add_child(credit)
 	var decks := SabaccButton.make("Deck Builder", SabaccButton.Style.GHOST)
 	decks.pressed.connect(func(): Router.go("decks"))
 	_tools.add_child(decks)
 	_packs = SabaccButton.make("", SabaccButton.Style.GOLD)
 	_packs.pressed.connect(_pack_shop)
 	_tools.add_child(_packs)
-	Progression.changed.connect(_update_wallet)
-	_update_wallet()
+	Progression.changed.connect(_update_pack_count)
+	_update_pack_count()
 	_search = LineEdit.new()
 	_search.placeholder_text = "Search name, trait or text…"
 	_search.custom_minimum_size.y = 52
@@ -124,8 +120,7 @@ func build() -> void:
 	_refresh()
 
 
-func _update_wallet() -> void:
-	_wallet.text = "%d credits" % Progression.credits()
+func _update_pack_count() -> void:
 	_packs.text = "Card Packs (%d)" % Progression.packs().size()
 
 

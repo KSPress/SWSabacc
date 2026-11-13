@@ -47,6 +47,22 @@ func _run() -> void:
 	check(not Router._busy and Router._fade.mouse_filter == Control.MOUSE_FILTER_IGNORE, "splash transition releases input")
 	Cosmetics.set_gm(true)
 	Cosmetics.equip("background", "emblem")
+	Progression.award_credits("stats-test", 1200)
+	Progression.buy_pack("ASH")
+	Cosmetics.record_match(true, "stats-win", 0, ["command", "command", "heroism"], "SOR_017")
+	Cosmetics.record_match(false, "stats-loss", 1, ["command", "villainy"], "SOR_017")
+	Cosmetics.record_match(false, "stats-draw", 2, ["aggression"], "SOR_009")
+	Save.load_save()
+	var stats := Progression.account_stats()
+	check(stats["matches"] == 3 and stats["wins"] == 1 and stats["draws"] == 1, "Account preserves wins, losses and draws")
+	check(stats["aspects"]["command"] == 2 and stats["leaders"]["SOR_017"] == 2, "Favorites count a deck aspect once per match")
+	check(stats["boosters"]["ASH"] == 1 and stats["credits_earned"] == 1200 and Progression.credits() == 200, "Stats retain gross credits and paid boosters")
+	var stats_menu := get_tree().current_scene
+	await _click(stats_menu._stats_button)
+	check(get_tree().current_scene.scene_file_path.ends_with("account_stats.tscn"), "Main menu stats icon opens Account Stats")
+	var stats_screen := get_tree().current_scene
+	check(stats_screen.get_node("AccountCredits/Amount").text == "200 credits", "Account Stats shows the shared balance")
+	await _go("menu")
 	var routes := [["Campaigns", "mode_hub"], ["Battles", "mode_hub"], ["Collection Vault", "collection"], ["Customization", "customization"], ["Settings", "settings_screen"], ["Profile", "customization"]]
 	for dims in [[360, 640], [540, 1200], [1280, 720], [2560, 1080]]:
 		await _size(dims[0], dims[1])

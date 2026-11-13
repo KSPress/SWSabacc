@@ -98,17 +98,16 @@ func set_gm(enabled: bool) -> void:
 	changed.emit()
 
 
-func record_match(won: bool, identity: String) -> Dictionary:
+func record_match(won: bool, identity: String, winner := -1, aspects := [], leader_id := "") -> Dictionary:
 	var s := state()
 	if identity.is_empty() or identity in s["recorded"]:
 		return {}
 	s["recorded"].append(identity)
 	if s["recorded"].size() > 256:
 		s["recorded"].pop_front()
-	Save.data["stats"]["matches"] += 1
+	Progression.track_match((0 if won else 1) if winner == -1 else winner, aspects, leader_id)
 	var reward: Dictionary = {}
 	if won:
-		Save.data["stats"]["wins"] += 1
 		if not s["gm"]:
 			var pool: Array = all_items().filter(func(item): return not item["key"] in s["earned"])
 			if not pool.is_empty():

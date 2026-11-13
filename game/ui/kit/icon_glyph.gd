@@ -250,6 +250,10 @@ func _draw() -> void:
 				var a := -PI / 2 + k * PI / 5.0
 				sp.append(c + Vector2(cos(a), sin(a)) * r * (0.85 if k % 2 == 0 else 0.38))
 			draw_colored_polygon(sp, col)
+		"stats":
+			for i in 3:
+				var height := r * (0.55 + i * 0.38)
+				draw_rect(Rect2(c + Vector2((i - 1.5) * r * 0.6, r * 0.72 - height), Vector2(r * 0.38, height)), col)
 		"collection":
 			for k in 4:
 				var x := (k % 2) * r * .65 - r * .6
