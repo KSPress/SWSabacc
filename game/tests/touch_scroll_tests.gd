@@ -56,6 +56,59 @@ func _run() -> void:
 	Cosmetics.set_gm(true)
 	Input.emulate_touch_from_mouse = true
 	print("Touchscreen/emulation available: ", DisplayServer.is_touchscreen_available())
+	await _size(540, 960)
+	await _go("collection")
+	var vault := get_tree().current_scene
+	var vault_scroll: ScrollContainer = vault._scroll
+	var first: Control = vault_scroll._tiles[0].get_child(0)
+	await _swipe(first.get_global_rect().get_center(), 310)
+	check(vault_scroll.scroll_vertical > 100 and vault.find_children("*", "InspectOverlay", true, false).is_empty(),
+		"Vault swipes beginning on a card vault_scroll without opening it")
+	vault_scroll.scroll_vertical = int(vault_scroll.get_v_scroll_bar().max_value)
+	await _wait(0.2)
+	check(vault_scroll._tiles.has(vault_scroll._ids.size() - 1) and vault_scroll._tiles.size() < 100, "Last card is reachable without loading the full catalog")
+	vault_scroll.scroll_vertical = 0
+	await _wait(0.2)
+	await _click(vault._filters._set_button)
+	var set_panel: ModalPanel = vault.find_children("*", "ModalPanel", true, false)[0]
+	var twilight: Button
+	for button in set_panel.box.get_children():
+		if button is Button and button.get_child(0).get_child(-1).text == "Twilight of the Republic":
+			twilight = button
+			break
+	check(twilight != null and twilight.get_child(0).get_child(0).texture != null, "Set chooser shows the Twilight logo")
+	await _click(twilight)
+	var filters = vault._filters
+	filters.filters.merge({"type": "unit", "aspects": ["command", "heroism"], "trait": "republic"}, true)
+	filters.changed.emit()
+	check(vault_scroll._ids.size() > 0 and vault_scroll._ids.all(func(id):
+		var card := CardDB.card(id)
+		return (card["set"] == "TWI" and card["type"] == "unit" and "republic" in card["traits"]
+			and "command" in card["aspects"] and "heroism" in card["aspects"])), "Set, type, trait and two aspects combine")
+	var found_keyword := ""
+	for id in vault_scroll._ids:
+		var keywords := CardLibrary.keyword_names(CardDB.card(id))
+		if not keywords.is_empty():
+			found_keyword = keywords[0]
+			break
+	check(not found_keyword.is_empty(), "Filtered Republic units include printed keywords")
+	filters.filters["keyword"] = found_keyword
+	filters.changed.emit()
+	check(vault_scroll._ids.size() > 0 and vault_scroll._ids.all(func(id):
+		return found_keyword in CardLibrary.keyword_names(CardDB.card(id))), "Keyword combines with the other card filters")
+	await _go("deck_editor")
+	var editor := get_tree().current_scene
+	var pool: ScrollContainer = editor._pool_scroll
+	var first_card: Control = pool._tiles[0].get_child(0)
+	await _swipe(first_card.get_global_rect().get_center(), 310)
+	check(pool.scroll_vertical > 100 and editor.deck["cards"].is_empty(), "Swiping deck cards scrolls without adding them")
+	pool.scroll_vertical = 0
+	await _wait(0.2)
+	await _click(pool._tiles[0].get_child(0))
+	check(editor.deck["cards"].size() == 1, "Tapping a deck card still adds it")
+	await _click(editor._leader_slot)
+	var leader_picker: CardPicker = editor.find_children("*", "CardPicker", true, false)[0]
+	check(leader_picker._card_filters != null, "Leader selection uses the same card filters")
 	for dimensions in [[360, 640], [1280, 720]]:
 		await _size(dimensions[0], dimensions[1])
 		for kind in ["emblem", "cardback", "background"]:

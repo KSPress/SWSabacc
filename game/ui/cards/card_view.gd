@@ -28,6 +28,7 @@ var inst: CardInst          # optional live instance (hand cards)
 var face_down := false
 var show_back_side := false # leader unit side
 var draggable := true
+var in_scroll := false
 var hover_lift := true
 var playable := false:
 	set(v):
@@ -98,7 +99,7 @@ func _on_art(t: Texture2D) -> void:
 
 
 func _ready() -> void:
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	mouse_filter = Control.MOUSE_FILTER_PASS if in_scroll else Control.MOUSE_FILTER_STOP
 	mouse_entered.connect(_on_hover.bind(true))
 	mouse_exited.connect(_on_hover.bind(false))
 
@@ -189,7 +190,7 @@ func _gui_input(ev: InputEvent) -> void:
 		if mb.button_index != MOUSE_BUTTON_LEFT:
 			return
 		if mb.pressed:
-			if mb.double_click:
+			if mb.double_click and not in_scroll:
 				inspect_requested.emit(self)
 				accept_event()
 				return
@@ -198,16 +199,22 @@ func _gui_input(ev: InputEvent) -> void:
 			_long_fired = false
 			_press_pos = mb.global_position
 			_last_pos = mb.global_position
-			accept_event()
+			if not in_scroll:
+				accept_event()
 		else:
 			if _dragging:
 				_end_drag(mb.global_position)
 			elif _press and not _long_fired:
 				tapped.emit(self)
 			_press = false
-			accept_event()
+			if not in_scroll:
+				accept_event()
 	elif ev is InputEventMouseMotion and _press:
 		var mm := ev as InputEventMouseMotion
+		if in_scroll:
+			if mm.global_position.distance_to(_press_pos) > DRAG_THRESHOLD:
+				_press = false
+			return
 		if not _dragging and draggable and not _long_fired and mm.global_position.distance_to(_press_pos) > DRAG_THRESHOLD:
 			_begin_drag(mm.global_position)
 		if _dragging:
@@ -216,6 +223,11 @@ func _gui_input(ev: InputEvent) -> void:
 			global_position = mm.global_position - _grab
 			drag_moved.emit(self, mm.global_position)
 		accept_event()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_SCROLL_BEGIN and in_scroll:
+		_press = false
 
 
 func _begin_drag(at: Vector2) -> void:

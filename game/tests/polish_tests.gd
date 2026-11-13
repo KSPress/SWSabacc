@@ -124,13 +124,14 @@ func _run() -> void:
 			for route in ["decks", "customization", "collection"]:
 				await _go(route)
 				var current := get_tree().current_scene
-				var center: float = current.body.get_global_rect().get_center().x if route == "collection" else current._scroll.get_global_rect().get_center().x
-				check(absf(current._grid.get_global_rect().get_center().x - center) <= 9, "centered %s at %s" % [route, dimensions])
 				if route == "collection":
-					current._page = current._pages() - 1
-					current._show_page()
+					var scroll: ScrollContainer = current._scroll
+					scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
 					await _wait(0.15)
-					check(absf(current._grid.get_global_rect().get_center().x - center) <= 2, "last page centered %s" % [str(dimensions)])
+					check(scroll.scroll_vertical > 0 and scroll._tiles.has(scroll._ids.size() - 1), "last card reachable by scrolling %s" % [str(dimensions)])
+				else:
+					var center: float = current._scroll.get_global_rect().get_center().x
+					check(absf(current._grid.get_global_rect().get_center().x - center) <= 9, "centered %s at %s" % [route, dimensions])
 				await _shot("centered_%s_%s_%s" % [route, dimensions[0], dimensions[1]])
 		print("POLISH VISUALS: %d checks, %d failed" % [checks, failures])
 		if failures:
