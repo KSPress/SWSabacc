@@ -70,7 +70,8 @@ func _show_episode(ep: int) -> void:
 	for ch in data.get("chapters", []):
 		var unlocked := CampaignFlow.chapter_unlocked(ch)
 		var cleared := Save.is_cleared(ch["id"])
-		var active: bool = run.get("chapter", "") == ch["id"] and run.get("status", "") == "active"
+		var active: bool = run.get("chapter", "") == ch["id"] and run.get("status", "") == "active" \
+			and not CampaignFlow.needs_new_route(run, ch)
 		var label := "Chapter %d · %s%s%s" % [int(ch["number"]), ch["title"], "  ✓" if cleared else "", "  (run in progress)" if active else ""]
 		var b := SabaccButton.make(label, SabaccButton.Style.REBEL if unlocked else SabaccButton.Style.GHOST, "play" if unlocked else "lock", active)
 		b.disabled = not unlocked

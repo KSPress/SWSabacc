@@ -9,214 +9,104 @@
       "id": "ep4_ch1_tatooine",
       "episode": 4,
       "number": 1,
-      "title": "Tatooine",
-      "intro": "R2-D2 and C-3PO crash-land in the Dune Sea. The plans must reach Obi-Wan Kenobi. Tusken Raiders roam the wastes.",
+      "title": "Escape from Tatooine",
+      "intro": "The stolen Death Star plans must leave Tatooine. Protect Luke in the Jundland Wastes, find a pilot in Mos Eisley, and hold Docking Bay 94 until the Falcon is ready.",
       "alignment": "heroism",
       "ruleset": "campaign",
       "board_theme": "tatooine",
-      "leader_options": [
-        "SEC_015"
-      ],
-      "base_sequence": [
-        "HMW_019",
-        "HMW_028",
-        "HMW_032"
-      ],
-      "base_hp_override": 18,
-      "starting_deck": [
-        "SOR_236",
-        "HMW_208",
-        "HMW_208",
-        "SOR_095",
-        "SOR_095",
-        "SOR_239",
-        "SOR_239",
-        "LAW_180",
-        "LAW_180",
-        "LAW_254",
-        "HMW_167",
-        "SOR_046",
-        "SOR_073",
-        "SOR_172",
-        "SOR_124"
-      ],
-      "reward_pool": [
-        "SOR_205",
-        "HMW_268",
-        "HMW_222",
-        "JTL_214",
-        "SEC_250",
-        "LAW_146",
-        "SOR_218",
-        "SOR_216",
-        "SOR_220",
-        "HMW_217",
-        "LAW_165",
-        "SOR_169",
-        "LOF_249",
-        "SOR_238",
-        "HMW_269",
-        "HMW_258"
-      ],
-      "treasures": [
-        "kyber_shard",
-        "moisture_vaporator",
-        "ben_s_lightsaber",
-        "jawa_salvage"
-      ],
-      "unlocks_on_clear": [
-        "SEC_015",
-        "HMW_019",
-        "HMW_028",
-        "HMW_032",
-        "HMW_261",
-        "HMW_170",
-        "IBH_046"
-      ],
+      "leader_options": ["SEC_015"],
+      "base_sequence": ["HMW_028", "HMW_019", "HMW_032"],
+      "base_hp_override": 28,
+      "starting_deck": ["HMW_208", "SOR_236", "LOF_057", "LOF_057", "ASH_156", "SOR_205", "SOR_205", "JTL_214", "JTL_214", "SHD_055", "SHD_055", "SEC_110", "SEC_110", "TWI_256", "TWI_256", "LAW_131", "LAW_131", "LAW_245", "SOR_251", "HMW_268"],
+      "reward_pool": ["HMW_268", "HMW_222", "SHD_214", "SOR_205", "HMW_221", "JTL_214", "SEC_110", "ASH_156", "SHD_055", "TWI_256", "LAW_131", "LAW_245", "SOR_251", "SHD_078", "SOR_238", "HMW_240", "LOF_215", "ASH_229", "SEC_052"],
+      "treasures": [],
+      "unlocks_on_clear": ["SEC_015", "HMW_019", "HMW_028", "HMW_032", "HMW_261", "SOR_053", "HMW_170", "IBH_003", "SOR_193"],
       "next_chapter": "ep4_ch2_deathstar",
       "map": {
         "rows": [
           [
-            "n1",
-            "n2"
+            "tusken_raid"
           ],
           [
-            "n3",
-            "n4"
+            "sandcrawler",
+            "tusken_detour"
           ],
           [
-            "n5",
-            "n6"
+            "homestead"
           ],
           [
-            "n7"
+            "cantina_duel"
           ],
           [
-            "rest"
+            "cantina_supplies",
+            "street_market"
           ],
           [
-            "boss"
+            "mos_eisley_escape"
+          ],
+          [
+            "docking_bay"
           ]
         ],
         "edges": {
-          "n1": [
-            "n3",
-            "n4"
+          "tusken_raid": [
+            "sandcrawler",
+            "tusken_detour"
           ],
-          "n2": [
-            "n4"
+          "sandcrawler": [
+            "homestead"
           ],
-          "n3": [
-            "n5"
+          "tusken_detour": [
+            "homestead"
           ],
-          "n4": [
-            "n5",
-            "n6"
+          "homestead": [
+            "cantina_duel"
           ],
-          "n5": [
-            "n7"
+          "cantina_duel": [
+            "cantina_supplies",
+            "street_market"
           ],
-          "n6": [
-            "n7"
+          "cantina_supplies": [
+            "mos_eisley_escape"
           ],
-          "n7": [
-            "rest"
+          "street_market": [
+            "mos_eisley_escape"
           ],
-          "rest": [
-            "boss"
+          "mos_eisley_escape": [
+            "docking_bay"
           ]
         }
       },
       "nodes": [
         {
-          "id": "n1",
-          "type": "fight",
-          "title": "Sand People Ambush",
-          "desc": "Tusken Raiders strike from the dunes.",
-          "objective": {
-            "type": "standard"
-          },
-          "base": "HMW_019",
-          "arenas": [
-            "ground"
-          ],
-          "enemy": {
-            "name": "Tusken Raiders",
-            "hero_skin": "tusken",
-            "ai_profile": "aggressive",
-            "hp": 10,
-            "base": "KYB_004",
-            "deck": [
-              "HMW_224",
-              "HMW_224",
-              "HMW_224",
-              "HMW_181",
-              "ASH_213",
-              "ASH_213",
-              "ASH_213",
-              "HMW_179",
-              "HMW_224",
-              "ASH_213",
-              "HMW_181",
-              "HMW_179"
-            ]
-          },
-          "reward_tier": 1
-        },
-        {
-          "id": "n2",
-          "type": "event",
-          "title": "The Sandcrawler",
-          "desc": "Jawas haul you aboard their sandcrawler. Utinni!",
-          "event": {
-            "choices": [
-              {
-                "label": "Trade with the Jawas",
-                "result": "Gain Jawa Scavenger and Offworld Jawa.",
-                "effect": {
-                  "add_cards": [
-                    "SOR_205",
-                    "HMW_268"
-                  ]
-                }
-              },
-              {
-                "label": "Patch up R2 (+4 base HP this chapter)",
-                "result": "Repairs complete.",
-                "effect": {
-                  "base_hp_bonus": 4
-                }
-              },
-              {
-                "label": "Slip away",
-                "result": "You remove a card from your deck.",
-                "effect": {
-                  "remove_card": 1
-                }
-              }
-            ]
-          }
-        },
-        {
-          "id": "n3",
+          "id": "tusken_raid",
           "type": "objective",
-          "title": "Luke Is Down",
-          "desc": "Luke lies unconscious in the Jundland Wastes. Keep him alive for 3 rounds until Ben's krayt call scatters the Tuskens.",
+          "title": "Tusken Raid",
+          "desc": "Luke is unconscious. R2 stays with him while you hold off the Tuskens. Use the Krayt Call once per round to send a Tusken back to hand.",
           "objective": {
             "type": "defend_unit",
             "params": {
+              "rounds": 5,
+              "objective_only": true,
               "protect_unit": "HMW_208",
-              "rounds": 3,
-              "reward_mult": 1.5
+              "protect_hp": 9,
+              "name": "Luke"
             }
           },
           "base": "HMW_028",
-          "arenas": [
-            "ground"
-          ],
+          "first": 0,
+          "battle_rules": {
+            "deck_out_damage": 0
+          },
+          "deploy_from_deck": ["HMW_208", "SOR_236"],
           "player_preplaced": [
             {
-              "id": "HMW_261",
+              "id": "HMW_208",
+              "arena": "ground",
+              "ready": false
+            },
+            {
+              "id": "SOR_236",
               "arena": "ground",
               "ready": true
             }
@@ -225,248 +115,339 @@
             "initiative",
             "krayt_call"
           ],
-          "pickup": "HMW_261",
+          "pickups": ["HMW_261", "SOR_053"],
+          "reward_pool": [],
           "enemy": {
-            "name": "Tusken War Party",
-            "hero_skin": "tusken",
-            "ai_profile": "aggressive",
-            "hp": 14,
-            "base": "KYB_004",
-            "deck": [
-              "HMW_224",
-              "HMW_224",
-              "HMW_224",
-              "HMW_181",
-              "HMW_181",
-              "LOF_209",
-              "LOF_209",
-              "ASH_213",
-              "ASH_213",
-              "HMW_224",
-              "HMW_179",
-              "HMW_181"
-            ]
-          },
-          "reward_tier": 2
-        },
-        {
-          "id": "n4",
-          "type": "elite",
-          "title": "Bantha Riders",
-          "desc": "Heavy Tusken cavalry thunders across the Dune Sea.",
-          "objective": {
-            "type": "standard"
-          },
-          "base": "HMW_019",
-          "arenas": [
-            "ground"
-          ],
-          "enemy": {
-            "name": "Bantha Riders",
-            "hero_skin": "tusken",
-            "ai_profile": "aggressive",
-            "hp": 14,
-            "base": "KYB_004",
-            "deck": [
-              "HMW_181",
-              "HMW_181",
-              "HMW_181",
-              "HMW_224",
-              "HMW_224",
-              "LOF_209",
-              "LOF_209",
-              "HMW_230",
-              "ASH_213",
-              "ASH_213",
-              "HMW_179",
-              "HMW_224"
-            ]
-          },
-          "reward_tier": 3
-        },
-        {
-          "id": "n5",
-          "type": "fight",
-          "title": "Womp Rat Canyon",
-          "desc": "Beggar's Canyon is crawling with womp rats. Hold out for 4 rounds.",
-          "objective": {
-            "type": "survive_n",
-            "params": {
-              "rounds": 4
-            }
-          },
-          "base": "HMW_028",
-          "arenas": [
-            "ground"
-          ],
-          "enemy": {
-            "name": "Womp Rats",
-            "hero_skin": "creature",
-            "ai_profile": "aggressive",
+            "name": "Tusken Raiders",
+            "base": "HMW_028",
             "hp": 30,
-            "base": "KYB_004",
-            "deck": [
-              "ASH_213",
-              "ASH_213",
-              "ASH_213",
-              "ASH_213",
-              "HMW_179",
-              "HMW_179",
-              "HMW_179",
-              "ASH_213",
-              "ASH_213",
-              "HMW_179",
-              "SOR_164",
-              "ASH_213"
-            ]
-          },
-          "reward_tier": 1
-        },
-        {
-          "id": "n6",
-          "type": "fight",
-          "title": "Imperial Sweep",
-          "desc": "Sandtroopers search the wastes for the droids. Claim the Krayt Call if the Tuskens join in.",
-          "objective": {
-            "type": "standard"
-          },
-          "base": "HMW_028",
-          "arenas": [
-            "ground"
-          ],
-          "claimable_tokens": [
-            "initiative",
-            "plan"
-          ],
-          "enemy": {
-            "name": "Sandtroopers",
-            "hero_skin": "stormtrooper",
-            "ai_profile": "tempo",
-            "hp": 13,
-            "base": "HMW_026",
-            "deck": [
-              "SOR_128",
-              "SOR_128",
-              "SOR_128",
-              "HMW_201",
-              "LOF_232",
-              "IBH_063",
-              "IBH_063",
-              "IBH_057",
-              "IBH_057",
-              "SOR_229",
-              "SOR_128",
-              "IBH_055"
-            ]
-          },
-          "reward_tier": 2
-        },
-        {
-          "id": "n7",
-          "type": "elite",
-          "title": "The Chieftain",
-          "desc": "Hunt the Tusken war chief before the tribe overwhelms you.",
-          "objective": {
-            "type": "hunt",
-            "params": {
-              "target": "HMW_212",
-              "target_name": "The Chieftain",
-              "reward_mult": 1.5
-            }
-          },
-          "base": "HMW_028",
-          "arenas": [
-            "ground"
-          ],
-          "claimable_tokens": [
-            "initiative",
-            "krayt_call"
-          ],
-          "enemy": {
-            "name": "Tusken Tribe",
             "hero_skin": "tusken",
-            "ai_profile": "tempo",
-            "hp": 16,
-            "base": "KYB_004",
-            "deck": [
-              "HMW_212",
-              "HMW_224",
-              "HMW_224",
-              "HMW_224",
-              "HMW_181",
-              "HMW_181",
-              "LOF_209",
-              "LOF_209",
-              "HMW_230",
-              "ASH_213",
-              "ASH_213",
-              "HMW_179"
-            ]
-          },
-          "reward_tier": 3
-        },
-        {
-          "id": "rest",
-          "type": "rest",
-          "title": "Mos Eisley Cantina",
-          "shop": true,
-          "desc": "\"You will never find a more wretched hive of scum and villainy.\" Catch your breath.",
-          "rest": {
-            "options": [
-              "heal",
-              "remove_card",
-              "upgrade_hp"
+            "ai_profile": "aggressive",
+            "deck": ["HMW_224", "HMW_224", "HMW_052", "HMW_180", "HMW_180", "HMW_181", "LOF_209", "HMW_235", "HMW_240", "HMW_167", "HMW_230", "HMW_192", "HMW_224", "HMW_181", "HMW_235", "HMW_180", "HMW_167", "HMW_192", "LOF_209", "HMW_230"],
+            "preplaced": [
+              {
+                "id": "HMW_224",
+                "arena": "ground",
+                "ready": false
+              }
             ]
           }
         },
         {
-          "id": "boss",
-          "type": "boss",
-          "title": "Mos Eisley Spaceport",
-          "desc": "Greedo, stormtroopers and scum stand between you and a ship off this rock. Han Solo and Chewbacca join the fight.",
-          "objective": {
-            "type": "standard"
-          },
-          "base": "HMW_032",
-          "arenas": [
-            "ground"
-          ],
-          "player_bonus_hand": [
-            "HMW_170",
-            "IBH_046"
-          ],
+          "id": "sandcrawler",
+          "type": "rest",
+          "title": "Jawa Sandcrawler",
+          "desc": "The Jawas offer to join the expedition or trade spare parts before you return to the Lars homestead.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "recruit_jawas",
+              "label": "Recruit the five-card Jawa crew",
+              "cost": 25,
+              "cards": ["HMW_268", "HMW_222", "SHD_214", "SOR_205", "HMW_221"]
+            },
+            {
+              "id": "duplicate",
+              "label": "Duplicate a card",
+              "cost": 25
+            },
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit permanent Experience",
+              "cost": 20
+            },
+            {
+              "id": "salvage",
+              "label": "Buy Camtono and Salvaged Materials",
+              "cost": 20,
+              "cards": ["ASH_229", "LAW_245"]
+            }
+          ]
+        },
+        {
+          "id": "tusken_detour",
+          "type": "elite",
+          "title": "Dune Sea Detour",
+          "desc": "Take a risky detour through Tusken territory. Win the battle to recruit a five-card Tusken party.",
+          "base": "HMW_019",
           "enemy": {
-            "name": "Mos Eisley Scum",
-            "hero_skin": "greedo",
-            "ai_profile": "tempo",
-            "hp": 20,
-            "base": "JTL_030",
+            "name": "Tusken War Party",
+            "base": "HMW_019",
+            "hp": 14,
+            "hero_skin": "tusken",
+            "ai_profile": "aggressive",
+            "deck": ["HMW_224", "HMW_224", "HMW_052", "HMW_180", "HMW_180", "HMW_181", "LOF_209", "HMW_235", "HMW_240", "HMW_167", "HMW_230", "HMW_192", "HMW_224", "HMW_181", "HMW_235", "HMW_180", "HMW_167", "HMW_192", "LOF_209", "HMW_230"]
+          },
+          "pickups": ["HMW_052", "HMW_224", "HMW_181", "LOF_209", "HMW_235"],
+          "reward_pool": []
+        },
+        {
+          "id": "homestead",
+          "type": "fight",
+          "title": "The Lars Homestead",
+          "desc": "Luke finds the homestead destroyed. An Imperial patrol searching for the droids blocks the way to Mos Eisley.",
+          "base": "HMW_019",
+          "enemy": {
+            "name": "Imperial Search Party",
+            "base": "HMW_019",
+            "hp": 12,
+            "hero_skin": "stormtrooper",
+            "ai_profile": "aggressive",
+            "deck": ["HMW_242", "HMW_242", "HMW_107", "HMW_107", "HMW_201", "HMW_201", "LOF_232", "HMW_250", "SOR_165", "HMW_192", "SOR_128", "SOR_128", "SOR_128", "SOR_128", "TWI_041", "TWI_256", "HMW_242", "HMW_192", "SOR_128", "HMW_107", "HMW_201"]
+          },
+          "enemy_variants": [
+            {
+              "name": "Sandtrooper Patrol",
+              "deck": ["HMW_242", "HMW_242", "HMW_107", "HMW_107", "HMW_201", "HMW_201", "LOF_232", "HMW_250", "SOR_165", "HMW_192", "SOR_128", "SOR_128", "SOR_128", "SOR_128", "TWI_041", "TWI_256", "HMW_242", "HMW_192", "SOR_128", "HMW_107", "HMW_201"]
+            },
+            {
+              "name": "Mos Eisley Checkpoint Patrol",
+              "deck": ["HMW_242", "HMW_242", "HMW_107", "HMW_107", "HMW_201", "HMW_201", "LOF_232", "HMW_242", "LOF_232", "HMW_192", "SOR_128", "SOR_128", "SOR_128", "SOR_128", "TWI_041", "TWI_256", "HMW_242", "HMW_192", "SOR_128", "HMW_107", "HMW_201"]
+            }
+          ],
+          "reward_tier": 2,
+          "reward_pool": ["LOF_215", "LAW_131", "TWI_256", "SEC_052", "JTL_260", "SOR_251"],
+          "player_extra_resources": 1,
+          "player_preplaced": [
+            {
+              "id": "HMW_261",
+              "arena": "ground",
+              "ready": true
+            }
+          ],
+          "deploy_from_deck": ["HMW_261"]
+        },
+        {
+          "id": "cantina_duel",
+          "type": "objective",
+          "title": "Who Shot First?",
+          "desc": "Han Solo and Greedo face off in the cantina. Keep Han alive through the shootout and defeat Greedo to recruit Han and Chewbacca.",
+          "base": "HMW_032",
+          "first": 0,
+          "player_preplaced": [
+            {
+              "id": "HMW_170",
+              "arena": "ground",
+              "ready": true,
+              "hp": 14
+            }
+          ],
+          "objective": {
+            "type": "duel",
+            "params": {
+              "ally": "HMW_170",
+              "target": "SOR_204",
+              "objective_only": true
+            }
+          },
+          "pickups": ["HMW_170", "IBH_003"],
+          "reward_pool": [],
+          "enemy": {
+            "name": "Greedo and the Cantina Regulars",
+            "base": "HMW_032",
+            "hp": 30,
+            "hero_skin": "",
+            "ai_profile": "aggressive",
+            "deck": ["SOR_157", "SOR_157", "LAW_049", "SOR_202", "SOR_207", "SHD_209", "SHD_209", "JTL_216", "LAW_151", "LAW_197", "SHD_229", "SHD_176", "SHD_174", "LAW_131", "LAW_049", "SOR_157", "LAW_151", "SOR_207", "LAW_197", "JTL_216"],
             "preplaced": [
               {
                 "id": "SOR_204",
-                "arena": "ground"
+                "arena": "ground",
+                "ready": false,
+                "hp": 11
               }
-            ],
-            "deck": [
-              "SOR_128",
-              "SOR_128",
-              "SOR_128",
-              "HMW_201",
-              "HMW_201",
-              "LOF_232",
-              "SOR_157",
-              "SOR_202",
-              "SHD_185",
-              "SOR_229",
-              "IBH_055",
-              "IBH_055",
-              "SOR_128",
-              "SOR_157"
+            ]
+          }
+        },
+        {
+          "id": "cantina_supplies",
+          "type": "rest",
+          "title": "Cantina Back Room",
+          "desc": "Patch up and buy gear for the dash to the docking bay.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 10 base damage",
+              "cost": 20,
+              "amount": 10
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit permanent Experience",
+              "cost": 20
+            },
+            {
+              "id": "blasters",
+              "label": "Buy Hotshot DL-44 Blaster and Chewbacca’s Bowcaster",
+              "cost": 25,
+              "cards": ["SHD_174", "HMW_127"]
+            },
+            {
+              "id": "papers",
+              "label": "Buy Diplomatic Immunity and Death Star Plans",
+              "cost": 20,
+              "cards": ["SEC_052", "JTL_260"]
+            }
+          ]
+        },
+        {
+          "id": "street_market",
+          "type": "rest",
+          "title": "Mos Eisley Street Market",
+          "desc": "A street vendor offers gear and cheap repairs before you make for Docking Bay 94.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 6 base damage",
+              "cost": 10,
+              "amount": 6
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit permanent Experience",
+              "cost": 20
+            },
+            {
+              "id": "tools",
+              "label": "Buy Ascension Cable and Confiscate",
+              "cost": 15,
+              "cards": ["LOF_215", "SOR_251"]
+            },
+            {
+              "id": "contacts",
+              "label": "Hire a Crafty Smuggler and Contracted Hunter",
+              "cost": 25,
+              "cards": ["SOR_207", "JTL_216"]
+            }
+          ]
+        },
+        {
+          "id": "mos_eisley_escape",
+          "type": "fight",
+          "title": "Escape Through Mos Eisley",
+          "desc": "Street thugs and Imperial patrols stand between you and Docking Bay 94.",
+          "base": "HMW_032",
+          "enemy": {
+            "name": "Dockside Street Thugs",
+            "base": "HMW_032",
+            "hp": 14,
+            "hero_skin": "",
+            "ai_profile": "aggressive",
+            "deck": ["SOR_157", "SOR_157", "LAW_049", "SOR_202", "SOR_207", "SHD_209", "SHD_209", "JTL_216", "LAW_151", "LAW_197", "SHD_229", "SHD_176", "SHD_174", "LAW_131", "LAW_049", "SOR_157", "LAW_151", "SOR_207", "LAW_197", "JTL_216"]
+          },
+          "enemy_variants": [
+            {
+              "name": "Dockside Street Thugs",
+              "deck": ["SOR_157", "SOR_157", "LAW_049", "SOR_202", "SOR_207", "SHD_209", "SHD_209", "JTL_216", "LAW_151", "LAW_197", "SHD_229", "SHD_176", "SHD_174", "LAW_131", "LAW_049", "SOR_157", "LAW_151", "SOR_207", "LAW_197", "JTL_216"]
+            },
+            {
+              "name": "Mos Eisley Imperial Patrol",
+              "hero_skin": "stormtrooper",
+              "deck": ["HMW_242", "HMW_242", "HMW_107", "HMW_107", "HMW_201", "HMW_201", "LOF_232", "HMW_250", "SOR_165", "HMW_192", "SOR_128", "SOR_128", "SOR_128", "SOR_128", "TWI_041", "TWI_256", "HMW_242", "HMW_192", "SOR_128", "HMW_107", "HMW_201"]
+            },
+            {
+              "name": "Bounty Hunters at the Gate",
+              "deck": ["JTL_216", "JTL_216", "LAW_049", "SOR_202", "SOR_207", "SHD_209", "SHD_209", "JTL_216", "LAW_151", "LAW_197", "SHD_229", "SHD_176", "SHD_174", "LAW_131", "LAW_049", "SOR_157", "LAW_151", "SOR_207", "LAW_197", "JTL_216"]
+            }
+          ],
+          "reward_tier": 2,
+          "reward_pool": ["SOR_207", "JTL_216", "LAW_151", "SOR_202", "SHD_229", "SHD_176", "SHD_174", "HMW_127", "HMW_192"],
+          "player_extra_resources": 1,
+          "player_preplaced": [
+            {
+              "id": "HMW_170",
+              "arena": "ground",
+              "ready": true
+            }
+          ],
+          "deploy_from_deck": ["HMW_170"]
+        },
+        {
+          "id": "docking_bay",
+          "type": "boss",
+          "title": "Docking Bay 94",
+          "desc": "Hold the line for eight full rounds. Imperial reinforcements arrive in rounds 2, 4, 6 and 8 while the Millennium Falcon prepares for lift-off.",
+          "base": "HMW_032",
+          "first": 0,
+          "battle_rules": {
+            "deck_out_damage": 0
+          },
+          "deploy_from_deck": ["HMW_170", "IBH_003"],
+          "player_preplaced": [
+            {
+              "id": "HMW_170",
+              "arena": "ground",
+              "ready": true
+            },
+            {
+              "id": "IBH_003",
+              "arena": "ground",
+              "ready": false
+            }
+          ],
+          "objective": {
+            "type": "survive_n",
+            "params": {
+              "rounds": 8,
+              "objective_only": true,
+              "reinforcements": [
+                {
+                  "round": 2,
+                  "cards": ["SOR_128"],
+                  "ready": true
+                },
+                {
+                  "round": 4,
+                  "cards": ["SOR_128", "HMW_107"],
+                  "ready": true
+                },
+                {
+                  "round": 6,
+                  "cards": ["HMW_201", "SOR_128"],
+                  "ready": true
+                },
+                {
+                  "round": 8,
+                  "cards": ["HMW_201", "SOR_128"],
+                  "ready": true
+                }
+              ]
+            }
+          },
+          "enemy": {
+            "name": "Imperial Docking Bay Assault",
+            "base": "HMW_032",
+            "hp": 30,
+            "hero_skin": "stormtrooper",
+            "ai_profile": "aggressive",
+            "deck": ["SOR_128", "SOR_128", "SOR_128", "SOR_128", "HMW_242", "HMW_242", "HMW_107", "HMW_107", "HMW_201", "HMW_201", "HMW_192", "HMW_192", "TWI_256", "TWI_256", "LOF_232", "HMW_250", "SOR_165", "SOR_251", "LAW_131", "HMW_242", "SOR_128", "HMW_192", "HMW_201", "SOR_251", "HMW_107"],
+            "preplaced": [
+              {
+                "id": "SOR_128",
+                "arena": "ground",
+                "ready": false
+              }
             ]
           },
-          "reward_tier": 4
+          "ending": "The Millennium Falcon lifts off from Docking Bay 94 with the crew and the Death Star plans aboard."
         }
-      ]
+      ],
+      "route_version": 1,
+      "arenas": [
+        "ground"
+      ],
+      "battle_rules": {
+        "aspect_penalties": false,
+        "deck_min": 20
+      }
     },
     {
       "id": "ep4_ch2_deathstar",

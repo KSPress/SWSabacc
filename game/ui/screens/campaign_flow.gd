@@ -39,6 +39,11 @@ static func can_continue(run: Dictionary, next: String) -> bool:
 	return CardDB.chapter(run.get("chapter", "")).get("next_chapter", "") == next
 
 
+static func needs_new_route(run: Dictionary, chapter: Dictionary) -> bool:
+	return run.get("chapter") == chapter["id"] and run.get("status") == "active" \
+		and int(run.get("route_version", 0)) != int(chapter.get("route_version", 0))
+
+
 static func multiplier(run: Dictionary) -> float:
 	if not run.get("starts_at_chapter_one", false):
 		return 1.0
@@ -64,6 +69,9 @@ static func cash_out(run: Dictionary) -> int:
 
 static func start_node(chapter: Dictionary, node: Dictionary) -> void:
 	var run := Save.run()
+	if run.get("chapter") != chapter["id"] or run.get("status") != "active" \
+		or needs_new_route(run, chapter) or node["id"] not in CampaignRun.available_nodes(run, chapter):
+		return
 	var cfg := CampaignRun.match_config(run, chapter, node, treasures_for(chapter))
 	var theme: String = node.get("board_theme", chapter.get("board_theme", "space"))
 	Router.go("match", {
@@ -78,8 +86,9 @@ static func on_match_end(params: Dictionary, m: Match) -> Dictionary:
 	var node := CampaignRun.node_by_id(chapter, params["node_id"])
 	var run := Save.run()
 	var won := m.winner == 0
-	var res := {"won": won, "chapter_id": chapter["id"], "node_id": node["id"], "boss": node.get("type", "") == "boss"}
-	if run.get("chapter") != chapter["id"] or run.get("status") != "active" or node.is_empty() or node["id"] in run.get("visited", []):
+	var res := {"won": won, "chapter_id": params["chapter_id"], "node_id": params["node_id"], "boss": node.get("type", "") == "boss"}
+	if run.get("chapter") != chapter["id"] or run.get("status") != "active" or node.is_empty() \
+		or needs_new_route(run, chapter) or node["id"] not in CampaignRun.available_nodes(run, chapter):
 		return res
 	if params.get("run_id", run.get("reward_id", "")) != run.get("reward_id", ""):
 		return res
@@ -90,9 +99,10 @@ static func on_match_end(params: Dictionary, m: Match) -> Dictionary:
 		var maxhp := CampaignRun.max_base_hp(run, chapter)
 		run["base_damage"] = clampi(m.players[0].base.damage, 0, maxhp - 1)
 		CampaignRun.complete_node(run, node["id"])
-		if node.has("pickup"):
-			run["deck"].append(node["pickup"])
-			res["pickup"] = node["pickup"]
+		var pickups: Array = node.get("pickups", [node["pickup"]] if node.has("pickup") else [])
+		if not pickups.is_empty():
+			run["deck"].append_array(pickups)
+			res["pickups"] = pickups
 		if res["boss"]:
 			run["status"] = "won"
 			if run.get("starts_at_chapter_one", false):

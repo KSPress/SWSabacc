@@ -21,7 +21,7 @@ func build() -> void:
 		bg.backdrop_alpha = 0.35
 	run = Save.run()
 	var active: bool = run.get("chapter", "") == chapter["id"] and run.get("status", "") == "active"
-	if not active:
+	if not active or CampaignFlow.needs_new_route(run, chapter):
 		_build_start(Router.params.get("failed", false))
 	else:
 		_build_map()
@@ -39,7 +39,11 @@ func _build_start(failed: bool) -> void:
 		var payout := int(Router.params.get("payout", 0))
 		if payout > 0:
 			_start_box.add_child(UIKit.credit_label("+%d credits to Collection Vault" % payout))
-		_start_box.add_child(UIKit.label("Your base fell. The chapter resets — try a different route.", 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+		_start_box.add_child(UIKit.label("The chapter resets. You can try a different route on your next run.", 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	if CampaignFlow.needs_new_route(run, chapter):
+		var notice := UIKit.label("This chapter has a new route. Starting it pays out the credits from your previous run.", 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
+		notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_start_box.add_child(notice)
 	var next: String = chapter.get("next_chapter", "")
 	if run.get("chapter") == chapter["id"] and CampaignFlow.can_continue(run, next):
 		_start_box.add_child(UIKit.credit_label("%d credits available to cash out" % CampaignFlow.payout(run)))
@@ -238,19 +242,24 @@ func _open_node(n: Dictionary) -> void:
 		_:
 			var o := Objective.create(n.get("objective", {"type": "standard"}))
 			mp.text("Objective: " + o.describe(), 18, Sabacc.C_ACCENT)
-			var en: Dictionary = n.get("enemy", {})
+			var en := CampaignRun.encounter_enemy(run, n)
 			mp.text("Enemy: %s · %d HP · %s" % [en.get("name", "?"), int(en.get("hp", 12)), en.get("ai_profile", "tempo")], 16, Sabacc.C_DIM)
 			if n.has("claimable_tokens"):
 				var names: Array = []
 				for tk in Tokens.resolve(n["claimable_tokens"]):
 					names.append(tk.get("name", ""))
 				mp.text("Claimable: " + ", ".join(names), 16, Sabacc.C_GOLD)
-			if n.has("player_preplaced") or n.has("pickup"):
+			if n.has("player_preplaced"):
 				var allies: Array = []
 				for pp in n.get("player_preplaced", []):
 					allies.append(CardDB.card(pp["id"]).get("name", ""))
 				if allies.size() > 0:
 					mp.text("Allies on the field: " + ", ".join(allies), 16, Sabacc.C_GOOD)
+			if n.has("pickups"):
+				var rewards := PackedStringArray()
+				for id in n["pickups"]:
+					rewards.append(CardDB.card(id).get("name", id))
+				mp.text("Victory adds " + ", ".join(rewards) + " to your deck.", 16, Sabacc.C_GOOD)
 			var go := _wrap_button("Engage", SabaccButton.Style.EMPIRE if n.get("type") == "boss" else SabaccButton.Style.PRIMARY, "fight", true)
 			go.custom_minimum_size.y = 68
 			go.pressed.connect(func(): CampaignFlow.start_node(chapter, n))
@@ -263,6 +272,9 @@ func _open_node(n: Dictionary) -> void:
 
 
 func _cantina(panel: ModalPanel, node: Dictionary) -> void:
+	if node.has("offers"):
+		_service_menu(panel, node)
+		return
 	var funds := int(run.get("credits", 0))
 	panel.add(UIKit.credit_label("%d run credits" % funds))
 	var repair := _wrap_button("Repair 8 base damage · 20 credits", SabaccButton.Style.PRIMARY)
@@ -280,6 +292,43 @@ func _cantina(panel: ModalPanel, node: Dictionary) -> void:
 	var skip := _wrap_button("Continue without spending", SabaccButton.Style.GHOST)
 	skip.pressed.connect(func(): _finish_simple(node, {}))
 	panel.add(skip)
+
+
+func _service_menu(panel: ModalPanel, node: Dictionary) -> void:
+	var funds := int(run.get("credits", 0))
+	panel.add(UIKit.credit_label("%d run credits" % funds))
+	for offer in node["offers"]:
+		var used := CampaignRun.service_used(run, node, offer)
+		var cost := int(offer["cost"])
+		var button := _wrap_button("%s · %s" % [offer["label"], "Purchased" if used else "%d credits" % cost], SabaccButton.Style.GOLD)
+		var candidates: Array = []
+		if offer["id"] == "duplicate" or offer["id"] == "experience":
+			var seen := {}
+			for id in run["deck"]:
+				if seen.has(id):
+					continue
+				if offer["id"] == "experience" and (CardDB.card(id).get("type") != "unit" or run.get("card_upgrades", {}).has(id)):
+					continue
+				candidates.append(id)
+				seen[id] = true
+			button.disabled = candidates.is_empty()
+			button.pressed.connect(func():
+				_show_deck(candidates, func(id: String): _buy_service(node, offer, id), offer["label"]))
+		else:
+			button.disabled = offer["id"] == "repair" and int(run.get("base_damage", 0)) == 0
+			button.pressed.connect(func(): _buy_service(node, offer))
+		button.disabled = button.disabled or used or funds < cost
+		panel.add(button)
+	var done := _wrap_button("Continue", SabaccButton.Style.PRIMARY)
+	done.pressed.connect(func(): _finish_simple(node, {}))
+	panel.add(done)
+
+
+func _buy_service(node: Dictionary, offer: Dictionary, id := "") -> void:
+	if not _resolving and CampaignRun.buy_service(run, chapter, node, offer, id):
+		Save.set_run(run)
+		Sfx.play("deploy")
+		_open_node(node)
 
 
 func _wrap_button(label: String, style: SabaccButton.Style, glyph := "", breathe := false) -> SabaccButton:

@@ -101,6 +101,9 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 			var u := _new_inst(pre["id"], i)
 			_put_in_play(u, pre.get("arena", u.arena()), not pre.get("ready", true))
 			u.flags.merge(pre.get("flags", {}), true)
+			if pre.has("hp"):
+				u.mods.append({"h": int(pre["hp"]) - u.printed_hp(), "dur": "permanent"})
+			_apply_card_upgrades(u)
 		for cid in pc.get("bonus_hand", []):
 			if lib.has(cid):
 				var hc := _new_inst(cid, i)
@@ -109,7 +112,9 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 	tokens = Tokens.resolve(cfg.get("tokens", ["initiative"]))
 	objective = Objective.create(cfg.get("objective", {"type": "standard"}))
 	objective.setup(self)
-	initiative = int(cfg.get("first", rng.randi_range(0, 1)))
+	var random_first := rng.randi_range(0, 1)
+	var first := int(cfg.get("first", -1))
+	initiative = first if first in [0, 1] else random_first
 	_log("%s has the initiative." % players[initiative].display_name)
 	var seq: Array = []
 	var pcs: Array = cfg["players"]
@@ -296,7 +301,7 @@ func attack_targets(u: CardInst) -> Array:
 	for a in u.abilities_with("constant"):
 		if a.get("flag", "") == "no_base_attack":
 			no_base = true
-	if sentinels.is_empty() and not no_base:
+	if sentinels.is_empty() and not no_base and (p == 1 or objective.enemy_base_damage_allowed()):
 		out.append(players[opp(p)].base.uid)
 	return out
 
@@ -912,8 +917,7 @@ func _on_unit_enters(u: CardInst, trigger: String) -> void:
 	if ps.first_unit_shield > 0 and trigger == "when_played":
 		ps.first_unit_shield -= 1
 		attach_token(u, "shield")
-	for kind in ps.card_upgrades.get(u.id, []):
-		attach_token(u, kind)
+	_apply_card_upgrades(u)
 	# Ambush is pushed first so When Played resolves before the ambush attack.
 	if u.has_kw("support"):
 		push_frame([{"op": "support", "t": {"s": "choose", "kind": "unit", "side": "friendly", "other": true, "ready": true, "can_attack": true, "opt": true}, "support_abilities": u.abilities().duplicate(true), "support_keywords": u.keyword_list().duplicate(true)}], {"src": u.uid, "ctl": u.controller})
@@ -983,6 +987,11 @@ func create_unit_token(p: int, key: String) -> CardInst:
 	return t
 
 
+func _apply_card_upgrades(u: CardInst) -> void:
+	for kind in players[u.controller].card_upgrades.get(u.id, []):
+		attach_token(u, kind)
+
+
 func summon(p: int, cid: String, ready := false) -> CardInst:
 	var u := _new_inst(cid, p)
 	_put_in_play(u, u.arena(), not ready)
@@ -992,6 +1001,8 @@ func summon(p: int, cid: String, ready := false) -> CardInst:
 
 func deal_damage(target: CardInst, n: int, source: CardInst, unpreventable := false, combat := false) -> int:
 	if n <= 0 or target == null:
+		return 0
+	if target == players[1].base and not objective.enemy_base_damage_allowed():
 		return 0
 	if target.in_play():
 		for up in target.upgrades:
@@ -1092,7 +1103,7 @@ func defeat(u: CardInst, departing_host := false, skip_replacement := false) -> 
 		u.zone = "discard"
 		u.damage = 0
 		players[u.owner].discard.append(u)
-	if u.flags.get("protected", false):
+	if u.flags.get("protected", false) or u.flags.get("objective_target", false):
 		objective.on_protected_lost(self, u)
 	for source in trigger_sources():
 		if source.controller == opp(p):
@@ -1149,6 +1160,8 @@ func return_to_hand(u: CardInst) -> void:
 func capture(guard: CardInst, captive: CardInst) -> bool:
 	if not guard or not captive or not guard.in_play() or not captive.in_play() or captive.is_leader_unit() or guard.controller == captive.controller or guard.zone != captive.zone:
 		return false
+	if captive.flags.get("objective_target", false):
+		return false
 	var controller := captive.controller
 	var bounties := captive.abilities_with("bounty")
 	_defeat_attached_upgrades(captive)
@@ -1189,6 +1202,8 @@ func _rescue_captives(guard: CardInst) -> void:
 
 
 func exhaust(u: CardInst, v := true) -> void:
+	if not v and u.flags.get("cannot_ready", false):
+		return
 	if u.exhausted != v:
 		u.exhausted = v
 		events.append({"t": "exhaust" if v else "ready", "uid": u.uid})
@@ -1385,7 +1400,8 @@ func _claim_token(p: int, token_id: String) -> void:
 		if t["id"] == token_id:
 			tk = t
 	tokens_claimed[token_id] = p
-	players[p].out_of_round = true
+	if tk.get("ends_round", true):
+		players[p].out_of_round = true
 	if token_id == "initiative":
 		initiative = p
 		for source in trigger_sources():

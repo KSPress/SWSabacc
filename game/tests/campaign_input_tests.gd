@@ -46,12 +46,14 @@ func _run() -> void:
 		"Portrait Vault purchases and opens the selected set pack")
 	check(purchased._foil.get_child(0).art != null, "Opening uses the selected set wrapper")
 	var chapter := CardDB.chapter("ep4_ch1_tatooine")
-	var node := CampaignRun.node_by_id(chapter, "n7")
+	_test_tatooine_route(chapter)
+	var node := CampaignRun.node_by_id(chapter, "tusken_raid")
 	var run := CampaignRun.start(chapter, "SEC_015", 212)
 	run["base_damage"] = 15
 	var config := CampaignRun.match_config(run, chapter, node, {})
 	config["first"] = 0
 	config["players"][1]["ai"] = false
+	config["players"][1]["preplaced"] = []
 	config["rules"].allow_mulligan = false
 	config["rules"].starting_resources = 0
 	await _go("match", {"mode": "quick", "title": node["title"], "cfg": config})
@@ -59,7 +61,7 @@ func _run() -> void:
 	await _finish_setup(screen)
 	var m: Match = screen.m
 	var krayt := _button(screen.tray, "Krayt Call")
-	check(krayt != null and krayt.disabled, "Krayt Call is disabled until it can defeat a Tusken")
+	check(krayt != null and krayt.disabled, "Krayt Call is disabled until an enemy Tusken is in play")
 	var tusken := m._new_inst("HMW_224", 1)
 	m._put_in_play(tusken, "ground", false)
 	for i in 12:
@@ -90,7 +92,7 @@ func _run() -> void:
 	screen._submit_targets([m.players[1].base.uid])
 	check(screen.prompt_bar.visible and not m.pending.is_empty(), "An invalid target leaves the prompt available")
 	await _click(screen.tokens[tusken.uid])
-	check(tusken.zone == "discard" and m.pending.is_empty() and m.active == 1, "Clicking the Tusken resolves and hands over the turn")
+	check(tusken.zone == "hand" and m.pending.is_empty() and m.active == 1, "Clicking the Tusken returns it to hand and hands over the turn")
 
 	await _go("match")
 	screen = get_tree().current_scene
@@ -227,27 +229,110 @@ func _run() -> void:
 	var cantina_run := CampaignRun.start(chapter, chapter["leader_options"][0], 616)
 	cantina_run["credits"] = 50
 	cantina_run["base_damage"] = 10
-	for parent in chapter["map"]["edges"]:
-		if "rest" in chapter["map"]["edges"][parent]:
-			cantina_run["current"] = parent
-			break
+	cantina_run["current"] = "tusken_raid"
 	Save.set_run(cantina_run)
 	var wallet_before := Progression.credits()
 	await _go("chapter", {"chapter_id": chapter["id"]})
 	var map := get_tree().current_scene
-	await _click(map._nodes["rest"])
-	var repair := _button(map, "Repair 8 base damage")
-	check(repair != null and not repair.disabled, "Cantina offers a repair for run credits")
+	if only == "capture":
+		await _shot("tatooine-route")
+	await _click(map._nodes["sandcrawler"])
+	if only == "capture":
+		await _shot("tatooine-sandcrawler")
+	var repair := _button(map, "Repair up to 8 base damage")
+	check(repair != null and not repair.disabled, "Sandcrawler offers a repair for run credits")
 	if repair:
 		await _click(repair)
 		await _wait(1.5)
 		check(Save.run()["credits"] == 30 and Save.run()["base_damage"] == 2
-			and "rest" in Save.run()["visited"] and Progression.credits() == wallet_before,
-			"Cantina spends 20 from the run and leaves the Vault wallet alone")
+			and "sandcrawler" not in Save.run()["visited"] and Progression.credits() == wallet_before,
+			"Sandcrawler spends 20 from the run and keeps the shop open")
+		var recruit := _button(map, "Recruit the five-card Jawa crew")
+		if recruit:
+			await _click(recruit)
+		check(Save.run()["credits"] == 5 and Save.run()["deck"].size() == 25, "Recruit the full Jawa package after repairing")
+		await _click(_button(map, "Continue"))
+		await _wait(1.5)
+		check("sandcrawler" in Save.run()["visited"] and CampaignRun.available_nodes(Save.run(), chapter) == ["homestead"],
+			"Continuing leaves the shop for the homestead")
 
 	print("CAMPAIGN INPUT: %d checks, %d failed" % [checks, failures])
 	if failures:
 		get_tree().quit(1)
+
+
+func _test_tatooine_route(chapter: Dictionary) -> void:
+	var run := CampaignRun.start(chapter, "SEC_015", 212)
+	check(run["deck"].size() == 20 and CampaignRun.available_nodes(run, chapter) == ["tusken_raid"], "20-card deck starts on the mandatory raid")
+	var legacy := run.duplicate()
+	legacy.erase("route_version")
+	check(CampaignFlow.needs_new_route(legacy, chapter) and not CampaignFlow.needs_new_route(run, chapter),
+		"Old saves restart on the new route")
+	var raid := CampaignRun.node_by_id(chapter, "tusken_raid")
+	var cfg := CampaignRun.match_config(run, chapter, raid, {})
+	check(cfg["players"][0]["deck"].size() == 18 and not cfg["rules"].aspect_penalties, "Opening allies come from the deck and aspects cost nothing")
+	var m := Match.new()
+	m.setup(CardDB.lib, cfg)
+	var luke: CardInst = m.players[0].units[0]
+	m.exhaust(luke, false)
+	check(luke.exhausted and m.attack_targets(luke).is_empty(), "Luke remains incapacitated")
+	check(m.deal_damage(m.players[1].base, 99, luke) == 0, "Enemy base cannot bypass the survival objective")
+	m.round_num = 4
+	m.end_round()
+	check(m.winner == -1 and luke.exhausted, "Luke stays exhausted entering round five")
+	m.end_round()
+	check(m.winner == 0 and m.round_num == 5, "Raid clears only at the end of round five")
+	Save.set_run(run)
+	var params := {"chapter_id": chapter["id"], "node_id": raid["id"], "run_id": run["reward_id"]}
+	var result := CampaignFlow.on_match_end(params, m)
+	check(result.get("pickups") == ["HMW_261", "SOR_053"] and run["credits"] == 50 and run["deck"].size() == 22,
+		"Raid awards Ben, the lightsaber and battle credits")
+	CampaignFlow.on_match_end(params, m)
+	check(run["credits"] == 50 and run["deck"].size() == 22, "The result cannot award its rewards twice")
+	var shop := CampaignRun.node_by_id(chapter, "sandcrawler")
+	var offers: Array = shop["offers"]
+	check(CampaignRun.buy_service(run, chapter, shop, offers[1], "HMW_208") and run["deck"].count("HMW_208") == 2,
+		"Sandcrawler duplicates a selected card")
+	check(not CampaignRun.buy_service(run, chapter, shop, offers[1], "HMW_208"), "Duplication cannot be charged twice")
+	check(CampaignRun.buy_service(run, chapter, shop, offers[3], "HMW_261"), "Sandcrawler buys permanent Experience")
+	var homestead := CampaignRun.node_by_id(chapter, "homestead")
+	m = Match.new()
+	m.setup(CardDB.lib, CampaignRun.match_config(run, chapter, homestead, {}))
+	check(m.players[0].units[0].upgrades.size() == 1, "Experience carries into the next battle on a starting unit")
+	var duel := CampaignRun.node_by_id(chapter, "cantina_duel")
+	m = Match.new()
+	m.setup(CardDB.lib, CampaignRun.match_config(run, chapter, duel, {}))
+	while not m.pending.is_empty():
+		AiBot.choose(m)
+	m.defeat(m.players[1].units[0])
+	m.pump()
+	while not m.pending.is_empty():
+		AiBot.choose(m)
+	check(m.winner == 0, "Defeating the deployed Greedo wins the duel")
+	m = Match.new()
+	m.setup(CardDB.lib, CampaignRun.match_config(run, chapter, duel, {}))
+	while not m.pending.is_empty():
+		AiBot.choose(m)
+	m.defeat(m.players[0].units[0])
+	m.pump()
+	check(m.winner == 1, "Losing Han loses the duel")
+	var finale := CampaignRun.node_by_id(chapter, "docking_bay")
+	m = Match.new()
+	m.setup(CardDB.lib, CampaignRun.match_config(run, chapter, finale, {}))
+	var first_wave_count: int = m.players[1].units.size()
+	for round_index in range(1, 8):
+		m.end_round()
+		check(m.winner == -1 and m.round_num == round_index + 1, "Docking Bay holds until the end of round eight")
+	check(m.players[1].units.size() == first_wave_count + 7, "Four scripted waves enter the ground arena")
+	m.end_round()
+	check(m.winner == 0 and m.round_num == 8, "Eight rounds clear the escape")
+	run["current"] = "mos_eisley_escape"
+	params["node_id"] = finale["id"]
+	var reward := CampaignFlow.on_match_end(params, m)
+	check(run["status"] == "won" and Save.is_cleared(chapter["id"]) and not str(reward.get("pack", "")).is_empty(),
+		"The escape clears the chapter and grants a booster")
+	check(CampaignFlow.can_continue(run, chapter["next_chapter"]) and is_equal_approx(CampaignFlow.multiplier(run), 1.5),
+		"The escape unlocks the next chapter and the consecutive-run multiplier")
 
 
 func _finish_setup(screen: Control) -> void:

@@ -21,9 +21,19 @@ func build() -> void:
 	if res.get("boss", false):
 		_build_clear()
 		return
-	if res.has("pickup"):
-		var pl := UIKit.label("%s joins your deck!" % CardDB.card(res["pickup"]).get("name", ""), 22, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	var pickups: Array = res.get("pickups", [])
+	if not pickups.is_empty():
+		var names := PackedStringArray()
+		for id in pickups:
+			names.append(CardDB.card(id).get("name", id))
+		var pl := UIKit.label("Added to your deck · " + ", ".join(names), 22, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+		pl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_box.add_child(pl)
+	if res.get("rewards", []).is_empty() and res.get("treasures", []).is_empty():
+		var advance := SabaccButton.make("Continue", SabaccButton.Style.PRIMARY)
+		advance.pressed.connect(func(): _take({}))
+		_box.add_child(advance)
+		return
 	_box.add_child(UIKit.title("Choose a card", 34, Sabacc.C_ACCENT))
 	_box.add_child(UIKit.label("Tap to take it · long-press to inspect", 16, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	_row = HBoxContainer.new()
@@ -90,6 +100,11 @@ func _take(effect: Dictionary) -> void:
 func _build_clear() -> void:
 	_box.add_child(UIKit.aurebesh("chapter complete", 26))
 	_box.add_child(UIKit.title("%s cleared!" % chapter.get("title", ""), 44, Sabacc.C_GOLD))
+	var ending: String = CampaignRun.node_by_id(chapter, res["node_id"]).get("ending", "")
+	if not ending.is_empty():
+		var summary := UIKit.label(ending, 20, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+		summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_box.add_child(summary)
 	var unlocked: Array = res.get("unlocked", [])
 	if not res.get("pack", "").is_empty():
 		var pack_button := SabaccButton.make("Campaign pack earned · Open packs", SabaccButton.Style.GOLD, "star")

@@ -14,6 +14,8 @@ static func create(cfg: Dictionary) -> Objective:
 			o = SurviveRounds.new()
 		"defend_unit":
 			o = DefendUnit.new()
+		"duel":
+			o = Duel.new()
 		"hunt":
 			o = Hunt.new()
 		"attrition":
@@ -45,6 +47,10 @@ func check(_m: Match) -> int:
 	return -1
 
 
+func enemy_base_damage_allowed() -> bool:
+	return not params.get("objective_only", false)
+
+
 func describe() -> String:
 	return "Destroy the enemy base."
 
@@ -58,6 +64,15 @@ func reward_multiplier() -> float:
 
 
 class SurviveRounds extends Objective:
+	func on_action_start(m: Match) -> void:
+		for wave in params.get("reinforcements", []):
+			if int(wave["round"]) == m.round_num:
+				m._log("Imperial reinforcements arrive.")
+				for id in wave["cards"]:
+					if m.lib.has(id):
+						var unit := m._new_inst(id, 1)
+						m._put_in_play(unit, unit.arena(), not wave.get("ready", false))
+
 	func on_round_end(m: Match) -> void:
 		if m.round_num >= int(params.get("rounds", 4)) and m.players[0].base_remaining() > 0:
 			m.set_winner(0, "survived")
@@ -71,18 +86,23 @@ class SurviveRounds extends Objective:
 
 class DefendUnit extends Objective:
 	var lost := false
+	var protected_unit: CardInst
 
 	func setup(m: Match) -> void:
 		var id: String = params.get("protect_unit", "")
 		if id == "":
 			return
-		var u := m._new_inst(id, 0)
-		m._put_in_play(u, u.arena(), true)
-		u.flags["protected"] = true
-		u.flags["cannot_attack"] = true
-		u.exhausted = true
+		for ally in m.players[0].units:
+			if ally.id == id:
+				protected_unit = ally
+				break
+		if not protected_unit:
+			protected_unit = m._new_inst(id, 0)
+			m._put_in_play(protected_unit, protected_unit.arena(), true)
+		protected_unit.flags.merge({"protected": true, "cannot_attack": true, "cannot_ready": true}, true)
+		protected_unit.exhausted = true
 		if params.has("protect_hp"):
-			u.mods.append({"h": int(params["protect_hp"]) - u.printed_hp(), "dur": "permanent"})
+			protected_unit.mods.append({"h": int(params["protect_hp"]) - protected_unit.printed_hp(), "dur": "permanent"})
 
 	func on_protected_lost(_m: Match, _u: CardInst) -> void:
 		lost = true
@@ -94,17 +114,55 @@ class DefendUnit extends Objective:
 				u.exhausted = true
 
 	func on_round_end(m: Match) -> void:
-		if not lost and m.round_num >= int(params.get("rounds", 3)):
+		if check(m) < 0 and m.players[0].base_remaining() > 0 and m.round_num >= int(params.get("rounds", 3)):
 			m.set_winner(0, "protected unit survived")
 
 	func check(_m: Match) -> int:
-		return 1 if lost else -1
+		if lost or not protected_unit or not protected_unit.in_play():
+			return 1
+		return 1 if protected_unit.controller != 0 or protected_unit.remaining_hp() <= 0 else -1
 
 	func describe() -> String:
-		return "Keep the protected unit alive for %d rounds." % int(params.get("rounds", 3))
+		return "Keep %s alive for %d rounds." % [params.get("name", "the protected unit"), int(params.get("rounds", 3))]
 
 	func tracker(m: Match) -> String:
-		return "Protect: round %d / %d" % [m.round_num, int(params.get("rounds", 3))]
+		return "Protect %s · Round %d/%d" % [params.get("name", "ally"), m.round_num, int(params.get("rounds", 3))]
+
+
+class Duel extends Objective:
+	var ally: CardInst
+	var opponent: CardInst
+	var lost := false
+	var target_defeated := false
+
+	func setup(m: Match) -> void:
+		for unit in m.players[0].units:
+			if unit.id == params.get("ally"):
+				ally = unit
+				ally.flags["protected"] = true
+				break
+		for unit in m.players[1].units:
+			if unit.id == params.get("target"):
+				opponent = unit
+				opponent.flags["objective_target"] = true
+				break
+
+	func on_protected_lost(_m: Match, unit: CardInst) -> void:
+		if unit == ally:
+			lost = true
+		elif unit == opponent:
+			target_defeated = true
+
+	func check(_m: Match) -> int:
+		if lost or not ally or not ally.in_play() or ally.controller != 0:
+			return 1
+		return 0 if target_defeated else -1
+
+	func describe() -> String:
+		return "Keep Han Solo in play and defeat Greedo."
+
+	func tracker(_m: Match) -> String:
+		return "Protect Han · Defeat Greedo"
 
 
 class Hunt extends Objective:

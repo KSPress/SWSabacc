@@ -15,6 +15,7 @@ static func start(chapter: Dictionary, leader: String, seed_value: int) -> Dicti
 		"starts_at_chapter_one": int(chapter.get("number", 1)) == 1, "card_upgrades": {},
 		"current": "", "visited": [], "treasures": [],
 		"node_seed": seed_value, "status": "active", "fights": 0,
+		"route_version": chapter.get("route_version", 0),
 		"reward_id": "%s_%s" % [Time.get_unix_time_from_system(), seed_value],
 	}
 
@@ -53,6 +54,8 @@ static func match_config(run: Dictionary, chapter: Dictionary, node: Dictionary,
 	var rd := {"ruleset": chapter.get("ruleset", "campaign"), "base_hp_override": 0,
 		"arenas": node.get("arenas", chapter.get("arenas", ["ground", "space"])),
 		"turn_mode": node.get("turn_mode", "alternating")}
+	rd.merge(chapter.get("battle_rules", {}), true)
+	rd.merge(node.get("battle_rules", {}), true)
 	var rules := RuleSet.from_dict(rd)
 	rules.base_hp_override = 0
 	var te := treasure_effects(run, treasures)
@@ -60,21 +63,26 @@ static func match_config(run: Dictionary, chapter: Dictionary, node: Dictionary,
 	for t in te["tokens"]:
 		if not (t in tokens):
 			tokens.append(t)
-	var enemy: Dictionary = node.get("enemy", {})
+	var enemy := encounter_enemy(run, node)
 	var base_id: String = node.get("base", chapter.get("base_sequence", [""])[0])
+	var deck: Array = run["deck"].duplicate()
+	for id in node.get("deploy_from_deck", []):
+		deck.erase(id)
 	return {
 		"seed": int(run.get("node_seed", 0)) + int(run.get("fights", 0)) * 7919,
 		"rules": rules,
 		"tokens": tokens,
 		"objective": node.get("objective", {"type": "standard"}),
+		"first": node.get("first", -1),
 		"players": [
 			{
 				"name": "Rebel Alliance", "leader": run["leader"], "base": base_id,
-				"deck": run["deck"], "ai": false,
+				"deck": deck, "ai": false,
 				"base_hp": max_base_hp(run, chapter), "base_damage": int(run.get("base_damage", 0)),
 				"preplaced": node.get("player_preplaced", []),
 				"bonus_hand": node.get("player_bonus_hand", []),
-				"extra_resources": te["extra_resources"], "first_unit_experience": te["first_unit_experience"],
+				"extra_resources": te["extra_resources"] + int(node.get("player_extra_resources", 0)),
+				"first_unit_experience": te["first_unit_experience"],
 				"extra_hand": te["extra_hand"], "card_upgrades": run.get("card_upgrades", {}),
 			},
 			{
@@ -87,12 +95,23 @@ static func match_config(run: Dictionary, chapter: Dictionary, node: Dictionary,
 	}
 
 
+## Keep the same encounter on preview, save reload and replay of a battle.
+static func encounter_enemy(run: Dictionary, node: Dictionary) -> Dictionary:
+	var enemy: Dictionary = node.get("enemy", {}).duplicate()
+	var variants: Array = node.get("enemy_variants", [])
+	if not variants.is_empty():
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(run.get("node_seed", 0)) + str(node["id"]).hash() * 7919
+		enemy.merge(variants[rng.randi_range(0, variants.size() - 1)], true)
+	return enemy
+
+
 ## Offer `n` distinct reward cards; higher tiers bias toward rarer/pricier cards.
 static func roll_rewards(run: Dictionary, chapter: Dictionary, node: Dictionary, lib: CardLibrary, n := 3) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(run.get("node_seed", 0)) * 31 + int(run.get("fights", 0))
 	var pool: Array = []
-	for id in chapter.get("reward_pool", []):
+	for id in node.get("reward_pool", chapter.get("reward_pool", [])):
 		if lib.has(id):
 			pool.append(id)
 	var tier := int(node.get("reward_tier", 1))
@@ -131,12 +150,47 @@ static func apply_effect(run: Dictionary, chapter: Dictionary, e: Dictionary) ->
 		run["base_hp_bonus"] = int(run.get("base_hp_bonus", 0)) + int(e["base_hp_bonus"])
 		msg.append("+%d max base HP." % int(e["base_hp_bonus"]))
 	if e.has("heal"):
+		var before := int(run.get("base_damage", 0))
 		run["base_damage"] = maxi(0, int(run.get("base_damage", 0)) - int(e["heal"]))
-		msg.append("Repaired %d damage." % int(e["heal"]))
+		msg.append("Repaired %d damage." % (before - int(run["base_damage"])))
 	if e.has("treasure"):
 		run["treasures"].append(e["treasure"])
 		msg.append("Treasure acquired.")
 	return " ".join(msg)
+
+
+static func buy_service(run: Dictionary, chapter: Dictionary, node: Dictionary, offer: Dictionary, card_id := "") -> bool:
+	if run.get("status") != "active" or node["id"] not in available_nodes(run, chapter) or offer not in node.get("offers", []):
+		return false
+	var cost := int(offer["cost"])
+	var used: Dictionary = run.get("shop_purchases", {})
+	var key := "%s/%s" % [node["id"], offer["id"]]
+	if cost < 0 or cost > int(run.get("credits", 0)) or used.has(key):
+		return false
+	var upgrades: Dictionary = run.get("card_upgrades", {})
+	match offer["id"]:
+		"duplicate", "experience":
+			if card_id not in run["deck"] or (offer["id"] == "experience" and upgrades.has(card_id)):
+				return false
+			if offer["id"] == "duplicate":
+				run["deck"].append(card_id)
+			else:
+				upgrades[card_id] = ["experience"]
+				run["card_upgrades"] = upgrades
+		"repair":
+			if int(run.get("base_damage", 0)) <= 0:
+				return false
+			apply_effect(run, chapter, {"heal": offer["amount"]})
+		_:
+			apply_effect(run, chapter, {"add_cards": offer["cards"]})
+	run["credits"] = int(run.get("credits", 0)) - cost
+	used[key] = true
+	run["shop_purchases"] = used
+	return true
+
+
+static func service_used(run: Dictionary, node: Dictionary, offer: Dictionary) -> bool:
+	return run.get("shop_purchases", {}).has("%s/%s" % [node["id"], offer["id"]])
 
 
 static func complete_node(run: Dictionary, node_id: String) -> void:

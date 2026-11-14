@@ -1180,7 +1180,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		"_ready_all":
 			for ps in m.players:
 				for u in ps.units:
-					if not u.flags.erase("skip_regroup_ready"):
+					if not u.flags.erase("skip_regroup_ready") and not u.flags.get("cannot_ready", false):
 						u.exhausted = false
 				for r in ps.resources:
 					r.exhausted = false
@@ -1536,6 +1536,8 @@ static func _split_unit_damage(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 	return SUSPEND
 
 static func _enemy_effect_immune(c: CardInst, ctl: int, op: String) -> bool:
+	if op == "bounce" and c.flags.get("objective_target", false):
+		return true
 	return c.controller != ctl and c.abilities_with("constant").any(func(ab):
 		return ab.get("flag") == "enemy_defeat_bounce_immune" or (op == "defeat" and ab.get("flag") == "enemy_defeat_immune"))
 

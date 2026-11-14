@@ -104,7 +104,7 @@ func _run() -> void:
 	if _want("campaign_match"):
 		var ch := CardDB.chapter("ep4_ch1_tatooine")
 		CampaignFlow.start_run(ch, "SEC_015")
-		CampaignFlow.start_node(ch, CampaignRun.node_by_id(ch, "n3"))
+		CampaignFlow.start_node(ch, CampaignRun.node_by_id(ch, "tusken_raid"))
 		await _wait(2.0)
 		await _play_some(3, "15_defend_portrait", "16_defend_landscape", false)
 	if only == "input":
@@ -333,7 +333,7 @@ func _close_layers() -> void:
 func _comb() -> void:
 	var ch := CardDB.chapter("ep4_ch1_tatooine")
 	CampaignFlow.start_run(ch, "SEC_015")
-	for nid in ["n1", "n2", "n3", "rest"]:
+	for nid in ["tusken_raid", "sandcrawler", "cantina_duel", "cantina_supplies"]:
 		await _both("node_" + nid, func():
 			await _go("chapter", {"chapter_id": ch["id"]})
 			var cm := get_tree().current_scene
@@ -345,10 +345,10 @@ func _comb() -> void:
 		await _go("chapter", {"chapter_id": ch["id"]})
 		get_tree().current_scene._show_deck(Save.run()["deck"]))
 	await _both("reward", func():
-		await _go("reward", {"won": true, "chapter_id": ch["id"], "node_id": "n4", "rewards": ["SOR_205", "HMW_268", "LOF_249"], "treasures": ["kyber_shard", "jawa_salvage"]})
+		await _go("reward", {"won": true, "chapter_id": ch["id"], "node_id": "homestead", "rewards": ["LOF_215", "TWI_256", "JTL_260"]})
 		await _wait(1.0))
 	await _both("clear", func():
-		await _go("reward", {"won": true, "boss": true, "chapter_id": ch["id"], "node_id": "boss", "unlocked": ["SEC_015", "HMW_261", "HMW_170", "IBH_046"]}))
+		await _go("reward", {"won": true, "boss": true, "chapter_id": ch["id"], "node_id": "docking_bay", "unlocked": ["SEC_015", "HMW_261", "HMW_170", "IBH_003"]}))
 	await _both("episodes", func(): await _go("episodes"))
 	await _both("chapter_start", func():
 		Save.data["campaign"]["run"] = {}

@@ -458,9 +458,11 @@ func test_campaign_krayt_call() -> void:
 	check(m.pending.get("options") == [tusken.uid] and str(m.pending.get("prompt")).begins_with("Krayt Call"),
 		"Krayt Call names its effect and lists only an eligible enemy")
 	check(not m.submit_choice([non_tusken.uid]) and not m.pending.is_empty(), "Invalid target keeps the choice open")
-	check(m.submit_choice([tusken.uid]) and tusken.zone == "discard", "Krayt Call defeats the selected Tusken")
-	check(m.pending.is_empty() and m.active == 1 and m.players[0].out_of_round, "Enemy takes its turn after Krayt Call")
+	check(m.submit_choice([tusken.uid]) and tusken.zone == "hand", "Krayt Call returns the selected Tusken to hand")
+	check(m.pending.is_empty() and m.active == 1 and not m.players[0].out_of_round, "Krayt Call spends one action")
 	var round_before := m.round_num
+	m.do_action({"a": "pass"})
+	check(claim not in m.legal_actions(0), "Krayt Call can be used only once per round")
 	m.do_action({"a": "pass"})
 	while not m.pending.is_empty():
 		m.submit_choice(m.pending["options"].slice(0, m.pending["min"]))

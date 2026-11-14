@@ -42,7 +42,7 @@ func _run() -> void:
 	Sabacc.settings["anim_speed"] = 1.0
 	Sabacc.settings["perf_mode"] = false
 	await _go("res://ui/screens/boot.tscn")
-	await _wait(1.7)
+	await _wait(4.5)
 	check(get_tree().current_scene.scene_file_path.ends_with("main_menu.tscn"), "real splash reaches menu")
 	check(not Router._busy and Router._fade.mouse_filter == Control.MOUSE_FILTER_IGNORE, "splash transition releases input")
 	Cosmetics.set_gm(true)
