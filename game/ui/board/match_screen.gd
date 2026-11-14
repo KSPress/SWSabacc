@@ -36,6 +36,8 @@ var log_panel: PanelContainer
 var log_text: RichTextLabel
 var menu_popup: PanelContainer
 var arena_rects: Dictionary = {}     # "ground_0" -> Rect2 (player 0 row) etc.
+var _arena_area: Rect2
+const PORTRAIT_UNITS_PER_ROW := 4
 var arena_bands: Dictionary = {}     # "ground" -> Rect2
 var _arena_labels: Dictionary = {}
 var _hand_top := 0.0
@@ -195,8 +197,6 @@ func _build() -> void:
 func _layout() -> void:
 	var vs := get_viewport_rect().size
 	portrait = vs.y >= vs.x
-	var arenas: Array = m.rules.arenas
-	var both := arenas.size() > 1
 	var arena_area: Rect2
 	if portrait:
 		var top_h := vs.y * 0.105
@@ -253,48 +253,70 @@ func _layout() -> void:
 		prompt_bar.size = Vector2(arena_area.size.x, 70)
 		log_panel.position = Vector2(vs.x * 0.25, vs.y * 0.1)
 		log_panel.size = Vector2(vs.x * 0.5, vs.y * 0.7)
+	_arena_area = arena_area
 	hand.spawn_from = hud[0].global_position + hud[0].size
 	coin.position = coin_pos(coin.holder)
 	for i in 2:
 		var br: Rect2 = hud[i].base_view.get_rect()
 		var orb: Control = force_orbs[i]
 		orb.position = hud[i].position + br.position + Vector2(br.size.x - orb.size.x - 4, -orb.size.y * 0.35 if i == 0 else br.size.y * 0.3)
-	# arena bands
+	_layout_arenas()
+	_position_tokens(false)
+	hand.layout()
+
+
+func _layout_arenas() -> void:
+	var arena_area := _arena_area
+	var arenas: Array = m.rules.arenas
 	arena_bands.clear()
 	arena_rects.clear()
-	var bands: Array = []
-	if both:
-		if portrait:
-			var hh := arena_area.size.y / 2.0
-			# Ground sits nearest the player (bottom), space above it.
-			bands = [["space", Rect2(arena_area.position, Vector2(arena_area.size.x, hh - 6))],
-				["ground", Rect2(arena_area.position + Vector2(0, hh + 6), Vector2(arena_area.size.x, hh - 6))]]
-		else:
-			var gw := arena_area.size.x * 0.56
-			bands = [["ground", Rect2(arena_area.position, Vector2(gw - 8, arena_area.size.y))],
-				["space", Rect2(arena_area.position + Vector2(gw + 8, 0), Vector2(arena_area.size.x - gw - 8, arena_area.size.y))]]
-	else:
-		bands = [[arenas[0], arena_area]]
 	for a in ["ground", "space"]:
 		for l in _arena_labels[a]:
 			l.visible = false
-	for b in bands:
-		var a: String = b[0]
-		var r: Rect2 = b[1]
-		arena_bands[a] = r
-		arena_rects[a + "_1"] = Rect2(r.position, Vector2(r.size.x, r.size.y / 2.0))
-		arena_rects[a + "_0"] = Rect2(r.position + Vector2(0, r.size.y / 2.0), Vector2(r.size.x, r.size.y / 2.0))
+	if portrait:
+		# Allocate vertical space in proportion to row count across both arenas.
+		var order := ["space", "ground"] if arenas.size() > 1 else arenas
+		var weights := {}
+		var total := 0.0
+		for a in order:
+			for p in [1, 0]:
+				var count: int = m.players[p].units_in(a).size()
+				var weight := maxf(1.0, ceili(count / float(PORTRAIT_UNITS_PER_ROW)))
+				weights[a + "_" + str(p)] = weight
+				total += weight
+		var y := arena_area.position.y
+		var row_height := (arena_area.size.y - 12.0 * (order.size() - 1)) / total
+		for a in order:
+			for p in [1, 0]:
+				var key: String = a + "_" + str(p)
+				var height: float = row_height * weights[key]
+				arena_rects[key] = Rect2(arena_area.position.x, y, arena_area.size.x, height)
+				y += height
+			arena_bands[a] = arena_rects[a + "_1"].merge(arena_rects[a + "_0"])
+			y += 12.0
+	else:
+		var bands := [[arenas[0], arena_area]]
+		if arenas.size() > 1:
+			var gw := arena_area.size.x * 0.56
+			bands = [["ground", Rect2(arena_area.position, Vector2(gw - 8, arena_area.size.y))],
+				["space", Rect2(arena_area.position + Vector2(gw + 8, 0), Vector2(arena_area.size.x - gw - 8, arena_area.size.y))]]
+		for band in bands:
+			var a: String = band[0]
+			var r: Rect2 = band[1]
+			arena_bands[a] = r
+			arena_rects[a + "_1"] = Rect2(r.position, Vector2(r.size.x, r.size.y / 2.0))
+			arena_rects[a + "_0"] = Rect2(r.position + Vector2(0, r.size.y / 2.0), Vector2(r.size.x, r.size.y / 2.0))
+	for a in arena_bands:
+		var divider: Vector2 = arena_rects[a + "_0"].position
 		var ls: Array = _arena_labels[a]
 		ls[0].visible = true
 		ls[1].visible = true
 		ls[1].text = "BATTLEFIELD · ONE LANE" if m.rules.single_lane else a.to_upper() + " ARENA"
-		ls[0].position = r.position + Vector2(8, r.size.y / 2.0 - 30)
-		ls[1].position = r.position + Vector2(8, r.size.y / 2.0 - 8)
+		ls[0].position = divider + Vector2(8, -30)
+		ls[1].position = divider + Vector2(8, -8)
 	board_layer.queue_redraw()
 	if not board_layer.draw.is_connected(_draw_board):
 		board_layer.draw.connect(_draw_board)
-	_position_tokens(false)
-	hand.layout()
 
 
 func _draw_board() -> void:
@@ -303,16 +325,18 @@ func _draw_board() -> void:
 		var col := Color(0.4, 0.7, 1.0, 0.06) if a == "space" else Color(1.0, 0.8, 0.5, 0.06)
 		board_layer.draw_rect(r, col)
 		board_layer.draw_rect(r, Color(1, 1, 1, 0.08), false, 2.0)
-		var y := r.position.y + r.size.y / 2.0
+		var y: float = arena_rects[a + "_0"].position.y
 		board_layer.draw_line(Vector2(r.position.x + 140, y), Vector2(r.end.x - 20, y), Color(Appearance.color_at(0), 0.25), 2.0)
 
 
-func _token_scale() -> float:
+func _token_scale(arena: String, player: int) -> float:
 	var vs := get_viewport_rect().size
 	var best := 1.2 if vs.x > 1400 else 1.0
 	if m.rules.arenas.size() == 1:
 		best = 1.4
 	for k in arena_rects:
+		if portrait and k != arena + "_" + str(player):
+			continue
 		var r: Rect2 = arena_rects[k]
 		var parts: PackedStringArray = k.split("_")
 		var count: int = m.players[int(parts[1])].units_in(parts[0]).size()
@@ -324,17 +348,19 @@ func _token_scale() -> float:
 
 
 func _arena_columns(rect: Rect2, count: int) -> int:
+	if portrait:
+		return clampi(count, 1, PORTRAIT_UNITS_PER_ROW)
 	return clampi(floori((rect.size.x - 24.0) / (UnitToken.SIZE.x * 0.58 + 8.0)), 1, maxi(1, count))
 
 
 func _position_tokens(animate := true) -> void:
-	var sc := _token_scale()
 	for p in 2:
 		for a in m.rules.arenas:
 			var key: String = a + "_" + str(p)
 			if not arena_rects.has(key):
 				continue
 			var r: Rect2 = arena_rects[key]
+			var sc := _token_scale(a, p)
 			var units: Array = m.players[p].units_in(a)
 			var n := units.size()
 			var columns := _arena_columns(r, n)
@@ -603,7 +629,7 @@ func _anim_close_attack(attacker: UnitToken, target: Vector2, style: String, pal
 	if style == "saber":
 		Sfx.play("swing")
 		var slash := CombatSprite.spawn(fx_layer, CombatSprite.slash_sheet(palette), target,
-			128.0 * attacker.scale.x, Sabacc.anim(0.40))
+			140.8 * attacker.scale.x, Sabacc.anim(0.40))
 		if direction.x < -0.1:
 			slash.scale.x = -1.0
 		await _wait(0.12)
@@ -698,7 +724,7 @@ func _ensure_token(c: CardInst, animate: bool) -> UnitToken:
 	tok.drag_started.connect(_on_token_drag_start)
 	tok.drag_moved.connect(_on_token_drag_moved)
 	tok.drag_released.connect(_on_token_drag_released)
-	var sc := _token_scale()
+	var sc := _token_scale(c.zone, c.controller)
 	tok.scale = Vector2(sc, sc)
 	if animate:
 		tok.pop_in()
@@ -728,6 +754,8 @@ func _sync() -> void:
 			var t: UnitToken = tokens[uid]
 			tokens.erase(uid)
 			t.die()
+	if portrait:
+		_layout_arenas()
 	_position_tokens()
 	# hand
 	var playable := {}

@@ -64,7 +64,19 @@ func _run() -> void:
 	check(krayt != null and krayt.disabled, "Krayt Call is disabled until an enemy Tusken is in play")
 	var tusken := m._new_inst("HMW_224", 1)
 	m._put_in_play(tusken, "ground", false)
-	for i in 12:
+	for i in 3:
+		var trooper := m._new_inst("SOR_128", 1)
+		m._put_in_play(trooper, "ground", false)
+	screen._sync()
+	var four_unit_scale: float = screen.tokens[tusken.uid].scale.x
+	var fifth := m._new_inst("SOR_128", 1)
+	m._put_in_play(fifth, "ground", false)
+	screen._sync()
+	check(screen.tokens[fifth.uid].home_pos.y > screen.tokens[tusken.uid].home_pos.y + 40.0,
+		"The fifth portrait unit starts a second row in the same arena")
+	check(is_equal_approx(screen.tokens[tusken.uid].scale.x, four_unit_scale),
+		"Wrapping five units preserves their size on a portrait campaign board")
+	for i in 8:
 		var trooper := m._new_inst("SOR_128", 1)
 		m._put_in_play(trooper, "ground", false)
 	screen.coin.holder = 1
@@ -255,6 +267,27 @@ func _run() -> void:
 		await _wait(1.5)
 		check("sandcrawler" in Save.run()["visited"] and CampaignRun.available_nodes(Save.run(), chapter) == ["homestead"],
 			"Continuing leaves the shop for the homestead")
+
+	var deck: Dictionary = CardDB.spotlight_for_mode("traditional")[0]
+	var crowded := QuickMatch.config_for(deck, deck, RuleSet.premier(), "tempo", RandomNumberGenerator.new())
+	crowded["rules"].allow_mulligan = false
+	crowded["players"][1]["ai"] = false
+	await _go("match", {"mode": "quick", "cfg": crowded})
+	screen = get_tree().current_scene
+	await _finish_setup(screen)
+	for player in 2:
+		for _i in 5:
+			var ground: CardInst = screen.m._new_inst("SOR_128", player)
+			var space: CardInst = screen.m._new_inst("SOR_237", player)
+			screen.m._put_in_play(ground, "ground", false)
+			screen.m._put_in_play(space, "space", false)
+	screen._sync()
+	await _wait(0.6)
+	for token: UnitToken in screen.tokens.values():
+		var key := token.inst.zone + "_" + str(token.inst.controller)
+		check(screen.arena_rects[key].encloses(token.get_global_rect()), "Crowded portrait unit stays in its own arena and side")
+	if only == "capture":
+		await _shot("portrait-crowded-arenas")
 
 	print("CAMPAIGN INPUT: %d checks, %d failed" % [checks, failures])
 	if failures:
