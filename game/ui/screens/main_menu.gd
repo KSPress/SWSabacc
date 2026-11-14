@@ -40,7 +40,6 @@ func build() -> void:
 	banner.name = "Logo"
 	banner.pivot_offset = Vector2(0, 75)
 	_title_box.add_child(banner)
-	_title_box.add_child(UIKit.label(Sabacc.GAME_SUBTITLE, 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	_buttons = GridContainer.new()
 	_buttons.add_theme_constant_override("h_separation", 12)
 	_buttons.add_theme_constant_override("v_separation", 6)

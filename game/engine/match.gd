@@ -199,7 +199,9 @@ func play_cost(p: int, c: CardInst, smuggle := false, opts := {}) -> int:
 	elif opts.get("piloting", false):
 		cost = int(c.data["pilot"]["cost"])
 		needed = c.data["pilot"]["aspects"]
-	if rules.aspect_penalties and not opts.get("ignore_aspects", false):
+	var leader: CardInst = players[p].leader
+	var ignore_fortify := c.has_kw("fortify") and leader != null and leader.abilities_with("constant").any(func(a): return a.get("flag") == "ignore_fortify_aspects")
+	if rules.aspect_penalties and not opts.get("ignore_aspects", false) and not ignore_fortify:
 		var pool: Array = players[p].aspect_pool().duplicate()
 		var ignore_one: bool = opts.get("ignore_one_basic_aspect", false)
 		for a in needed:
@@ -244,7 +246,7 @@ func _play_discount(p: int, c: CardInst, aspects: Array, opts: Dictionary) -> in
 				continue
 			total += int(rule["n"])
 	for rule in ps.next_play_discounts:
-		if rule["phase"] == phase_serial and _matches_play(record, rule["filter"]):
+		if rule["phase"] == phase_serial and (not rule.get("plot_only", false) or opts.get("plot", false)) and _matches_play(record, rule["filter"]):
 			total += int(rule["n"])
 	return total
 
@@ -275,9 +277,9 @@ func _kw_entry(c: CardInst, k: String) -> Dictionary:
 	return {}
 
 
-func attack_targets(u: CardInst) -> Array:
+func attack_targets(u: CardInst, allow_exhausted := false, units_only := false) -> Array:
 	var out: Array = []
-	if not u.in_play() or u.exhausted or u.flags.get("cannot_attack", false):
+	if not u.in_play() or (u.exhausted and not allow_exhausted) or u.flags.get("cannot_attack", false):
 		return out
 	for ability in u.abilities_with("constant"):
 		if ability.get("flag") == "cannot_attack":
@@ -301,7 +303,7 @@ func attack_targets(u: CardInst) -> Array:
 	for a in u.abilities_with("constant"):
 		if a.get("flag", "") == "no_base_attack":
 			no_base = true
-	if sentinels.is_empty() and not no_base and (p == 1 or objective.enemy_base_damage_allowed()):
+	if sentinels.is_empty() and not no_base and not units_only and (p == 1 or objective.enemy_base_damage_allowed()):
 		out.append(players[opp(p)].base.uid)
 	return out
 
@@ -354,6 +356,8 @@ func legal_actions(p: int) -> Array:
 				out.append({"a": "ability", "uid": ps.leader.uid, "idx": i})
 		# double-sided leaders with no unit side (e.g. Chancellor Palpatine // Darth Sidious) never deploy
 		var has_unit_side := int(ps.leader.data.get("leader_unit", {}).get("hp", 0)) > 0
+		if rules.name == "quick_space" and ps.leader.data.has("pilot") and ps.leader.arena() != "space":
+			has_unit_side = false
 		if has_unit_side and not ps.leader.epic_used and ps.resources.size() >= int(ps.leader.data.get("epic_cost", 99)):
 			out.append({"a": "deploy"})
 		var pilot: Dictionary = ps.leader.data.get("pilot", {})
@@ -389,12 +393,12 @@ func _can_pay_action(p: int, c: CardInst, ab: Dictionary) -> bool:
 		return false
 	if effects[0].get("op") == "_recycle_resource" and players[p].resources.is_empty():
 		return false
+	var required: Dictionary = effects[0]
+	if required.get("op") == "attack_with" and required.get("t", {}).get("can_attack", false) and not required.has("if"):
+		return not Effects.candidates(self, required["t"], {"ctl": p, "src": c.uid}).is_empty()
 	if not ab.get("epic", false) and resources == 0 and not cost.get("exhaust", false) and not cost.has("other"):
-		var first: Dictionary = effects[0]
-		if first.get("op") == "play_from_hand":
-			return Effects.has_hand_play(self, p, first)
-		if first.get("op") == "attack_with" and first["t"].get("can_attack", false) and not first.has("if"):
-			return not Effects.candidates(self, first["t"], {"ctl": p, "src": c.uid}).is_empty()
+		if required.get("op") == "play_from_hand":
+			return Effects.has_hand_play(self, p, required)
 	return true
 
 
@@ -819,7 +823,7 @@ func _play_card(p: int, c: CardInst, smuggle: bool, opts := {}) -> void:
 		counts[aspect] = int(counts.get(aspect, 0)) + 1
 	ps.played_for_cost.append(record)
 	for rule in ps.next_play_discounts:
-		if rule["phase"] == phase_serial and _matches_play(record, rule["filter"]):
+		if rule["phase"] == phase_serial and (not rule.get("plot_only", false) or opts.get("plot", false)) and _matches_play(record, rule["filter"]):
 			rule["uses"] -= 1
 	ps.next_play_discounts = ps.next_play_discounts.filter(func(rule):
 		return rule["phase"] == phase_serial and rule["uses"] > 0)
@@ -1299,6 +1303,7 @@ func end_attack() -> void:
 		return
 	var a := card(attack["a"])
 	var defender := card(attack["t"])
+	var attacker_controller := a.controller if a else -1
 	var end_abilities: Array = a.abilities_with("attack_end") if a and a.in_play() else []
 	var pilot_end: Array = []
 	if a and a.in_play():
@@ -1306,6 +1311,8 @@ func end_attack() -> void:
 			pilot_end.append_array(upgrade.abilities_with("host_attack_end").map(func(ab): return [upgrade, ab]))
 	attack = {}
 	_expire("attack")
+	if attacker_controller >= 0 and a.in_play():
+		player_trigger(attacker_controller, "friendly_attack_end", {"subject": a.uid})
 	for entry in pilot_end:
 		push_ability(entry[0], entry[1])
 	if a and a.in_play():
@@ -1470,6 +1477,10 @@ func continuous_bonus(target: CardInst, field: String, keyword: String) -> int:
 			if condition.get("ready", false) and source.exhausted:
 				continue
 			var ps: PlayerState = players[source.controller]
+			if condition.has("friendly_unit") and Effects.candidates(self, condition["friendly_unit"], {"ctl": source.controller, "src": source.uid}).is_empty():
+				continue
+			if ps.base.damage < int(condition.get("base_damage_min", 0)):
+				continue
 			if condition.get("enemy_damaged", false) and not players[opp(source.controller)].units.any(func(u): return u.damage > 0):
 				continue
 			if condition.get("both_arenas", false) and not Effects.condition(self, condition, {"ctl": source.controller}):

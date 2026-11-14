@@ -6,6 +6,7 @@ const LEGACY_PATH := "user://kyber_save.json" # upgrade compatibility
 const VERSION := 1
 
 var data: Dictionary = {}
+var existing_account := false
 
 
 func _ready() -> void:
@@ -35,6 +36,7 @@ func default_data() -> Dictionary:
 
 
 func load_save() -> void:
+	existing_account = false
 	data = default_data()
 	var path := PATH if FileAccess.file_exists(PATH) else _legacy_source()
 	if not FileAccess.file_exists(path):
@@ -43,6 +45,7 @@ func load_save() -> void:
 	if typeof(parsed) != TYPE_DICTIONARY:
 		push_warning("Save: unreadable save, starting fresh")
 		return
+	existing_account = true
 	data = _migrate(parsed)
 	if path != PATH:
 		write()

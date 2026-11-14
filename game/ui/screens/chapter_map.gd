@@ -19,6 +19,10 @@ func build() -> void:
 	if theme_img != "":
 		bg.backdrop = Art.ui_texture(theme_img)
 		bg.backdrop_alpha = 0.35
+	if chapter["id"] == "ep4_ch1_tatooine" and bg.backdrop:
+		bg.location_backdrop = true
+		bg.backdrop_alpha = 0.63
+		bg._retheme()
 	run = Save.run()
 	var active: bool = run.get("chapter", "") == chapter["id"] and run.get("status", "") == "active"
 	if not active or CampaignFlow.needs_new_route(run, chapter):

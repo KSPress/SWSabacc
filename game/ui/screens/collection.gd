@@ -84,7 +84,7 @@ func _pack_shop() -> void:
 		panel.add(open)
 	var art := preload("res://ui/kit/set_art.gd")
 	for code in art.SETS:
-		var button := _booster_button(code, art.texture(code, "art"), art.texture(code, "logo"))
+		var button := set_banner(code, "Buy pack · " + CardLibrary.expansion_title(code), UIKit.credit_label("1,000"), Progression.credits() < Progression.PACK_PRICE)
 		button.pressed.connect(func():
 			if Router._busy:
 				return
@@ -97,13 +97,19 @@ func _pack_shop() -> void:
 	panel.add_action(close)
 
 
-func _booster_button(code: String, picture: Texture2D, logo: Texture2D) -> Button:
+static func set_banner(code: String, title: String, caption: Control, disabled := false) -> Button:
+	var sets := preload("res://ui/kit/set_art.gd")
+	var picture := sets.texture(code, "art")
+	var logo := sets.texture(code, "logo")
 	var button := Button.new()
-	button.text = "Buy pack · " + CardLibrary.expansion_title(code)
+	button.text = title
 	button.tooltip_text = button.text
 	button.custom_minimum_size.y = 230
 	button.clip_contents = true
-	button.disabled = Progression.credits() < Progression.PACK_PRICE
+	button.disabled = disabled
+	if not picture or not logo:
+		button.custom_minimum_size.y = 90
+		return button
 	button.add_theme_color_override("font_color", Color.TRANSPARENT)
 	button.add_theme_color_override("font_hover_color", Color.TRANSPARENT)
 	button.add_theme_color_override("font_focus_color", Color.TRANSPARENT)
@@ -134,8 +140,7 @@ func _booster_button(code: String, picture: Texture2D, logo: Texture2D) -> Butto
 	price.offset_top = -54
 	price.offset_right = -10
 	price.offset_bottom = -9
-	var amount := UIKit.credit_label("1,000")
-	price.add_child(amount)
+	price.add_child(caption)
 	button.add_child(price)
 	button.mouse_entered.connect(func(): price.modulate = Color("ffe5a4") if not button.disabled else Color.WHITE)
 	button.mouse_exited.connect(func(): price.modulate = Color.WHITE)

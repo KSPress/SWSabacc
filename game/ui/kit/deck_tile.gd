@@ -60,6 +60,15 @@ func _ready() -> void:
 	_sub.size = Vector2(SIZE.x - 76, 20)
 	_sub.clip_text = true
 	add_child(_sub)
+	if deck.get("spotlight", false):
+		var logo := TextureRect.new()
+		logo.texture = preload("res://ui/kit/set_art.gd").texture(deck["set"], "logo")
+		logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		logo.position = Vector2(14, 63)
+		logo.size = Vector2(112, 35)
+		add_child(logo)
 	_aspects = AspectIcon.row_for(lid, deck.get("base", ""), 30.0)
 	_aspects.position = Vector2(12, SIZE.y - 42)
 	add_child(_aspects)

@@ -14,7 +14,52 @@ const BACKGROUND_CHANCE := 0.05
 
 
 func _ready() -> void:
-	ensure_account()
+	if Save.existing_account:
+		ensure_account()
+		_migrate_spotlight_starters()
+
+
+func _migrate_spotlight_starters() -> void:
+	var progress := state()
+	if progress.has("starting_set") or progress.get("official_starters", false) or not CardDB.loaded:
+		return
+	var pair := CardDB.official_pair("LOF")
+	if pair.size() != 2:
+		return
+	var ids: Array = []
+	for deck in pair:
+		ids.append_array([deck["leader"], deck["base"]] + deck["cards"].keys())
+	progress["official_starters"] = true
+	Save.unlock(ids)
+
+
+func needs_welcome() -> bool:
+	return not state()["initialized"]
+
+
+func starting_sets() -> Array:
+	return CardLibrary.BOOSTER_SETS.filter(func(code):
+		return CardDB.official_pair(code).size() == 2 and not _pool(code).is_empty())
+
+
+func claim_starting_set(code: String) -> bool:
+	if not needs_welcome() or code not in starting_sets():
+		return false
+	var progress := state()
+	for deck in CardDB.official_pair(code):
+		for id in [deck["leader"], deck["base"]] + deck["cards"].keys():
+			if id not in Save.data["vault"]:
+				Save.data["vault"].append(id)
+	for index in 3:
+		_queue_pack("Welcome pack", code, true)
+	var stats := account_stats()
+	stats["credits_earned"] = int(stats["credits_earned"]) + PACK_PRICE
+	Save.data["credits"] = _account_credits() + PACK_PRICE
+	progress["initialized"] = true
+	progress["starting_set"] = code
+	Save.write()
+	changed.emit()
+	return true
 
 
 func state() -> Dictionary:
@@ -150,7 +195,7 @@ func grant(source: String, identity: String) -> String:
 	return id
 
 
-func _queue_pack(source: String, set_code: String) -> String:
+func _queue_pack(source: String, set_code: String, account_pack := false) -> String:
 	var s := state()
 	var random := RandomNumberGenerator.new()
 	random.randomize()
@@ -162,7 +207,8 @@ func _queue_pack(source: String, set_code: String) -> String:
 		cards.append(pool[random.randi_range(0, pool.size() - 1)])
 	s["sequence"] += 1
 	var id := "pack_%d" % s["sequence"]
-	packs().append({"id": id, "source": source, "set": set_code, "cards": cards, "revealed": [], "torn": false,
+	var queue: Array = s["packs"] if account_pack else packs()
+	queue.append({"id": id, "source": source, "set": set_code, "cards": cards, "revealed": [], "torn": false,
 		"bonus": roll_cosmetic(random, set_code), "bonus_revealed": false})
 	return id
 

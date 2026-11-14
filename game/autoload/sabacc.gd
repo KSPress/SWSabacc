@@ -2,7 +2,6 @@ extends Node
 ## Global config, palette and user settings. Rename the game here only.
 
 const GAME_TITLE := "SWU Sabacc"
-const GAME_SUBTITLE := "A Star Wars: Unlimited fan project"
 const VERSION := ReleaseInfo.VERSION_NAME
 
 # Palette — dark HUD with Rebel blue / Imperial red / holographic cyan accents.

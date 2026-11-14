@@ -36,6 +36,7 @@ func _entry(d: Dictionary, i: int) -> Control:
 	v.custom_minimum_size.x = DeckTile.SIZE.x
 	var r := SpotlightFlow.run(d["id"])
 	var rec := SpotlightFlow.record(d["id"])
+	var locked := r.is_empty() and not Progression.deck_owned(d)
 	var tile := DeckTile.make(d, d.get("set_label", "") + " Spotlight")
 	tile.selected = not r.is_empty()
 	tile.long_pressed.connect(func(_t): InspectOverlay.open(self, d["leader"], tile.get_global_rect()))
@@ -51,6 +52,9 @@ func _entry(d: Dictionary, i: int) -> Control:
 	v.add_child(l)
 	var b := SabaccButton.make("Continue · Sector %d" % int(r.get("sector", 1)) if not r.is_empty() else "Start run", SabaccButton.Style.PRIMARY if not r.is_empty() else SabaccButton.Style.REBEL, "play", not r.is_empty())
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if locked:
+		b.text = "Locked · Collect its cards"
+		b.disabled = true
 	b.pressed.connect(func(): _open(d))
 	v.add_child(b)
 	UIKit.pop_in(v, i * 0.04)
@@ -58,6 +62,8 @@ func _entry(d: Dictionary, i: int) -> Control:
 
 
 func _open(d: Dictionary) -> void:
+	if SpotlightFlow.run(d["id"]).is_empty() and not Progression.deck_owned(d):
+		return
 	Appearance.set_deck(d.get("leader", ""), d.get("base", ""), Save.deck_list(d))
 	var r := SpotlightFlow.run(d["id"])
 	if not r.is_empty():

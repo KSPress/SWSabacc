@@ -59,7 +59,7 @@ func _new_deck() -> void:
 		Router.go("deck_editor", {"deck_id": ""}))
 	mp.add(blank)
 	mp.text("…or start from a Spotlight deck", 16, Sabacc.C_DIM)
-	for sd in CardDB.spotlight_for_mode("traditional") + CardDB.spotlight_for_mode("space"):
+	for sd in CardDB.spotlight_for_mode("traditional"):
 		var b := SabaccButton.make(sd["name"], SabaccButton.Style.GHOST, sd.get("icon", "star"))
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.add_theme_font_size_override("font_size", 17)
@@ -72,7 +72,16 @@ func _new_deck() -> void:
 			Save.save_deck(d)
 			mp.close()
 			Router.go("deck_editor", {"deck_id": d["id"]}))
-		mp.add(b)
+		var row := HBoxContainer.new()
+		var logo := TextureRect.new()
+		logo.texture = preload("res://ui/kit/set_art.gd").texture(sd["set"], "logo")
+		logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		logo.custom_minimum_size = Vector2(120, 48)
+		row.add_child(logo)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(b)
+		mp.add(row)
 	var cancel := SabaccButton.make("Cancel", SabaccButton.Style.GHOST)
 	cancel.pressed.connect(mp.close)
 	mp.add(cancel)

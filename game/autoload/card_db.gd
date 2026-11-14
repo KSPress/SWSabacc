@@ -55,13 +55,15 @@ func spotlight_for_mode(mode: String) -> Array:
 		if not (mode in d.get("modes", [])):
 			continue
 		var cards: Dictionary = d.get("cards", {})
-		if mode in ["ground", "space"] and d.get("variants", {}).has(mode):
-			cards = d["variants"][mode]
 		if cards.is_empty() or not (lib.has(d["leader"]) and lib.has(d["base"])):
 			continue
-		var set_label: String = str(d["name"]).split(" — ")[0] if str(d["name"]).find(" — ") >= 0 else str(d.get("set", ""))
-		out.append({"id": d["id"], "name": lib.get_card(d["leader"]).get("name", d["name"]), "set_label": set_label, "full_name": d["name"],
-			"leader": d["leader"], "base": d["base"],
-			"cards": cards, "icon": "space" if mode == "space" else "star", "spotlight": true,
-			"provisional": d.get("provisional", true)})
+		var set_label := CardLibrary.expansion_title(d["set"])
+		out.append({"id": d["id"], "name": d["name"], "set_label": set_label, "full_name": "%s · %s" % [d["name"], set_label],
+			"leader": d["leader"], "base": d["base"], "set": d["set"],
+			"cards": cards, "icon": "space" if mode == "space" else "star", "spotlight": d.get("official", false),
+			"squadron": mode == "space", "official": d.get("official", false)})
 	return out
+
+
+func official_pair(code: String) -> Array:
+	return spotlight_for_mode("traditional").filter(func(deck): return deck["set"] == code and deck["official"])

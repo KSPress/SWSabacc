@@ -228,6 +228,8 @@ func shield_count() -> int:
 
 func power(attacking := false) -> int:
 	var p := printed_power()
+	if abilities_with("constant").any(func(a): return a.get("flag") == "power_per_pilot"):
+		p += upgrades.filter(func(up): return up.is_pilot_upgrade()).size()
 	p += _continuous("p")
 	for u in upgrades:
 		if u.data.get("name", "") != "Shield":

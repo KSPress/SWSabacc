@@ -1312,6 +1312,90 @@ def normalise(c: dict) -> dict:
     if typ == "base":
         abilities, unparsed = compile_special_base(out, abilities, unparsed)
         status = "partial" if unparsed and abilities else ("manual" if unparsed else "full")
+    if cid in {"HMW_009", "JTL_123", "SOR_217", "SHD_128", "TWI_123", "JTL_124"}:
+        pick = {"s": "choose", "kind": "unit", "side": "friendly", "can_attack": True}
+        if cid in {"HMW_009", "JTL_123"}:
+            pick.update(allow_exhausted=True, units_only=True)
+        attack = {"op": "attack_with", "t": pick}
+        if cid == "HMW_009":
+            abilities = [{"trigger": "action", "cost": {"resources": 2, "exhaust": True},
+                          "effects": [attack], "text": out["text"]}]
+            out["leader_unit"]["abilities"] = [
+                {"trigger": "action", "effects": [attack], "limit": 1, "limit_period": "round",
+                 "text": out["leader_unit"]["text"]}]
+        else:
+            effects = [attack]
+            if cid == "SOR_217":
+                attack.update(first_strike=True, pre=[{"op": "buff", "p": 1}])
+            if cid in {"SHD_128", "TWI_123"}:
+                effects.append({"op": "attack_with", "t": {**pick, "not_it": True}})
+            if cid == "JTL_124":
+                attack["t"] = {**pick, "arena": "space"}
+                effects.append({"op": "attack_with", "t": {**pick, "arena": "ground"},
+                                "if_did": True, "pre": [{"op": "buff", "p": 2}]})
+            abilities = [{"trigger": "event", "effects": effects, "text": out["text"]}]
+        unparsed, status = [], "full"
+    if cid == "SHD_120":
+        abilities = [{"trigger": "when_played", "effects": [{"op": "capture", "source_captures": True}], "text": out["text"]}]
+        unparsed, status = [], "full"
+    if cid == "SOR_228":
+        abilities = [{"trigger": "when_played", "effects": [{"op": "reveal_hand"}], "text": out["text"]}]
+        unparsed, status = [], "full"
+    if cid == "ASH_005":
+        abilities = [{"trigger": "friendly_attack_end", "text": out["text"], "effects": [
+            {"op": "exhaust", "optional": True, "t": {"s": "self"}},
+            {"op": "heal", "n": 1, "if_did": True, "t": {"s": "subject"}},
+        ]}]
+        out["leader_unit"]["abilities"] = [
+            {"trigger": "friendly_attack_end", "text": out["leader_unit"]["text"], "effects": [
+                {"op": "heal", "n": 2, "t": {"s": "choose", "kind": "unit_or_base", "side": "friendly", "attacking_unit_or_base": True}}
+            ]}
+        ]
+        unparsed, status = [], "full"
+    if cid == "HMW_004":
+        rule = {"trigger": "constant", "flag": "ignore_fortify_aspects"}
+        abilities.append(rule)
+        out["leader_unit"]["abilities"].append(rule)
+        unparsed, status = [], "full"
+    if cid == "JTL_249":
+        abilities = [{"trigger": "constant", "flag": flag} for flag in ("extra_pilot", "power_per_pilot")]
+        unparsed, status = [], "full"
+    if cid == "JTL_144":
+        abilities = [{"trigger": "event", "effects": [{"op": "damage", "leave_at_one": True,
+                      "t": {"s": "choose", "kind": "unit", "nonleader": True}}], "text": out["text"]}]
+        unparsed, status = [], "full"
+    if cid == "JTL_209":
+        abilities = [{"trigger": "event", "effects": [{"op": "ready", "if": {"fewer_units_in": "space"},
+                      "t": {"s": "each", "kind": "unit", "arena": "space", "side": "friendly"}}], "text": out["text"]}]
+        unparsed, status = [], "full"
+    if cid == "SOR_005":
+        abilities = [{"trigger": "action", "cost": {"resources": 1, "exhaust": True},
+                      "effects": [{"op": "shield", "t": {"s": "choose", "kind": "unit", "side": "friendly",
+                                   "aspect": "heroism", "played_this_phase": True}}], "text": out["text"]}]
+        unparsed, status = [], "full"
+    if cid == "SEC_001":
+        abilities = [{"trigger": "action", "cost": {"resources": 1, "exhaust": True}, "text": out["text"],
+                      "effects": [{"op": "search", "n": 5, "count": 1, "filter": {"keyword": "plot"}}]}]
+        out["leader_unit"]["abilities"] = [{"trigger": "when_deployed", "text": out["leader_unit"]["text"],
+            "effects": [{"op": "discount_next", "n": 3, "plot_only": True, "filter": {"kind": "card"}}]}]
+        unparsed, status = [], "full"
+    if cid == "TWI_015":
+        pick = {"s": "choose", "kind": "unit", "trait": "droid", "opt": True}
+        out["leader_unit"]["abilities"] = [{"trigger": "on_attack", "text": out["leader_unit"]["text"],
+            "effects": [{"op": "buff", "p": 1, "dur": "phase", "t": pick},
+                        {"op": "gain_kw", "kw": "sentinel", "dur": "phase", "if_did": True, "t": {"s": "it"}}]}]
+        unparsed, status = [], "full"
+    if cid in {"ASH_078", "HMW_257", "TWI_180", "TWI_142", "HMW_061"}:
+        friendly = lambda **kw: {"s": "choose", "kind": "unit", "side": "friendly", **kw}
+        patch = {
+            "ASH_078": dict(trigger="continuous", target="self", kw="sentinel", condition={"friendly_unit": friendly(arena="ground")}),
+            "HMW_257": dict(trigger="continuous", target="self", kw="ambush", condition={"friendly_unit": friendly(other=True, max_cost=3)}),
+            "TWI_180": dict(trigger="continuous", target="self", kw="raid", v=2, condition={"friendly_unit": friendly(other=True, trait="separatist")}),
+            "TWI_142": dict(trigger="continuous", target="self", p=2, condition={"base_damage_min": 15}),
+            "HMW_061": dict(trigger="on_attack", effects=[dict(op="draw", n=1, **{"if": {"base_upgraded": True}})]),
+        }[cid]
+        abilities = [{**patch, "text": out["text"]}]
+        unparsed, status = [], "full"
     out["abilities"] = abilities
     out["unparsed"] = unparsed
     out["implemented"] = status

@@ -80,8 +80,10 @@ static func score_action(m: Match, p: int, a: Dictionary) -> float:
 						if e.has("t") and Effects.candidates(m, e["t"], {"ctl": p}).is_empty():
 							return -1.0
 			return 1.5
-		"deploy", "deploy_pilot":
+		"deploy":
 			return 7.0
+		"deploy_pilot":
+			return 9.0
 		"pilot":
 			var pilot := m.card(a["uid"])
 			var data: Dictionary = pilot.data["pilot"]

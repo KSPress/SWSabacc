@@ -187,10 +187,9 @@ godot --headless --path game res://tests/compile_all.tscn
 godot --path game res://tests/shots.tscn -- shots_out
 ```
 
-```bash
-# Rebuild the Quick Play / Spotlight deck pool (game/data/spotlight_decks.json)
-python -I tools/build_spotlight.py
-```
+The shipped starter, Spotlight, and Space Only rosters are maintained in
+`game/data/spotlight_decks.json`. Published lists use the printed leader,
+base, card IDs, and quantities. Space Only uses the four custom squadrons.
 
 ```bash
 # Engine audit of every card, then the readable report (docs/card_audit.md)

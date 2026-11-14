@@ -38,12 +38,28 @@ func _click(control: Control, fraction := Vector2(0.5, 0.5)) -> void:
 
 func _run() -> void:
 	Save.data = Save.default_data()
-	Progression.ensure_account()
 	Sabacc.settings["anim_speed"] = 1.0
 	Sabacc.settings["perf_mode"] = false
 	await _go("res://ui/screens/boot.tscn")
 	await _wait(4.5)
-	check(get_tree().current_scene.scene_file_path.ends_with("main_menu.tscn"), "real splash reaches menu")
+	var welcome := get_tree().current_scene
+	check(welcome.scene_file_path.ends_with("welcome.tscn"), "Fresh save reaches the welcome screen")
+	check(Progression.starting_sets().size() == 9, "All nine main booster sets are offered")
+	if welcome.scene_file_path.ends_with("welcome.tscn"):
+		await _shot("welcome")
+		var homeworlds := _button(welcome, "Homeworlds")
+		welcome._scroll.ensure_control_visible(homeworlds)
+		await _wait(0.3)
+		await _click(homeworlds)
+		await _click(_button(welcome, "Choose this set"))
+	check(get_tree().current_scene.scene_file_path.ends_with("main_menu.tscn"), "Choosing a set reaches the menu")
+	check(Progression.credits() == 1000 and Progression.packs().size() == 3 and Progression.packs().all(func(pack): return pack["set"] == "HMW"), "Welcome grants three matching packs and 1,000 credits")
+	check(CardDB.official_pair("HMW").all(Progression.deck_owned), "Both selected official decks are unlocked")
+	check(not Progression.claim_starting_set("SOR"), "The starter gift can only be collected once")
+	Save.load_save()
+	check(not Progression.needs_welcome(), "Welcome choice survives save reload")
+	Save.data = Save.default_data()
+	Progression.ensure_account()
 	check(not Router._busy and Router._fade.mouse_filter == Control.MOUSE_FILTER_IGNORE, "splash transition releases input")
 	Cosmetics.set_gm(true)
 	Cosmetics.equip("background", "emblem")

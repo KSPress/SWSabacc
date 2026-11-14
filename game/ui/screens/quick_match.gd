@@ -85,6 +85,7 @@ func build() -> void:
 	_format = int(Router.params.get("format", 0))
 	if _format == 0 and (not Progression.owns(_auto["leader"]) or not Progression.owns(_auto["base"])):
 		var starters := CardDB.spotlight_for_mode("traditional")
+		starters = starters.filter(func(deck): return Progression.deck_owned(deck))
 		if not starters.is_empty():
 			_auto = {"leader": starters[0]["leader"], "base": starters[0]["base"]}
 	set_header("Quick Battle" if _format > 0 else "Standard Battle")
@@ -179,7 +180,9 @@ func _fill_decks() -> void:
 		if d.get("auto", false):
 			sub = "Pick a leader & base"
 		elif d.get("spotlight", false):
-			sub = "%s · Spotlight%s" % [d.get("set_label", ""), " (provisional)" if d.get("provisional", false) else ""]
+			sub = "Official deck" if Progression.deck_owned(d) else "Locked · Collect its cards"
+		elif d.get("squadron", false):
+			sub = CardDB.card(d["leader"]).get("name", "")
 		var t := DeckTile.make(d, sub)
 		var idx := i
 		t.pressed.connect(func(_t): _select(idx))
@@ -189,8 +192,9 @@ func _fill_decks() -> void:
 		UIKit.pop_in(t, i * 0.03)
 		i += 1
 	_sel = -1
-	if _choices.size() > 0:
-		_select(0)
+	var first := _choices.find_custom(func(deck): return not deck.get("spotlight", false) or Progression.deck_owned(deck))
+	if first >= 0:
+		_select(first)
 	_refresh_labels()
 
 
@@ -236,11 +240,18 @@ func _refresh_labels() -> void:
 		_mode_btn.text = "Mode: %s — %s  (tap to change)" % [m[0], m[1]]
 	var pool := _opp_pool()
 	if _opp_idx < 0 or _opp_idx >= pool.size():
-		_opp_btn.text = "Opponent: Random Spotlight deck  (tap to choose)"
+		_opp_btn.text = "Opponent: Random deck  (tap to choose)"
 	else:
 		_opp_btn.text = "Opponent: %s" % pool[_opp_idx].get("full_name", pool[_opp_idx]["name"])
 	_ai_btn.text = "Bot style: " + PROFILES[_profile].capitalize()
 	var ok := _sel >= 0
+	if ok:
+		var selected: Dictionary = _choices[_sel]
+		if selected.get("spotlight", false) and not Progression.deck_owned(selected):
+			_go.text = "Deck locked"
+			_go.disabled = true
+			return
+	_go.text = "Battle!"
 	if ok and _format == 0:
 		var d: Dictionary = _choices[_sel]
 		if not d.get("auto", false) and not d.get("spotlight", false):
@@ -260,7 +271,7 @@ func _start() -> void:
 	var mode := _mode() if _format == 1 else "standard"
 	var rules := RuleSet.quick_mode(mode) if _format == 1 else RuleSet.premier()
 	var d: Dictionary = _choices[_sel]
-	if not d.get("spotlight", false) and not d.get("auto", false) and not Progression.deck_owned(d):
+	if not d.get("squadron", false) and not d.get("auto", false) and not Progression.deck_owned(d):
 		_go.text = "Deck contains locked cards"
 		return
 	var you: Dictionary

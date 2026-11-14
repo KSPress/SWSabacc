@@ -84,7 +84,7 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			if not targets.is_empty():
 				ctx["it_arena"] = targets[0].arena()
 			for t in targets:
-				m.deal_damage(t, n, src)
+				m.deal_damage(t, t.remaining_hp() - 1 if e.get("leave_at_one", false) else n, src)
 		"select":
 			pass
 		"damage_from_it":
@@ -103,7 +103,7 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			m.pay(ctl, n)
 		"discount_next":
 			m.players[ctl].next_play_discounts.append({"phase": m.phase_serial,
-				"filter": e["filter"], "n": n, "uses": e.get("uses", 1)})
+				"filter": e["filter"], "n": n, "uses": e.get("uses", 1), "plot_only": e.get("plot_only", false)})
 		"indirect_damage":
 			return _indirect_damage(m, e, ctx)
 		"mill":
@@ -150,7 +150,10 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		"defeat":
 			for t in targets:
 				if not _enemy_effect_immune(t, ctl, op):
-					m.defeat(t)
+					if t.zone == "base":
+						m.deal_damage(t, t.remaining_hp(), src, true)
+					else:
+						m.defeat(t)
 		"bounce":
 			for t in targets:
 				if not _enemy_effect_immune(t, ctl, op):
@@ -384,6 +387,8 @@ static func _targets(m: Match, e: Dictionary, ctx: Dictionary):
 
 static func _capture(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 	var controller: int = ctx.get("ctl", 0)
+	if e.get("source_captures", false):
+		ctx["_captor"] = ctx["src"]
 	if not ctx.has("_captor"):
 		if ctx.has("_choice"):
 			var selection: Array = ctx["_choice"]
@@ -413,7 +418,7 @@ static func _capture(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		return DONE
 	var targets: Array = []
 	for enemy in m.players[m.opp(controller)].units:
-		if not enemy.is_leader_unit() and enemy.zone == host.zone:
+		if not enemy.is_leader_unit() and enemy.zone == host.zone and not enemy.flags.get("objective_target", false):
 			targets.append(enemy.uid)
 	if targets.is_empty():
 		ctx.erase("_captor")
@@ -444,6 +449,8 @@ static func candidates(m: Match, t: Dictionary, ctx: Dictionary) -> Array:
 
 static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bool:
 	var ctl: int = ctx.get("ctl", 0)
+	if t.get("attacking_unit_or_base", false) and c.uid != int(ctx.get("subject", 0)) and c.zone != "base":
+		return false
 	var src: CardInst = m.card(ctx.get("src", 0))
 	var side: String = t.get("side", "any")
 	if side == "enemy" and c.controller == ctl:
@@ -451,10 +458,12 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 	if side == "friendly" and c.controller != ctl:
 		return false
 	if c.zone == "base":
-		return true
+		return c.remaining_hp() <= int(t.get("max_hp", 999999))
 	if c.flags.get("untargetable", false) and side != "friendly":
 		return false
 	if t.get("other", false) and src and (c == src or (src.is_pilot_upgrade() and c == src.attached_to)):
+		return false
+	if t.get("not_it", false) and c.uid == int(ctx.get("it", 0)):
 		return false
 	if t.has("arena") and c.zone != t["arena"]:
 		return false
@@ -478,7 +487,7 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 		return false
 	if t.get("ready", false) and c.exhausted:
 		return false
-	if t.get("can_attack", false) and m.attack_targets(c).is_empty():
+	if t.get("can_attack", false) and m.attack_targets(c, t.get("allow_exhausted", false), t.get("units_only", false)).is_empty():
 		return false
 	if t.has("max_hp") and c.remaining_hp() > int(t["max_hp"]):
 		return false
@@ -516,6 +525,8 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 		return false
 	if t.has("aspect") and not (t["aspect"] in c.aspects()):
 		return false
+	if t.get("played_this_phase", false) and not m.played_this_phase[ctl].has(c):
+		return false
 	if t.has("unique") and c.unique() != t["unique"]:
 		return false
 	return true
@@ -523,6 +534,11 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 
 static func condition(m: Match, cond: Dictionary, ctx: Dictionary) -> bool:
 	var ctl: int = ctx.get("ctl", 0)
+	if cond.get("base_upgraded", false):
+		return not m.players[ctl].base.upgrades.is_empty()
+	if cond.has("fewer_units_in"):
+		var arena: String = cond["fewer_units_in"]
+		return m.players[ctl].units_in(arena).size() < m.players[m.opp(ctl)].units_in(arena).size()
 	if cond.has("controls_name"):
 		return m.trigger_sources().any(func(card): return card.controller == ctl and card.name() == cond["controls_name"])
 	if cond.has("revealed_aspect"):
@@ -586,6 +602,8 @@ static func upgrade_targets(m: Match, p: int, up: CardInst, piloting := false) -
 				continue
 			var pilots := 0
 			var slots := 1 + int(up.data["pilot"].get("extra_slot", false))
+			if unit.abilities_with("constant").any(func(a): return a.get("flag") == "extra_pilot"):
+				slots += 1
 			for attached in unit.upgrades:
 				if attached.has_trait("pilot"):
 					pilots += 1
@@ -802,6 +820,8 @@ static func _search(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 	for c in top:
 		if kind != "card" and c.card_type() != kind:
 			continue
+		if f.has("keyword") and not c.has_kw(f["keyword"]):
+			continue
 		if f.has("trait") and not c.has_trait(f["trait"]):
 			continue
 		if f.has("aspect") and not (f["aspect"] in c.aspects()):
@@ -838,6 +858,8 @@ static func _attack_with(m: Match, e: Dictionary, ctx: Dictionary, attackers: Ar
 					a.mods.append({"p": int(pre.get("p", 0)), "h": int(pre.get("h", 0)), "dur": "attack"})
 				elif pre.get("op") == "gain_kw":
 					a.mods.append({"kw": pre["kw"], "v": int(pre.get("v", 1)), "dur": "attack"})
+			if e.get("first_strike", false):
+				a.mods.append({"abilities": [{"trigger": "constant", "flag": "first_strike"}], "dur": "attack"})
 			if e.get("different_odd_power", false):
 				var revealed := m.card(ctx.get("revealed", 0))
 				if revealed and revealed.cost() % 2 == 1 and a.cost() % 2 == 1 and revealed.cost() != a.cost():
@@ -851,7 +873,8 @@ static func _attack_with(m: Match, e: Dictionary, ctx: Dictionary, attackers: Ar
 		ctx["did"] = false
 		return DONE
 	var a: CardInst = attackers[0]
-	var tg := m.attack_targets(a)
+	var selector: Dictionary = e.get("t", {})
+	var tg := m.attack_targets(a, selector.get("allow_exhausted", false), selector.get("units_only", false))
 	if tg.is_empty():
 		ctx["did"] = false
 		return DONE
@@ -1025,7 +1048,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 				ctx.erase("_choice")
 				if not choice.is_empty():
 					var plotted := m.card(choice[0])
-					m._play_card(controller, plotted, false, {"from_resource": true})
+					m._play_card(controller, plotted, false, {"from_resource": true, "plot": true})
 					var left: Array = e["ids"].duplicate()
 					left.erase(plotted.uid)
 					m.push_frame([{"op": "_plot", "ids": left}], {"ctl": controller})
@@ -1039,7 +1062,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 					continue
 				if candidate.card_type() == "unit" and not m.arena_for(candidate) in m.rules.arenas:
 					continue
-				if m.play_cost(controller, candidate) <= m.players[controller].available():
+				if m.play_cost(controller, candidate, false, {"plot": true}) <= m.players[controller].available():
 					options.append(uid)
 			if options.is_empty():
 				return DONE

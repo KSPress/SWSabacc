@@ -8,6 +8,7 @@ const SCREENS := {
 	"packs": "res://ui/screens/pack_opening.tscn",
 	"customization": "res://ui/screens/customization.tscn",
 	"menu": "res://ui/screens/main_menu.tscn",
+	"welcome": "res://ui/screens/welcome.tscn",
 	"episodes": "res://ui/screens/episode_select.tscn",
 	"chapter": "res://ui/screens/chapter_map.tscn",
 	"match": "res://ui/screens/match_screen.tscn",

@@ -5,6 +5,7 @@ extends Control
 
 var backdrop: Texture2D
 var backdrop_alpha := 0.55
+var location_backdrop := false
 var hyperspace := 0.0     # 0..1 streak amount (animate for transitions)
 var drift := Vector2(-6, 2)
 var _stars: Array = []
@@ -27,7 +28,7 @@ func _ready() -> void:
 
 
 func _process(dt: float) -> void:
-	if Appearance.preset()["kind"] == "planet":
+	if location_backdrop or Appearance.preset()["kind"] == "planet":
 		return
 	if Sabacc.perf() and hyperspace <= 0.0:
 		return
@@ -38,6 +39,12 @@ func _process(dt: float) -> void:
 func _draw() -> void:
 	var spec := Appearance.preset()
 	draw_rect(Rect2(Vector2.ZERO, size), spec["base"])
+	if location_backdrop and backdrop:
+		var source_size := backdrop.get_size()
+		var covered := source_size * maxf(size.x / source_size.x, size.y / source_size.y)
+		draw_texture_rect(backdrop, Rect2((size - covered) * 0.5, covered), false)
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.16, 0.075, 0.032, 1.0 - backdrop_alpha))
+		return
 	if spec["kind"] == "datapad":
 		return
 	var photo: Texture2D = Cosmetics.background_texture(spec.get("art", "")) if spec["kind"] == "planet" else null
@@ -67,5 +74,5 @@ func _draw() -> void:
 
 
 func _retheme() -> void:
-	_datapad.visible = Appearance.preset()["kind"] == "datapad"
+	_datapad.visible = not location_backdrop and Appearance.preset()["kind"] == "datapad"
 	queue_redraw()

@@ -75,4 +75,4 @@ func _show_menu() -> void:
 	if _leaving:
 		return
 	_leaving = true
-	Router.go("menu")
+	Router.go("welcome" if Progression.needs_welcome() else "menu")

@@ -41,8 +41,45 @@ func _init() -> void:
 	test_upgrade_defeat_and_ready_aura()
 	test_unit_control_changes()
 	test_upgrade_search_filters()
+	test_spotlight_rules()
 	print("EXTENDED RULES: %d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
+
+
+func test_spotlight_rules() -> void:
+	var m := funded_match()
+	var attacker := add_unit(m, 0, "SOR_095", false)
+	var target := add_unit(m, 1, "SOR_095")
+	var event := m._new_inst("JTL_123", 0)
+	m.push_ability(event, event.abilities_with("event")[0])
+	m.pump()
+	check(m.pending.get("options") == [attacker.uid], "Dogfight offers an exhausted friendly unit")
+	m.submit_choice([attacker.uid])
+	check(m.pending.get("options") == [target.uid], "Dogfight excludes enemy bases")
+	m.submit_choice([target.uid])
+	check(target.zone == "discard" and attacker.zone == "discard", "Dogfight resolves combat")
+
+	m = funded_match()
+	attacker = add_unit(m, 0, "SOR_095")
+	target = add_unit(m, 1, "SOR_095")
+	event = m._new_inst("SOR_217", 0)
+	m.push_ability(event, event.abilities_with("event")[0])
+	m.pump()
+	m.submit_choice([attacker.uid])
+	m.submit_choice([target.uid])
+	check(target.zone == "discard" and attacker.in_play() and attacker.damage == 0, "Shoot First defeats a defender before retaliation")
+
+	m = funded_match()
+	var falcon := add_unit(m, 0, "JTL_249")
+	var pilot := m._new_inst("JTL_245", 0)
+	m.attach_upgrade(pilot, falcon)
+	var second := m._new_inst("JTL_093", 0)
+	check(falcon in Effects.upgrade_targets(m, 0, second, true), "The Spotlight Falcon accepts a second pilot")
+	m.attach_upgrade(second, falcon)
+	var third := m._new_inst("JTL_150", 0)
+	check(falcon in Effects.upgrade_targets(m, 0, third, true), "R2-D2 gives the Falcon a third pilot slot")
+	m.attach_upgrade(third, falcon)
+	check(falcon not in Effects.upgrade_targets(m, 0, m._new_inst("JTL_148", 0), true), "The Falcon with R2-D2 caps at three pilots")
 
 
 func test_reported_card_abilities() -> void:
