@@ -12,7 +12,8 @@ run/main_scene="res://ui/screens/boot.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/bg_color=Color(0.02, 0.03, 0.05, 1)
 boot_splash/show_image=false
-config/icon="res://icon.svg"
+config/icon="res://assets/branding/app_icon.png"
+config/windows_native_icon="res://assets/branding/app_icon.ico"
 
 [autoload]
 
