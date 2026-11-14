@@ -5,6 +5,7 @@ signal changed
 
 var _pools: Dictionary = {}
 const PACK_PRICE := 1000
+const GM_START_CREDITS := 1000000
 const BATTLE_WIN := 100
 const BATTLE_LOSS := 50
 const RUN_BATTLE := 50
@@ -20,9 +21,11 @@ func state() -> Dictionary:
 	if not Save.data.get("progression") is Dictionary:
 		Save.data["progression"] = {"initialized": false, "packs": [], "claimed": {}, "traditional": 0, "sequence": 0}
 	# JSON numbers load as floats; normalize indexes for exact array membership.
-	for pack in Save.data["progression"]["packs"]:
-		pack["revealed"] = pack["revealed"].map(func(index): return int(index))
-	return Save.data["progression"]
+	var progress: Dictionary = Save.data["progression"]
+	for queue in [progress["packs"], progress.get("gm_packs", [])]:
+		for pack in queue:
+			pack["revealed"] = pack["revealed"].map(func(index): return int(index))
+	return progress
 
 
 func ensure_account() -> void:
@@ -66,7 +69,7 @@ func account_stats() -> Dictionary:
 	var stats: Dictionary = Save.data["stats"]
 	stats.merge(Save.default_data()["stats"])
 	# Older saves only kept the current wallet. It is a lower bound on lifetime earnings.
-	stats["credits_earned"] = maxi(int(stats["credits_earned"]), credits())
+	stats["credits_earned"] = maxi(int(stats["credits_earned"]), _account_credits())
 	return stats
 
 
@@ -95,6 +98,12 @@ func track_match(winner: int, aspects: Array, leader_id: String, played_aspects 
 
 
 func credits() -> int:
+	if Cosmetics.state()["gm"]:
+		return maxi(0, int(state().get("gm_credits", GM_START_CREDITS)))
+	return _account_credits()
+
+
+func _account_credits() -> int:
 	return maxi(0, int(Save.data.get("credits", 0)))
 
 
@@ -106,7 +115,7 @@ func award_credits(identity: String, amount: int) -> int:
 	claimed[key] = true
 	var stats := account_stats()
 	stats["credits_earned"] = int(stats["credits_earned"]) + amount
-	Save.data["credits"] = credits() + amount
+	Save.data["credits"] = _account_credits() + amount
 	Save.write()
 	changed.emit()
 	return amount
@@ -118,8 +127,11 @@ func buy_pack(set_code: String) -> String:
 	var id := _queue_pack("Purchased pack", set_code)
 	if id.is_empty():
 		return ""
-	count_stat("boosters", set_code)
-	Save.data["credits"] = credits() - PACK_PRICE
+	if Cosmetics.state()["gm"]:
+		state()["gm_credits"] = credits() - PACK_PRICE
+	else:
+		count_stat("boosters", set_code)
+		Save.data["credits"] = credits() - PACK_PRICE
 	Save.write()
 	changed.emit()
 	return id
@@ -150,13 +162,18 @@ func _queue_pack(source: String, set_code: String) -> String:
 		cards.append(pool[random.randi_range(0, pool.size() - 1)])
 	s["sequence"] += 1
 	var id := "pack_%d" % s["sequence"]
-	s["packs"].append({"id": id, "source": source, "set": set_code, "cards": cards, "revealed": [], "torn": false,
+	packs().append({"id": id, "source": source, "set": set_code, "cards": cards, "revealed": [], "torn": false,
 		"bonus": roll_cosmetic(random, set_code), "bonus_revealed": false})
 	return id
 
 
 func packs() -> Array:
-	return state()["packs"]
+	var progress := state()
+	if Cosmetics.state()["gm"]:
+		if not progress.has("gm_packs"):
+			progress["gm_packs"] = []
+		return progress["gm_packs"]
+	return progress["packs"]
 
 
 func tear(id: String) -> void:
@@ -172,12 +189,24 @@ func reveal(id: String, index: int) -> bool:
 			continue
 		pack["revealed"].append(index)
 		var card_id: String = pack["cards"][index]
-		if card_id in Save.data["vault"]:
+		var gm: bool = Cosmetics.state()["gm"]
+		var test_cards: Array = state().get("gm_cards", [])
+		if card_id in Save.data["vault"] or (gm and card_id in test_cards):
 			var amount := randi_range(50, 100)
 			var refunds: Dictionary = pack.get("refunds", {})
 			refunds[str(index)] = amount
 			pack["refunds"] = refunds
-			award_credits("duplicate:%s:%d" % [id, index], amount)
+			if gm:
+				state()["gm_credits"] = credits() + amount
+				Save.write()
+				changed.emit()
+			else:
+				award_credits("duplicate:%s:%d" % [id, index], amount)
+		elif gm:
+			test_cards.append(card_id)
+			state()["gm_cards"] = test_cards
+			Save.write()
+			changed.emit()
 		else:
 			Save.unlock([card_id])
 			changed.emit()
@@ -201,6 +230,8 @@ func roll_cosmetic(random: RandomNumberGenerator, set_code := "") -> Dictionary:
 	if kind.is_empty():
 		return {}
 	var reserved: Array = Cosmetics.state()["earned"].duplicate()
+	if Cosmetics.state()["gm"]:
+		reserved.append_array(state().get("gm_cosmetics", []))
 	for pack in packs():
 		if not pack.get("bonus", {}).is_empty():
 			reserved.append(pack["bonus"]["key"])
@@ -222,7 +253,12 @@ func reveal_bonus(id: String) -> bool:
 		if pack["id"] != id or not pack["torn"] or pack.get("bonus_revealed", false) or pack.get("bonus", {}).is_empty():
 			continue
 		pack["bonus_revealed"] = true
-		Cosmetics.award(pack["bonus"]["key"])
+		if Cosmetics.state()["gm"]:
+			var test_cosmetics: Array = state().get("gm_cosmetics", [])
+			test_cosmetics.append(pack["bonus"]["key"])
+			state()["gm_cosmetics"] = test_cosmetics
+		else:
+			Cosmetics.award(pack["bonus"]["key"])
 		Save.write()
 		changed.emit()
 		return true

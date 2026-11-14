@@ -5,12 +5,34 @@ extends ScreenBase
 var _box: VBoxContainer
 var _gm: HSlider
 var _gm_status: Label
+var _gm_motion: Tween
+var _gm_dragging := false
+var _gm_drag_moved := false
 
 
-func _refresh_gm() -> void:
-	_gm.set_value_no_signal(1 if Cosmetics.state()["gm"] else 0)
-	_gm_status.text = "GM · Everything unlocked" if Cosmetics.state()["gm"] else "Normal · Earn your collection"
-	_gm_status.modulate = Sabacc.C_EMPIRE if Cosmetics.state()["gm"] else Sabacc.C_TEXT
+func _refresh_gm(animate := true) -> void:
+	var enabled: bool = Cosmetics.state()["gm"]
+	var target := 1.0 if enabled else 0.0
+	_gm_status.text = "GM · Everything unlocked" if enabled else "Normal · Earn your collection"
+	if _gm_motion:
+		_gm_motion.kill()
+	if _gm_dragging:
+		return
+	var color := Sabacc.C_EMPIRE if enabled else Sabacc.C_TEXT
+	if animate and not Sabacc.perf():
+		_gm_motion = create_tween().set_parallel(true)
+		_gm_motion.tween_method(_gm.set_value_no_signal, _gm.value, target, Sabacc.anim(0.27)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		_gm_motion.tween_property(_gm_status, "modulate", color, Sabacc.anim(0.27))
+	else:
+		_gm.set_value_no_signal(target)
+		_gm_status.modulate = color
+
+
+func _commit_gm(enabled: bool) -> void:
+	if enabled != Cosmetics.state()["gm"]:
+		Cosmetics.set_gm(enabled)
+	else:
+		_refresh_gm()
 
 
 func build() -> void:
@@ -34,7 +56,7 @@ func build() -> void:
 	gm.name = "GMSlider"
 	gm.min_value = 0
 	gm.max_value = 1
-	gm.step = 1
+	gm.step = 0
 	gm.scrollable = false
 	gm.custom_minimum_size.y = 76
 	var thumb := Image.new()
@@ -48,12 +70,31 @@ func build() -> void:
 	gm.add_theme_stylebox_override("grabber_area_highlight", UIKit.chamfer(Color(Sabacc.C_EMPIRE, 0.55), Sabacc.C_EMPIRE, 10, 2))
 	_gm = gm
 	Cosmetics.changed.connect(_refresh_gm)
-	gm.value_changed.connect(func(value): Cosmetics.set_gm(value >= 0.5))
+	gm.drag_started.connect(func():
+		_gm_dragging = true
+		_gm_drag_moved = false
+		if _gm_motion:
+			_gm_motion.kill())
+	gm.drag_ended.connect(func(_changed):
+		_gm_dragging = false
+		var enabled := gm.value >= 0.5
+		if not _gm_drag_moved:
+			gm.set_value_no_signal(1.0 if Cosmetics.state()["gm"] else 0.0)
+		_commit_gm(enabled))
+	gm.gui_input.connect(func(event):
+		if event is InputEventMouseMotion and _gm_dragging and event.relative.length() > 0:
+			_gm_drag_moved = true
+		elif event.is_action_pressed("ui_left"):
+			gm.accept_event()
+			_commit_gm(false)
+		elif event.is_action_pressed("ui_right"):
+			gm.accept_event()
+			_commit_gm(true))
 	gm_box.add_child(gm)
 	gm_box.add_child(UIKit.label("NORMAL PROGRESSION                         GM UNLOCK ALL", 16, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	_box.add_child(gm_box)
-	_refresh_gm()
-	var theme_help := UIKit.label("Win games to earn emblems, card backs and scene backgrounds. GM grants access to everything while preserving your earned collection.", 17, Sabacc.C_DIM)
+	_refresh_gm(false)
+	var theme_help := UIKit.label("GM mode includes a separate 1m test wallet and test packs. Switch back to resume your regular collection.", 17, Sabacc.C_DIM)
 	theme_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(theme_help)
 	_toggle("Performance mode (static backgrounds, fewer particles)", "perf_mode")

@@ -1,13 +1,4 @@
-extends "res://tests/shots.gd"
-var checks := 0
-var failures := 0
-
-
-func check(ok: bool, description: String) -> void:
-	checks += 1
-	if not ok:
-		failures += 1
-		printerr("FAIL: ", description)
+extends "res://tests/interaction_tests.gd"
 
 
 func _run() -> void:
@@ -30,7 +21,21 @@ func _run() -> void:
 	check(Progression.owns(locked), "GM grants card access")
 	check(Progression.grant("GM", "gm_test").is_empty(), "GM cannot earn packs for account")
 	check(Progression.traditional_result("gm_game").is_empty() and Progression.state()["traditional"] == 0, "GM does not advance account pack meter")
+	check(Progression.credits() == 1000000, "GM starts with one million test credits")
+	var test_pack := Progression.buy_pack("TWI")
+	check(not test_pack.is_empty() and Progression.credits() == 999000, "GM booster spends test credits")
+	Progression.tear(test_pack)
+	var test_cards: Array = Progression.packs()[0]["cards"]
+	test_cards[1] = test_cards[0]
+	check(Progression.reveal(test_pack, 0) and Progression.reveal(test_pack, 1), "GM booster reveals and pays duplicate refunds")
+	var test_balance := Progression.credits()
+	check(test_balance >= 999050 and test_balance <= 999200, "Refunds stay in the test wallet")
+	Save.load_save()
+	check(Progression.credits() == test_balance and Progression.packs()[0]["id"] == test_pack, "GM wallet and packs survive reload")
 	Cosmetics.set_gm(false)
+	check(Progression.credits() == 0 and Progression.packs().is_empty()
+		and Progression.account_stats()["boosters"].is_empty() and Progression.account_stats()["credits_earned"] == 0,
+		"GM testing leaves normal balance, packs and stats intact")
 	check(not Progression.owns(locked) and Save.data["vault"] == starter, "GM leaves account collection intact")
 	check(Progression.traditional_result("a").is_empty(), "first traditional game no pack")
 	check(Progression.traditional_result("a").is_empty() and Progression.state()["traditional"] == 1, "duplicate match cannot advance pack meter")
@@ -123,6 +128,17 @@ func _run() -> void:
 	screen._advance()
 	check(Progression.packs().is_empty(), "UI collect completes pack")
 	_test_credits_and_episode()
+	await _go("settings")
+	var settings := get_tree().current_scene
+	var slider: HSlider = settings._gm
+	await _click(slider, Vector2(0.85, 0.5))
+	check(Cosmetics.state()["gm"] and is_equal_approx(slider.value, 1.0) and Progression.credits() == 1000000,
+		"Clicking the slider snaps to GM and switches the wallet")
+	await _drag(slider.get_global_rect().get_center() + Vector2(slider.size.x * 0.45, 0),
+		slider.get_global_rect().get_center() - Vector2(slider.size.x * 0.45, 0))
+	await _wait(0.5)
+	check(not Cosmetics.state()["gm"] and is_zero_approx(slider.value) and Progression.credits() == 420,
+		"Dragging back restores normal progression and credits")
 	print("PROGRESSION: %d checks, %d failed" % [checks, failures])
 	if failures:
 		get_tree().quit(1)

@@ -47,6 +47,7 @@ func _run() -> void:
 	check(not Router._busy and Router._fade.mouse_filter == Control.MOUSE_FILTER_IGNORE, "splash transition releases input")
 	Cosmetics.set_gm(true)
 	Cosmetics.equip("background", "emblem")
+	Cosmetics.set_gm(false)
 	Progression.award_credits("stats-test", 1200)
 	Progression.buy_pack("ASH")
 	Cosmetics.record_match(true, "stats-win", 0, ["command", "command", "heroism"], "SOR_017", {"aggression": 5})

@@ -28,6 +28,7 @@ func _ready() -> void:
 	_account_credit.name = "AccountCredits"
 	add_child(_account_credit)
 	Progression.changed.connect(_account_credit.refresh)
+	Cosmetics.changed.connect(_account_credit.refresh)
 	get_viewport().size_changed.connect(_on_resize)
 	build()
 	Appearance.changed.connect(func(): theme = UIKit.build_theme())
