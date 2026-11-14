@@ -102,6 +102,11 @@ def norm_text(text: str) -> str:
 STOPWORDS = {"a", "an", "the", "that", "with", "shares", "aspect", "of", "to", "and", "or", "for", "each",
               "this", "it", "its", "you", "your", "their", "in", "on", "from", "is", "was", "who", "which",
               "attacking", "defending", "played", "control", "controls", "named", "card", "cards", "token"}
+MULTIWORD_TRAITS = ("bounty hunter", "capital ship", "first order", "new republic")
+
+
+def trait_words(phrase: str) -> list[str]:
+    return re.findall(rf"(?:{'|'.join(MULTIWORD_TRAITS)})(?=\s|$)|\S+", phrase)
 
 
 def parse_target(phrase: str) -> dict | None:
@@ -112,6 +117,7 @@ def parse_target(phrase: str) -> dict | None:
     p = re.sub(r"^(?:to|from|on) ", "", p)
     simple = {
         "a unit or base": {"s": "choose", "kind": "unit_or_base", "side": "any"},
+        "another unit or base": {"s": "choose", "kind": "unit_or_base", "side": "any", "other": True},
         "this leader": {"s": "self"},
         "the played unit": {"s": "subject"},
         "this unit": {"s": "self"}, "this upgrade": {"s": "self"}, "this base": {"s": "self"},
@@ -147,7 +153,7 @@ def parse_target(phrase: str) -> dict | None:
                   r"ground |space |non-vehicle |vehicle |[a-z]+ )*)(units? or bases?|units?|bases?|upgrades?)(.*)$", rest)
     if not m2:
         return None
-    adjs, noun, tail = m2.group(1).split(), m2.group(2), m2.group(3).strip()
+    adjs, noun, tail = trait_words(m2.group(1)), m2.group(2), m2.group(3).strip()
     # "creature or spectre unit" -> any of these traits
     if "or" in adjs and adjs.index("or") > 0 and adjs.index("or") < len(adjs) - 1:
         i = adjs.index("or")
@@ -208,6 +214,8 @@ def parse_target(phrase: str) -> dict | None:
             t["side"] = "friendly"
         elif tail == "an opponent controls":
             t["side"] = "enemy"
+        elif (keyword := re.fullmatch(r"with (sentinel|hidden|overwhelm|saboteur|grit|ambush)", tail)):
+            t["keyword"] = keyword[1]
         elif tail == "":
             pass
         else:
@@ -252,8 +260,11 @@ def compile_sentence(s: str) -> list | None:
         return wrap({"op": "attack_with", "t": {"s": "attached" if "attached" in low else "self"}})
     if low == "put a non-vehicle unit from your discard pile on top of your deck":
         return wrap({"op": "recover", "kind": "unit", "not_trait": "vehicle", "destination": "deck"})
-    if low == "it doesn't ready during the next regroup phase":
-        return wrap({"op": "skip_regroup_ready", "t": {"s": "it"}})
+    if low in ("it doesn't ready during the next regroup phase", "this unit doesn't ready during the next regroup phase"):
+        return wrap({"op": "skip_regroup_ready", "t": {"s": "it" if low.startswith("it ") else "self"}})
+    if low == "heal all damage from him and give a shield token to him":
+        return [{"op": "heal", "all_damage": True, "t": {"s": "attached"}},
+                {"op": "shield", "t": {"s": "attached"}}]
     if low == "reveal the top card of your deck":
         return wrap({"op": "reveal_top"})
     if low == "defeat this upgrade":
@@ -327,7 +338,11 @@ def compile_sentence(s: str) -> list | None:
     if m:
         t1, t2 = parse_target(m.group(2)), parse_target(m.group(4))
         if t1 and t2:
-            return [{"op": "damage", "n": int(m.group(1)), "t": t1}, {"op": "damage", "n": int(m.group(3)), "t": t2}]
+            first = wrap({"op": "damage", "n": int(m.group(1)), "t": t1})
+            second = {"op": "damage", "n": int(m.group(3)), "t": t2}
+            if opt:
+                second["if_did"] = True
+            return first + [second]
     m = re.match(r"^heal (\d+) damage from (.+)$", low)
     if m:
         t = parse_target(m.group(2))
@@ -393,20 +408,18 @@ def compile_sentence(s: str) -> list | None:
     if m:
         t = parse_target(m.group(1))
         return wrap({"op": "lose_kw", "kw": m.group(2), "dur": "phase", "t": t}) if t else None
-    m = re.match(r"^create (a|an|one|two|three|\d+) (battle droid|clone trooper|tie fighter|x-wing|spy|mandalorian|credit|beast) tokens?$", low)
+    m = re.fullmatch(r"create (a|an|one|two|three|\d+) (battle droid|clone trooper|tie fighter|x-wing|spy|mandalorian|credit|beast) tokens?( and ready (?:it|them))?", low)
     if m:
-        return wrap({"op": "token", "name": TOKEN_NAMES[m.group(2)], "n": num(m.group(1))})
-    # "Deal 1 damage to a unit and 1 damage to a different unit"
-    m = re.match(r"^deal (\d+) damage to (.+?) and (\d+) damage to (.+)$", low)
-    if m:
-        t1, t2 = parse_target(m.group(2)), parse_target(m.group(4))
-        if t1 and t2:
-            return [{"op": "damage", "n": int(m.group(1)), "t": t1}, {"op": "damage", "n": int(m.group(3)), "t": t2}]
+        effect = {"op": "token", "name": TOKEN_NAMES[m[2]], "n": num(m[1])}
+        if m[3]:
+            if effect["name"] == "credit":
+                return None
+            effect["ready"] = True
+        return wrap(effect)
     # "Play a [Trait] unit|event|card from your hand [(paying its cost)]"
     m = re.match(r"^play (a|an|2) ((?:[a-z-]+ )*?)(unit|event|card|upgrade|non-unit card)( that costs (\d+) or less)?( with (\d+) or less power)? from your hand(.*)$", low)
     if m:
-        words = m.group(2).replace("capital ship", "capital_ship").replace("bounty hunter", "bounty_hunter").replace("first order", "first_order").replace("new republic", "new_republic").split()
-        words = [w.replace("_", " ") for w in words]
+        words = trait_words(m.group(2))
         eff = {"op": "play_from_hand", "kind": m.group(3), "count": 2 if m.group(1) == "2" else 1}
         aspects = {"heroism", "villainy", "vigilance", "command", "aggression", "cunning"}
         for w in words:
@@ -472,6 +485,16 @@ SPLIT_SENT = re.compile(r"(?<=[.!])\s+(?=[A-Z])")
 
 def compile_condition(phrase: str) -> dict | None:
     p = phrase.lower().strip()
+    if p == "the force is with you":
+        return {"force_token": True}
+    if p == "you control an endor base":
+        return {"base_trait": "endor"}
+    if p == "you control another ewok unit or an endor base":
+        return {"any": [compile_condition("you control another ewok unit"), {"base_trait": "endor"}]}
+    if p == "an opponent controls a space unit":
+        return {"control": parse_target("an enemy space unit")}
+    if p in ("attached unit is luke skywalker", "attached unit is darth vader"):
+        return {"attached_name": p.removeprefix("attached unit is ")}
     if p == "you control grand moff tarkin":
         return {"controls_name": "Grand Moff Tarkin"}
     if p == "it's aggression":
@@ -560,6 +583,11 @@ def inert(effects: list, ok: bool) -> bool:
 
 
 def compile_body(body: str) -> tuple[list, bool]:
+    if body.strip().lower().rstrip(".") == ("if an opponent controls a space unit, give a shield token to this unit. "
+                                           "otherwise, give 2 advantage tokens to this unit"):
+        condition = compile_condition("an opponent controls a space unit")
+        return [{"op": "shield", "if": condition, "t": {"s": "self"}},
+                {"op": "advantage", "n": 2, "if": {"not": condition}, "t": {"s": "self"}}], True
     if body.strip().lower().rstrip(".") == "look at an opponent's hand. you may discard a card from it. if you do, they draw a card":
         return [{"op": "discard", "who": "opponent", "chooser": "self", "optional": True},
                 {"op": "draw", "who": "opponent", "if_did": True}], True
@@ -983,6 +1011,8 @@ def compile_continuous(line: str):
         return {"trigger": "constant", "flag": "increase_indirect", "text": line}
     if text == "while attacking, this unit deals combat damage before the defender":
         return {"trigger": "constant", "flag": "first_strike", "text": line}
+    if text == "if attached unit is luke skywalker, he gains sentinel":
+        return {"trigger": "attached_kw", "host_name": "luke skywalker", "kw": "sentinel", "text": line}
     condition = {}
     for pattern, value in [
         (r"^while you have the initiative, (.+)$", {"initiative": True}),
@@ -990,6 +1020,8 @@ def compile_continuous(line: str):
         (r"^while this unit is damaged, (.+)$", {"damaged": True}),
         (r"^while this unit is undamaged, (.+)$", {"undamaged": True}),
         (r"^while this unit is ready, (.+)$", {"ready": True}),
+        (r"^while the force is with you, (.+)$", {"force_token": True}),
+        (r"^while you control an endor base, (.+)$", {"base_trait": "endor"}),
         (r"^coordinate\s*-\s*(.+)$", {"units_min": 3}),
     ]:
         match = re.fullmatch(pattern, text)
@@ -999,6 +1031,16 @@ def compile_continuous(line: str):
     match = re.fullmatch(r"while you control (\d+) or more resources, (.+)", text)
     if match:
         condition, text = {"resources_min": int(match.group(1))}, match.group(2)
+    match = re.fullmatch(r"while you control (another non-unique unit), (.+)", text)
+    if match:
+        condition, text = compile_condition("you control " + match[1]), match[2]
+    scale_target = None
+    scaling = re.fullmatch(r"(.+) for each other friendly (.*\bunit|unit)", text)
+    if scaling:
+        text = scaling[1]
+        scale_target = parse_target("another friendly " + scaling[2])
+        if scale_target is None:
+            return None
     target, other, trait = "self", False, ""
     match = re.fullmatch(r"(?:each )?(other )?friendly (?:(\w+) )?units? (.+)", text)
     if match:
@@ -1012,16 +1054,19 @@ def compile_continuous(line: str):
     match = re.fullmatch(r"gets? ([+-]\d+)/([+-]\d+)(?: for each (resource you control|card in your hand))?", text)
     result = {"trigger": "continuous", "target": target, "other": other, "trait": trait,
               "condition": condition, "text": line}
+    if scale_target:
+        result["scale_target"] = scale_target
     if match:
         result.update(p=int(match.group(1)), h=int(match.group(2)))
         if match.group(3):
             result["scale_by"] = "resources" if match.group(3) == "resource you control" else "hand"
         return result
-    if condition.get("units_min") and re.fullmatch(r"ambush|sentinel|grit|saboteur|overwhelm|raid \d+|restore \d+", text):
+    keywords_pattern = r"ambush|sentinel|grit|saboteur|overwhelm|hidden|raid|restore"
+    if condition.get("units_min") and re.fullmatch(rf"(?:{keywords_pattern})(?: \d+)?", text):
         text = "gains " + text
     if text.startswith(("gain ", "gains ")):
         keywords = re.split(r",\s*(?:and\s+)?|\s+and\s+", text.split(" ", 1)[1])
-        entries = [re.fullmatch(r"(ambush|sentinel|grit|saboteur|overwhelm|raid|restore)(?: (\d+))?", part)
+        entries = [re.fullmatch(rf"({keywords_pattern})(?: (\d+))?", part)
                    for part in keywords]
         if all(entries):
             if len(entries) == 1:
@@ -1098,10 +1143,10 @@ def parse_keywords(card: dict, text: str) -> list:
     listed = []
     for raw in text.split("\n"):
         printed = strip_reminders(raw).strip().rstrip(".").lower()
-        for part in re.split(r",\s*|\s+and\s+", printed):
-            match = re.fullmatch(r"([a-z]+)(?:\s+\d+)?(?:\s*\[[^\]]+\])?", part.strip())
-            if match and match.group(1) in NATIVE_KEYWORDS and match.group(1) not in listed:
-                listed.append(match.group(1))
+        parts = re.split(r",\s*(?:and\s+)?|\s+and\s+", printed)
+        matches = [re.fullmatch(r"([a-z]+)(?:\s+\d+)?(?:\s*\[[^\]]+\])?", part.strip()) for part in parts]
+        if all(match and match[1] in NATIVE_KEYWORDS for match in matches):
+            listed.extend(match[1] for match in matches)
     # The DB sometimes omits keywords from its list; bare keyword lines in the text count too.
     for line in text.split("\n"):
         m = re.match(r"^\s*([A-Za-z]+)(?:\s+\d+)?\s*(?:\(|$|\[|-)", strip_reminders(line) + "\n" if False else line)
@@ -1187,7 +1232,8 @@ def compile_pilot_leader(card, number, back, front, abilities, missing):
         "017": [deploy([dict(op="ready_resource", amount="odd_permanent")])],
         "018": [on_attack([blank])],
     }[number]
-    card["pilot"] = dict(power=power, hp=hp, aspects=card["aspects"], abilities=upgrade, makes_leader=number != "013")
+    card["pilot"] = dict(power=power, hp=hp, aspects=card["aspects"], abilities=upgrade,
+                         makes_leader=number != "013", text=back)
     if number == "013":
         card["pilot"]["flip_cost"] = 1
         missing = []
@@ -1462,7 +1508,9 @@ def complete_pilot_rules(card, pilot, unit, unit_missing, upgrade_missing):
 
 
 def compile_pilot(card: dict, keyword: dict, stats: tuple[int, int]):
-    unit_lines, upgrade_lines = re.split(r"(?im)^piloting\s*\[[^\]]+\][^\n]*", card["text"], maxsplit=1)
+    pilot_block = re.search(r"(?im)^piloting\s*\[[^\]]+\][^\n]*", card["text"])
+    unit_lines = card["text"][:pilot_block.start()]
+    upgrade_lines = card["text"][pilot_block.end():]
     unit_keywords = parse_keywords({}, unit_lines)
     card["keywords"] = unit_keywords + [keyword]
     abilities, missing, _ = compile_text(unit_lines, unit_keywords)
@@ -1487,7 +1535,8 @@ def compile_pilot(card: dict, keyword: dict, stats: tuple[int, int]):
         else:
             upgrade_missing.append(line)
     pilot = {"cost": keyword["v"], "aspects": keyword.get("aspects", []),
-             "power": stats[0], "hp": stats[1], "abilities": upgrade_abilities}
+             "power": stats[0], "hp": stats[1], "abilities": upgrade_abilities,
+             "text": card["text"][pilot_block.start():].strip()}
     if card["id"] == "JTL_245":
         pilot["extra_slot"] = True
         upgrade_missing = [line for line in upgrade_missing if line not in {

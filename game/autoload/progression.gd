@@ -14,9 +14,20 @@ const BACKGROUND_CHANCE := 0.05
 
 
 func _ready() -> void:
-	if Save.existing_account:
+	if Save.existing_account and (not Save.data.has("progression") or not needs_welcome()):
 		ensure_account()
 		_migrate_spotlight_starters()
+
+
+func reset_account() -> void:
+	Save.data = Save.default_data()
+	Save.data["settings"] = Sabacc.settings.duplicate(true)
+	# Save the pending welcome state before navigation, including when the app
+	# closes before the player chooses a set.
+	state()
+	Save.write()
+	Cosmetics.changed.emit()
+	changed.emit()
 
 
 func _migrate_spotlight_starters() -> void:

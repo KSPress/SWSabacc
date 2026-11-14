@@ -1477,24 +1477,27 @@ func continuous_bonus(target: CardInst, field: String, keyword: String) -> int:
 			if condition.get("ready", false) and source.exhausted:
 				continue
 			var ps: PlayerState = players[source.controller]
-			if condition.has("friendly_unit") and Effects.candidates(self, condition["friendly_unit"], {"ctl": source.controller, "src": source.uid}).is_empty():
+			var context := {"ctl": source.controller, "src": source.uid}
+			if not Effects.condition(self, condition, context):
+				continue
+			if condition.has("friendly_unit") and Effects.candidates(self, condition["friendly_unit"], context).is_empty():
 				continue
 			if ps.base.damage < int(condition.get("base_damage_min", 0)):
 				continue
 			if condition.get("enemy_damaged", false) and not players[opp(source.controller)].units.any(func(u): return u.damage > 0):
 				continue
-			if condition.get("both_arenas", false) and not Effects.condition(self, condition, {"ctl": source.controller}):
-				continue
 			if ps.resources.size() < int(condition.get("resources_min", 0)):
 				continue
 			if ps.units.size() < int(condition.get("units_min", 0)):
 				continue
+			var multiplier := 1
+			if ability.has("scale_target"):
+				multiplier = Effects.candidates(self, ability["scale_target"], context).size()
 			if field == "kw":
 				if ability.get("kw") == keyword:
-					total += int(ability.get("v", 1))
-				total += int(ability.get("keywords", {}).get(keyword, 0))
+					total += int(ability.get("v", 1)) * multiplier
+				total += int(ability.get("keywords", {}).get(keyword, 0)) * multiplier
 			else:
-				var multiplier := 1
 				match ability.get("scale_by", ""):
 					"resources": multiplier = ps.resources.size()
 					"hand": multiplier = ps.hand.size()

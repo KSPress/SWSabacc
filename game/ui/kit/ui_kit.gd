@@ -127,7 +127,7 @@ const KEYWORD_HELP := {
 	"smuggle": "May be played from your resources at its Smuggle cost.",
 	"exploit": "While playing this card, you may defeat up to X friendly units. Each reduces its cost by 2 resources.",
 	"coordinate": "The printed conditional bonus applies while you control at least three units. The bonus is specified by this card, not by Coordinate alone.",
-	"piloting": "May be played as a pilot upgrade on a Vehicle (not yet automated).",
+	"piloting": "May be played as a Pilot upgrade on a friendly Vehicle with room for a Pilot.",
 	"bounty": "This unit's opponent may collect its printed reward when it is defeated or captured. Check the automation dossier for unsupported reward text.",
 	"support": "When this unit enters play, you may attack with another ready friendly unit. It gains this unit's other abilities for that attack. Unsupported printed abilities remain listed in the automation dossier.",
 	"plot": "When you deploy your leader, you may pay this card's cost to play it from resources. Replace it with the top card of your deck as a resource.",

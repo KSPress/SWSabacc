@@ -54,9 +54,8 @@ Import the supplied local `Customization/` assets with
 Card backs are cropped and converted to 500×698 WebP. Originals remain intact;
 generated files and the source asset folder are excluded from Git.
 
-Every-card automation is **unfinished**: the current inventory contains 1,060
-cards with complete compiler text coverage, 544 partial and 984 manual.
-Compiler coverage is not proof of correct rules behavior. Run
+Every-card automation is **unfinished**. The generated coverage report counts
+fully mapped, partially mapped, and manual printings. Run
 `python -I tools/check_card_coverage.py --require-full` to generate a per-card
 inventory and fail the gate while incomplete cards remain. See
 [`docs/CUSTOMIZATION_QA.md`](docs/CUSTOMIZATION_QA.md) for this release's checks.
@@ -192,9 +191,11 @@ The shipped starter, Spotlight, and Space Only rosters are maintained in
 base, card IDs, and quantities. Space Only uses the four custom squadrons.
 
 ```bash
-# Engine audit of every card, then the readable report (docs/card_audit.md)
-godot --headless --path game --script res://tests/card_audit.gd -- audit.json
-python -I tools/audit_report.py audit.json
+# Audit every card on three staged boards and write the report to docs/card_audit.md
+godot --headless --path game --log-file "$PWD/dense.log" --script res://tests/card_audit.gd -- "$PWD/dense.json" "" dense
+godot --headless --path game --log-file "$PWD/duel.log" --script res://tests/card_audit.gd -- "$PWD/duel.json" "" duel
+godot --headless --path game --log-file "$PWD/pressured.log" --script res://tests/card_audit.gd -- "$PWD/pressured.json" "" pressured
+python -I tools/audit_report.py --require-logs dense.json duel.json pressured.json
 ```
 
 ```bash

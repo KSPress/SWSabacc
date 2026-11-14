@@ -28,6 +28,7 @@ var _t := 0.0
 var _flash := 0.0
 var _flash_col := Color.WHITE
 var _badges: HBoxContainer
+var attachment_caption := ""
 var effects: UnitEffects
 var _press := false
 var _press_t := 0.0
@@ -76,6 +77,14 @@ func refresh() -> void:
 	for c in _badges.get_children():
 		c.queue_free()
 	var kws := inst.keyword_list()
+	var attached := PackedStringArray()
+	for upgrade in inst.upgrades:
+		if not upgrade.is_token:
+			attached.append(upgrade.name())
+	attachment_caption = attached[0] if not attached.is_empty() else ""
+	if attached.size() > 1:
+		attachment_caption += " +%d" % (attached.size() - 1)
+	tooltip_text = "\n".join(attached)
 	var coordinate_active := false
 	if inst.has_kw("coordinate") and inst.battle:
 		var battle: Match = inst.battle.get_ref()
@@ -211,10 +220,10 @@ func _draw() -> void:
 			draw_arc(c, r + 4, _t, _t + PI * 0.6, 16, Color(0.7, 0.95, 1.0, 0.8), 2.0, true)
 		if sh > 1:
 			UIKit.draw_fit(self, Sabacc.font_title, c + Vector2(r - 10, -r + 16), "x%d" % sh, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.7, 0.95, 1))
-	# upgrades pips (non-shield)
+	# Non-shield token pips
 	var ups: Array = []
 	for u in inst.upgrades:
-		if u.data.get("name", "") != "Shield":
+		if u.is_token and u.name() != "Shield":
 			ups.append(u)
 	for i in ups.size():
 		var pc := Vector2(SIZE.x - 18 - i * 14, 10)
@@ -232,10 +241,18 @@ func _draw() -> void:
 	if inst.flags.get("protected", false):
 		UIKit.draw_fit(self, Sabacc.font_title, Vector2(0, HEX_H * 0.62), "PROTECT", HORIZONTAL_ALIGNMENT_CENTER, SIZE.x, 15, Sabacc.C_GOLD)
 	# name strip
-	var nr := Rect2(Vector2(8, HEX_H + 4), Vector2(SIZE.x - 16, 24))
+	var attached := not attachment_caption.is_empty()
+	var nr := Rect2(Vector2(8, HEX_H + 4), Vector2(SIZE.x - 16, 15 if attached else 24))
+	if attached:
+		# Keep the attached card's tab within the unit's normal board footprint.
+		var tab := Rect2(Vector2(12, nr.end.y - 1), Vector2(SIZE.x - 24, SIZE.y - nr.end.y + 1))
+		var accent := Appearance.color_at(0).lightened(0.36)
+		draw_rect(tab, Color("142232"))
+		draw_rect(tab, Color(accent, 0.8), false, 1.0)
+		UIKit.draw_fit(self, Sabacc.font_title, tab.position + Vector2(2, 12), attachment_caption, HORIZONTAL_ALIGNMENT_CENTER, tab.size.x - 4, 12, accent)
 	draw_rect(nr, Color(0.02, 0.04, 0.07, 0.85))
 	draw_rect(nr, Color(side_col, 0.6), false, 1.5)
-	UIKit.draw_fit(self, Sabacc.font_title, nr.position + Vector2(0, 18), inst.name(), HORIZONTAL_ALIGNMENT_CENTER, nr.size.x, 14, Sabacc.C_TEXT)
+	UIKit.draw_fit(self, Sabacc.font_title, nr.position + Vector2(0, 12 if attached else 18), inst.name(), HORIZONTAL_ALIGNMENT_CENTER, nr.size.x, 14, Sabacc.C_TEXT)
 
 
 func _badge(at: Vector2, txt: String, col: Color, modified: bool) -> void:

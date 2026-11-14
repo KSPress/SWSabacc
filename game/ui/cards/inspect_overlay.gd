@@ -32,6 +32,9 @@ var _blur: ShaderMaterial
 var _chrome: OrbitChrome
 var _heading: Label
 var _actions: HBoxContainer
+var _flip_button: Button
+var _attachment_picker: OptionButton
+var _stack: Array[CardInst] = []
 var _flight: Tween
 var _closing := false
 var _time := 0.0
@@ -48,7 +51,7 @@ const ASPECT_HELP := {
 
 
 func _accent(index: int = 0) -> Color:
-	var aspects: Array = CardDB.card(_id).get("aspects", [])
+	var aspects: Array = _inst.aspects() if _inst else CardDB.card(_id).get("aspects", [])
 	if aspects.is_empty():
 		return Color("c9ba95")
 	var aspect: String = aspects[posmod(index, aspects.size())]
@@ -93,19 +96,20 @@ func _build(from_rect: Rect2) -> void:
 	_chrome.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	UIKit.fill_rect(_chrome)
 	add_child(_chrome)
-	_heading = UIKit.label(CardDB.card(_id).get("name", _id).to_upper(), 26, _accent(), HORIZONTAL_ALIGNMENT_CENTER)
+	_heading = UIKit.label(_card_data().get("name", _id).to_upper(), 26, _accent(), HORIZONTAL_ALIGNMENT_CENTER)
 	_heading.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_heading.clip_text = true
 	_heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_heading)
+	_add_attachment_picker()
 	_actions = HBoxContainer.new()
 	_actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	_actions.add_theme_constant_override("separation", 16)
 	add_child(_actions)
-	if CardDB.card(_id).get("type") == "leader":
-		var flip := SabaccButton.make("Flip leader", SabaccButton.Style.GOLD)
-		flip.pressed.connect(_flip)
-		_actions.add_child(flip)
+	_flip_button = SabaccButton.make("Flip leader", SabaccButton.Style.GOLD)
+	_flip_button.visible = _can_flip()
+	_flip_button.pressed.connect(_flip)
+	_actions.add_child(_flip_button)
 	var close := SabaccButton.make("Close", SabaccButton.Style.GHOST)
 	close.custom_minimum_size.x = 160
 	close.pressed.connect(close_overlay)
@@ -122,6 +126,52 @@ func _build(from_rect: Rect2) -> void:
 func _set_blur(value: float) -> void:
 	if _blur:
 		_blur.set_shader_parameter("amount", value)
+
+
+func _card_data() -> Dictionary:
+	return _inst.data if _inst else CardDB.card(_id)
+
+
+func _can_flip() -> bool:
+	return _card_data().get("type") == "leader" and not (_inst and _inst.is_pilot_upgrade())
+
+
+func _add_attachment_picker() -> void:
+	if _inst == null:
+		return
+	var host := _inst.attached_to if _inst.attached_to else _inst
+	if host.upgrades.is_empty():
+		return
+	_stack.append(host)
+	_stack.append_array(host.upgrades)
+	_attachment_picker = OptionButton.new()
+	_attachment_picker.fit_to_longest_item = false
+	_attachment_picker.clip_text = true
+	_attachment_picker.tooltip_text = "Choose the host card or an attachment to inspect"
+	_attachment_picker.add_item("Host · " + host.name())
+	for upgrade in host.upgrades:
+		var role := "Pilot" if upgrade.is_pilot_upgrade() else ("Token" if upgrade.is_token else "Upgrade")
+		_attachment_picker.add_item(role + " · " + upgrade.name())
+	_attachment_picker.select(_stack.find(_inst))
+	_attachment_picker.item_selected.connect(_inspect_attachment)
+	add_child(_attachment_picker)
+
+
+func _inspect_attachment(index: int) -> void:
+	if _closing or index < 0 or index >= _stack.size():
+		return
+	if _flight and _flight.is_valid():
+		_flight.kill()
+	_inst = _stack[index]
+	_id = _inst.id
+	_back = _inst.deployed
+	_heading.text = _inst.name().to_upper()
+	_heading.add_theme_color_override("font_color", _accent())
+	_flip_button.visible = _can_flip()
+	_make_card()
+	_make_panels()
+	_layout()
+	Sfx.play("whoosh", 1.5)
 
 
 func _add_live_actions() -> void:
@@ -161,6 +211,7 @@ func _make_card() -> void:
 	_card = CardView.new()
 	_card.show_back_side = _back
 	_card.set_card(_id)
+	_card.data = _card_data()
 	_card.draggable = false
 	_card.hover_lift = false
 	_card.tapped.connect(func(_view): _expand_panel(0))
@@ -235,45 +286,51 @@ func _make_panels() -> void:
 		remove_child(panel)
 		panel.queue_free()
 	_panels.clear()
-	var d: Dictionary = CardDB.card(_id)
-	var face: Dictionary = d.get("leader_unit", {}) if _back else d
+	var d := _card_data()
+	var pilot := _inst != null and _inst.is_pilot_upgrade()
+	var face: Dictionary = d["pilot"] if pilot else (d.get("leader_unit", {}) if _back else d)
+	var kind: String = "upgrade" if pilot else d.get("type", "")
+	var aspects: Array = _inst.aspects() if _inst else d.get("aspects", [])
 	var profile := _panel("Aspects & anatomy", 0)
 	_text(profile, d.get("name", _id))
 	if d.get("subtitle", "") != "":
 		_text(profile, d["subtitle"], Sabacc.C_DIM)
-	_text(profile, "%s · %s" % [UIKit.type_label(d.get("type", "")), ", ".join(d.get("traits", [])).capitalize()])
-	_text(profile, "Aspects: " + ", ".join(d.get("aspects", [])).capitalize())
+	var role := "Pilot upgrade" if pilot else UIKit.type_label(kind)
+	_text(profile, "%s · %s" % [role, ", ".join(d.get("traits", [])).capitalize()])
+	_text(profile, "Aspects: " + ", ".join(aspects).capitalize())
 	var icons := HBoxContainer.new()
-	icons.set_meta("aspects", d.get("aspects", []))
+	icons.set_meta("aspects", aspects)
 	icons.add_theme_constant_override("separation", 6)
-	for aspect in d.get("aspects", []):
+	for aspect in aspects:
 		icons.add_child(AspectIcon.make(aspect, 34))
 	profile.add_child(icons)
-	for aspect in d.get("aspects", []):
+	for aspect in aspects:
 		_text(profile, ASPECT_HELP.get(aspect, aspect.capitalize()), Sabacc.C_DIM)
 	_text(profile, "Your leader and base supply aspect icons. Each unmatched printed icon adds 2 resources to this card's cost in traditional battles.")
 	var stats: Array[String] = []
-	if d.has("cost"):
-		stats.append(("Deploy threshold %d" if d.get("type") == "leader" else "Cost %d") % int(d["cost"]))
+	var cost: Dictionary = face if pilot else d
+	if cost.has("cost"):
+		stats.append(("Deploy threshold %d" if kind == "leader" else "Cost %d") % int(cost["cost"]))
 	if face.has("power"):
-		stats.append("Power %d" % int(face["power"]))
+		stats.append(("Power %+d" if kind == "upgrade" else "Power %d") % int(face["power"]))
 	if face.has("hp"):
-		stats.append("HP %d" % int(face["hp"]))
+		stats.append(("HP %+d" if kind == "upgrade" else "HP %d") % int(face["hp"]))
 	_text(profile, " · ".join(stats), _accent(1))
-	if d.has("cost"):
-		_text(profile, "Deployment threshold: control this many resources to meet the leader's Epic Action requirement. The threshold does not spend those resources; check any printed additional costs." if d.get("type") == "leader" else "Cost: resources exhausted to play the card, before applicable discounts or aspect penalties.", Sabacc.C_DIM)
+	if cost.has("cost"):
+		_text(profile, "Deployment threshold: control this many resources to meet the leader's Epic Action requirement. The threshold does not spend those resources; check any printed additional costs." if kind == "leader" else "Cost: resources exhausted to play the card, before applicable discounts or aspect penalties.", Sabacc.C_DIM)
 	if face.has("power"):
-		_text(profile, "Power: combat damage this unit deals. Upgrades show the modifier they grant instead." if d.get("type") == "upgrade" else "Power: combat damage dealt when attacking or defending.", Sabacc.C_DIM)
+		_text(profile, "Power modifier: added to the attached unit's combat power." if kind == "upgrade" else "Power: combat damage dealt when attacking or defending.", Sabacc.C_DIM)
 	if face.has("hp"):
-		_text(profile, "HP modifier: added to the attached unit's HP; the upgrade does not take damage itself." if d.get("type") == "upgrade" else ("HP: damage this base can sustain before you lose." if d.get("type") == "base" else "HP: damage capacity. A unit with damage equal to or above its current HP is defeated."), Sabacc.C_DIM)
-	if d.get("type") == "leader":
+		_text(profile, "HP modifier: added to the attached unit's HP; the upgrade does not take damage itself." if kind == "upgrade" else ("HP: damage this base can sustain before you lose." if kind == "base" else "HP: damage capacity. A unit with damage equal to or above its current HP is defeated."), Sabacc.C_DIM)
+	if kind == "leader":
 		_text(profile, "Leader deployment: its Epic Action can be used once per game when you meet its resource threshold (%d). Flip to inspect the unit side." % int(d.get("epic_cost", d.get("cost", 0))))
-	_text(profile, "Arena: " + str(face.get("arena", d.get("arena", "Not an arena unit"))).capitalize() + ". Ground and space units normally attack in their own arena.", Sabacc.C_DIM)
+	if kind == "unit" or kind == "leader":
+		_text(profile, "Arena: " + str(face.get("arena", d.get("arena", "Not an arena unit"))).capitalize() + ". Ground and space units normally attack in their own arena.", Sabacc.C_DIM)
 	_text(profile, "Traits and uniqueness: traits enable card synergies; a unique title is subject to the uniqueness rule. Traits do not grant abilities by themselves.", Sabacc.C_DIM)
 	_text(profile, "Unique title: the diamond identifies a unique card; control of matching unique titles is restricted by the uniqueness rule." if d.get("unique", false) else "Non-unique card: no uniqueness marker. Deck copy limits still apply.", Sabacc.C_DIM)
 	_text(profile, "%s · %s" % [d.get("set", ""), d.get("number", "")], Sabacc.C_DIM)
 	var rules := _panel("Printed ability", 1)
-	var printed: String = face.get("text", "")
+	var printed: String = face.get("text", d.get("text", "") if pilot else "")
 	_text(rules, printed if printed != "" else "No printed ability on this side.")
 	var glossary := _panel("Keywords & timing", 2)
 	var keywords: Array = _inst.keyword_list() if _inst else face.get("keywords", [])
@@ -297,16 +354,24 @@ func _make_panels() -> void:
 	var status := _panel("Live state & support", 0)
 	if _inst:
 		_text(status, "Zone: %s · %s" % [_inst.zone.capitalize(), "Exhausted" if _inst.exhausted else "Ready"])
+		if _inst.attached_to:
+			_text(status, "Attached to " + _inst.attached_to.name())
+		if not _inst.upgrades.is_empty():
+			_text(status, "Attached upgrades / tokens: %d" % _inst.upgrades.size())
 		if _inst.in_play():
 			_text(status, "Power %d · HP %d / %d · Damage %d" % [_inst.power(), _inst.remaining_hp(), _inst.max_hp(), _inst.damage])
-			_text(status, "Attached upgrades / tokens: %d" % _inst.upgrades.size())
 			var held: Array = _inst.flags.get("captives", [])
 			if not held.is_empty():
 				_text(status, "Guarding %d captured unit(s). They return exhausted when this guard leaves play." % held.size())
 	else:
 		_text(status, "Collection preview. Live match modifiers appear here during a battle.", Sabacc.C_DIM)
 	var support: String = d.get("implemented", "manual")
-	_text(status, "Engine support: " + support.to_upper(), Sabacc.C_GOOD if support == "full" else Sabacc.C_GOLD)
+	var coverage := "Rules coverage unavailable"
+	match support:
+		"full": coverage = "Rules coverage: all printed lines mapped"
+		"partial": coverage = "Rules coverage: some printed lines mapped"
+		"manual": coverage = "Rules coverage: manual effects"
+	_text(status, coverage, Sabacc.C_GOOD if support == "full" else Sabacc.C_GOLD)
 	for line in d.get("unparsed", []):
 		_text(status, "Not automated: " + line, Sabacc.C_DIM)
 	if support != "full":
@@ -330,6 +395,8 @@ func _layout() -> void:
 	var portrait := view.y >= view.x
 	var card_size := _card.base_size()
 	var available := Vector2(view.x * 0.63, view.y * 0.36) if portrait else Vector2(view.x * 0.33, view.y * 0.67)
+	if _attachment_picker and not portrait:
+		available.y = minf(available.y, maxf(64.0, view.y - 220.0))
 	_scale = minf(available.x / card_size.x, available.y / card_size.y)
 	var shown := card_size * _scale
 	_card.home_pos = (view - shown) / 2.0
@@ -338,23 +405,29 @@ func _layout() -> void:
 	_card.position = _card.home_pos
 	_heading.position = Vector2(26, 14)
 	_heading.size = Vector2(view.x - 52, 42)
+	var top := 64.0
+	if _attachment_picker:
+		var picker_width := minf(view.x - 44, 420)
+		_attachment_picker.size = Vector2(picker_width, 46)
+		_attachment_picker.position = Vector2((view.x - picker_width) / 2.0, 56)
+		top = 116.0
 	_actions.position = Vector2(20, view.y - 76)
 	_actions.size = Vector2(view.x - 40, 56)
 	var margin := 22.0
 	var gap := 16.0
 	if portrait:
 		var width := (view.x - margin * 2.0 - gap) / 2.0
-		var top_height := maxf(70, _card.home_pos.y - 82)
+		var top_height := maxf(70, _card.home_pos.y - top - 18)
 		var lower_y := _card.home_pos.y + shown.y + 22
 		var lower_height := maxf(70, view.y - 92 - lower_y)
 		for i in 4:
-			_panels[i].position = Vector2(margin + (i % 2) * (width + gap), 64.0 if i < 2 else lower_y)
+			_panels[i].position = Vector2(margin + (i % 2) * (width + gap), top if i < 2 else lower_y)
 			_panels[i].size = Vector2(width, top_height if i < 2 else lower_height)
 	else:
 		var width := maxf(100, _card.home_pos.x - margin - 26)
-		var height := (view.y - 180) / 2.0
+		var height := (view.y - top - 116) / 2.0
 		for i in 4:
-			_panels[i].position = Vector2(margin if i % 2 == 0 else view.x - margin - width, 70 + (i / 2) * (height + gap))
+			_panels[i].position = Vector2(margin if i % 2 == 0 else view.x - margin - width, top + 6 + (i / 2) * (height + gap))
 			_panels[i].size = Vector2(width, height)
 	_chrome.queue_redraw()
 
@@ -375,7 +448,7 @@ func _animate_in() -> void:
 
 
 func _flip() -> void:
-	if _closing:
+	if _closing or not _can_flip():
 		return
 	if _flight and _flight.is_valid():
 		_flight.kill()

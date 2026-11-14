@@ -155,7 +155,9 @@ func _build() -> void:
 	hand.card_dropped.connect(_on_hand_drop)
 	# prompt bar for board targeting
 	prompt_bar = UIKit.panel(Color(0.02, 0.05, 0.09, 0.92), Sabacc.C_GOLD, 12, 10)
+	prompt_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ph := HBoxContainer.new()
+	ph.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ph.add_theme_constant_override("separation", 10)
 	prompt_bar.add_child(ph)
 	prompt_label = UIKit.label("", 19, Sabacc.C_TEXT)
@@ -430,6 +432,8 @@ func _drain() -> void:
 		match e["t"]:
 			"log":
 				log_text.append_text(e["text"] + "\n")
+			"target_unavailable":
+				Fx.banner(fx_layer, e["text"], Sabacc.C_GOLD, "", 22)
 			"control":
 				_position_tokens()
 			"reveal_top":

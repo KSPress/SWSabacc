@@ -157,9 +157,8 @@ func build() -> void:
 		if reset.text != "Tap again to confirm":
 			reset.text = "Tap again to confirm"
 			return
-		Save.data = Save.default_data()
-		Save.write()
-		Router.go("menu"))
+		Progression.reset_account()
+		Router.go("welcome"))
 	_box.add_child(reset)
 	var legal := UIKit.label("%s %s — an unofficial, non-commercial fan project. Star Wars, Star Wars: Unlimited, card names, text and art are property of Lucasfilm Ltd. and Fantasy Flight Games. No affiliation or endorsement. Original engine; no Hearthstone/Blizzard code or assets." % [Sabacc.GAME_TITLE, Sabacc.VERSION], 15, Sabacc.C_DIM)
 	legal.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

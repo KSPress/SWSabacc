@@ -192,9 +192,14 @@ func kw(k: String) -> int:
 			total += int(e.get("v", 1))
 	for u in upgrades:
 		for a in u.upgrade_abilities():
-			if a.get("trigger", "") == "attached_kw" and a.get("kw", "") == k and (not a.has("host_trait") or has_trait(a["host_trait"])):
-				found = true
-				total += int(a.get("v", 1)) if int(a.get("v", 0)) > 0 else 1
+			if a.get("trigger", "") != "attached_kw" or a.get("kw", "") != k:
+				continue
+			if a.has("host_trait") and not has_trait(a["host_trait"]):
+				continue
+			if a.has("host_name") and name().to_lower() != a["host_name"]:
+				continue
+			found = true
+			total += maxi(1, int(a.get("v", 1)))
 	for m in mods:
 		if m.get("kw", "") == k and modifier_active(m):
 			found = true

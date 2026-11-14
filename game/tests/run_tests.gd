@@ -28,6 +28,7 @@ func _init() -> void:
 	test_alternating_and_initiative()
 	test_leader_deploy_and_defeat()
 	test_effect_dsl()
+	test_live_card_rules()
 	test_campaign_content()
 	test_formats()
 	test_choose_one()
@@ -74,6 +75,78 @@ func add_unit(m: Match, p: int, id: String, ready := true) -> CardInst:
 	var u := m._new_inst(id, p)
 	m._put_in_play(u, u.arena(), not ready)
 	return u
+
+
+func give_card(m: Match, id: String) -> CardInst:
+	var card := m._new_inst(id, 0)
+	card.zone = "hand"
+	m.players[0].hand.append(card)
+	m.players[0].credits = 20
+	return card
+
+
+func test_live_card_rules() -> void:
+	print("live conditions and printed triggers")
+	var m := blank_match(RuleSet.campaign())
+	var chirpa := add_unit(m, 0, "HMW_164")
+	var lone_power := chirpa.power()
+	var teebo := add_unit(m, 0, "HMW_162")
+	add_unit(m, 1, "HMW_162")
+	check(chirpa.power() == lone_power + 1, "Chirpa counts only other friendly Ewoks")
+	check(chirpa.has_kw("hidden") and teebo.has_kw("hidden"), "Teebo has printed Hidden and grants Hidden to other friendly Ewoks")
+	m.defeat(teebo)
+	check(chirpa.power() == lone_power and not chirpa.has_kw("hidden"), "Ewok bonuses disappear when Teebo leaves play")
+	var troublemaker := add_unit(m, 0, "HMW_176")
+	check(not troublemaker.has_kw("hidden") and not troublemaker.has_kw("saboteur"), "Troublemaker needs an Endor base")
+	m.players[0].base = m._new_inst("HMW_029", 0)
+	m.players[0].base.zone = "base"
+	check(troublemaker.has_kw("hidden") and troublemaker.has_kw("saboteur"), "Endor base grants Hidden and Saboteur together")
+	var sentinel := add_unit(m, 0, "LOF_196")
+	check(not sentinel.has_kw("sentinel"), "Jedi Sentinel needs a Force token")
+	m.players[0].force_token = true
+	var refugee := give_card(m, "LOF_242")
+	check(m.do_action({"a": "play", "uid": refugee.uid}) and m.pending.get("options", []) == [sentinel.uid],
+		"Refugee can shield a dynamically granted Sentinel")
+	check(m.submit_choice([sentinel.uid]) and sentinel.shield_count() == 1, "Refugee applies the Shield token")
+	m.players[0].force_token = false
+	check(not sentinel.has_kw("sentinel"), "Spending the Force removes Sentinel")
+
+	for has_enemy_ship in [false, true]:
+		var fighter_match := blank_match(RuleSet.campaign())
+		add_unit(fighter_match, 1, "SOR_095")
+		if has_enemy_ship:
+			add_unit(fighter_match, 1, "SOR_225")
+		var fighter := give_card(fighter_match, "ASH_221")
+		check(fighter_match.do_action({"a": "play", "uid": fighter.uid}), "Helix Starfighter plays")
+		var advantage := fighter.upgrades.filter(func(upgrade): return upgrade.name() == "Advantage").size()
+		check(fighter.shield_count() == int(has_enemy_ship) and advantage == (0 if has_enemy_ship else 2),
+			"Helix Starfighter grants the correct tokens for the opponent's arena")
+
+	var shuttle_match := blank_match(RuleSet.campaign())
+	var shuttle := give_card(shuttle_match, "HMW_063")
+	shuttle_match.players[0].base.damage = 2
+	check(shuttle_match.do_action({"a": "play", "uid": shuttle.uid}) and not shuttle.uid in shuttle_match.pending.get("options", []),
+		"Rho Medical Shuttle cannot choose itself")
+	check(shuttle_match.submit_choice([shuttle_match.players[0].base.uid]) and shuttle_match.players[0].base.damage == 1,
+		"Rho Medical Shuttle can heal a base when played")
+
+	for host_id in ["HMW_208", "SOR_095"]:
+		var sword_match := blank_match(RuleSet.campaign())
+		var host := add_unit(sword_match, 0, host_id)
+		host.damage = 2
+		var luke := host.name() == "Luke Skywalker"
+		var saber := give_card(sword_match, "SOR_053")
+		check(sword_match.do_action({"a": "play", "uid": saber.uid}) and sword_match.submit_choice([host.uid]),
+			"Luke's Lightsaber attaches to a non-Vehicle")
+		check(host.damage == (0 if luke else 2) and host.shield_count() == int(luke), "Luke's Lightsaber heals and shields only Luke")
+
+	var walker_match := blank_match(RuleSet.campaign())
+	var walker := give_card(walker_match, "HMW_121")
+	check(walker_match.do_action({"a": "play", "uid": walker.uid}), "Hijacked AT-ST plays")
+	Effects.exec(walker_match, {"op": "_ready_all"}, {})
+	check(walker.exhausted, "Hijacked AT-ST stays exhausted through first regroup")
+	Effects.exec(walker_match, {"op": "_ready_all"}, {})
+	check(not walker.exhausted, "Hijacked AT-ST readies on later regroups")
 
 
 func test_aspect_penalty() -> void:
@@ -399,7 +472,8 @@ func test_spotlight() -> void:
 	for d in pool:
 		check(lib.has(d["leader"]) and lib.has(d["base"]), "%s: leader/base exist" % d["id"])
 		var pilot: bool = "pilot" in lib.get_card(d["leader"]).get("traits", [])
-		check(pilot == ("space" in d["modes"]) and (not pilot or d["modes"] == ["space"]), "%s: pilot leaders only in Space Only" % d["id"])
+		if "space" in d["modes"]:
+			check(pilot and d["modes"] == ["space"], "%s: Space Only has a dedicated Pilot leader deck" % d["id"])
 		var variants: Dictionary = d.get("variants", {})
 		var lists := {"main": d["cards"]}
 		lists.merge(variants)

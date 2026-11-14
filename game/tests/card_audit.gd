@@ -48,9 +48,10 @@ func _init() -> void:
 			_:
 				r = audit_card(id)
 		if c.has("pilot"):
-			var pilot := audit_pilot(id)
+			var pilot := audit_pilot(id, t == "leader")
 			r["steps"].append_array(pilot["steps"])
 			r["issues"].append_array(pilot["issues"])
+			r["optional_declined"] = r.get("optional_declined", 0) + pilot.get("optional_declined", 0)
 		r["type"] = t
 		r["implemented"] = c.get("implemented", "")
 		r["scenario"] = scenario
@@ -58,6 +59,10 @@ func _init() -> void:
 		n += 1
 	print("AUDIT_END ", n)
 	var f := FileAccess.open(out, FileAccess.WRITE)
+	if f == null:
+		push_error("Cannot write card audit to " + out)
+		quit(2)
+		return
 	f.store_string(JSON.stringify(results))
 	quit()
 
@@ -138,32 +143,64 @@ func stage(m: Match) -> void:
 	m.take_events()
 
 
-func snapshot(m: Match) -> String:
+func snapshot(m: Match, played: CardInst = null, play_cost := -1) -> String:
 	var parts: Array = []
 	for ps in m.players:
 		var ready := 0
 		for r in ps.resources:
 			if not r.exhausted:
 				ready += 1
-		parts.append("B%d H%d D%d X%d R%d/%d F%s C%d" % [ps.base.damage, ps.hand.size(), ps.deck.size(), ps.discard.size(), ready, ps.resources.size(), ps.force_token, ps.credits])
+		var hand: int = ps.hand.size()
+		var discard: int = ps.discard.size()
+		var ready_payment := 0
+		var credit_payment := 0
+		if played and played.owner == ps.index:
+			if played in ps.hand:
+				hand -= 1
+				ready_payment = mini(ready, play_cost)
+				credit_payment = play_cost - ready_payment
+			if played in ps.discard:
+				discard -= 1
+		parts.append("B%d H%d D%d X%d R%d/%d F%s C%d" % [ps.base.damage, hand, ps.deck.size(), discard, ready - ready_payment, ps.resources.size(), ps.force_token, ps.credits - credit_payment])
 		var us: Array = []
-		for u in ps.units:
-			us.append("%s:%d:%s:%d:%d:%d:%s" % [u.id, u.damage, u.exhausted, u.upgrades.size(), u.power(), u.max_hp(), u.mods.size()])
+		for u in ps.units + [ps.base]:
+			var attached: Array = []
+			for upgrade in u.upgrades:
+				if upgrade != played:
+					attached.append(upgrade.uid)
+			# Ignore entering the arena and attaching the played card itself. Track
+			# extra attachments, damage and modifiers even on a just-played unit.
+			if u == played and attached.is_empty() and u.damage == 0 and u.mods.is_empty():
+				continue
+			us.append("%s:%d:%s:%s:%s:%s" % [u.uid, u.damage, u.exhausted, str(attached), str(u.mods), str(u.flags)])
 		us.sort()
 		parts.append(",".join(us))
+		parts.append(str(ps.next_play_discounts))
 	return "|".join(parts)
 
 
 func sane(m: Match) -> String:
+	var attached := {}
+	var seen := {}
 	for ps in m.players:
-		for u in ps.units:
-			if not u.in_play():
-				return "unit listed in play but zone=%s" % u.zone
-			if u.damage < 0:
-				return "negative damage"
-		for c in ps.hand:
-			if c.zone != "hand":
-				return "hand card zone=%s" % c.zone
+		var zones := {"board": ps.units, "hand": ps.hand, "deck": ps.deck, "discard": ps.discard, "resource": ps.resources}
+		for zone in zones:
+			for card in zones[zone]:
+				if seen.has(card.uid):
+					return "%s appears in more than one zone list" % card.id
+				seen[card.uid] = true
+				if (zone == "board" and not card.in_play()) or (zone != "board" and card.zone != zone):
+					return "%s listed in %s but zone=%s" % [card.id, zone, card.zone]
+				if card.damage < 0:
+					return "negative damage"
+		for host in ps.units + [ps.base]:
+			for upgrade in host.upgrades:
+				if upgrade.zone != "upgrade" or upgrade.attached_to != host or seen.has(upgrade.uid) or attached.has(upgrade.uid):
+					return "%s has inconsistent attachment state" % upgrade.id
+				attached[upgrade.uid] = true
+	for card in m.by_uid.values():
+		if card.zone == "upgrade" and not attached.has(card.uid):
+			return "%s is in the upgrade zone without a host" % card.id
 	if not m.frames.is_empty() and m.pending.is_empty() and not m.is_over():
 		return "frames left unresolved"
 	return ""
@@ -176,27 +213,64 @@ func has_trigger(c: Dictionary, trig: Array) -> bool:
 	return false
 
 
-func audit_pilot(id: String) -> Dictionary:
+func audit_pilot(id: String, leader: bool) -> Dictionary:
 	var result := {"steps": [], "issues": []}
-	var m := new_match()
+	var m := new_match(id) if leader else new_match()
 	stage(m)
-	var pilot := m._new_inst(id, 0)
-	pilot.zone = "hand"
-	m.players[0].hand.append(pilot)
-	var action := {"a": "pilot", "uid": pilot.uid}
-	if action not in m.legal_actions(0) or not m.do_action(action) or not resolve(m):
+	var pilot: CardInst = m.players[0].leader if leader else give_card(m, id)
+	var action := {"a": "deploy_pilot" if leader else "pilot", "uid": pilot.uid}
+	var hosts := Effects.upgrade_targets(m, 0, pilot, true)
+	if action not in m.legal_actions(0) or hosts.is_empty():
+		result["issues"].append("Pilot action unavailable")
+		return result
+	# The duel deliberately declines optional prompts elsewhere. Here the
+	# harness chooses a known legal host so it exercises piloting in all cases.
+	action["target"] = hosts[0].uid
+	if not m.do_action(action) or not resolve(m, 60, result):
 		result["issues"].append("Pilot action unavailable or unresolved")
 		return result
 	if pilot.zone != "upgrade" or pilot.attached_to == null:
 		result["issues"].append("Pilot failed to attach")
 		return result
 	result["steps"].append("piloted")
+	if not audit_actions(m, pilot, result, "Pilot"):
+		return result
 	m.defeat(pilot)
 	m.pump()
-	resolve(m)
-	if pilot.zone != "discard" or pilot.card_type() != "unit":
-		result["issues"].append("defeated Pilot did not return to unit card in discard")
+	if not resolve(m, 60, result):
+		result["issues"].append("stuck after Pilot defeat")
+	elif leader and pilot.zone != "leader":
+		result["issues"].append("defeated Pilot leader did not return to leader zone")
+	elif not leader and pilot.zone != "discard" and not pilot.in_play():
+		result["issues"].append("defeated Pilot did not return to discard or enter play")
 	return result
+
+
+func give_card(m: Match, id: String) -> CardInst:
+	var card := m._new_inst(id, 0)
+	card.zone = "hand"
+	m.players[0].hand.append(card)
+	return card
+
+
+func audit_actions(m: Match, card: CardInst, r: Dictionary, label: String) -> bool:
+	for index in card.abilities_with("action").size():
+		if card.zone not in ["leader", "base", "ground", "space", "upgrade"] or m.is_over():
+			break
+		var player := card.controller
+		card.exhausted = false
+		for resource in m.players[player].resources:
+			resource.exhausted = false
+		m.active = player
+		var action := {"a": "ability", "uid": card.uid, "idx": index}
+		if action not in m.legal_actions(player):
+			r["issues"].append("%s action %d not usable" % [label, index])
+			continue
+		if not m.do_action(action) or not resolve(m, 60, r):
+			r["issues"].append("stuck after %s action %d" % [label, index])
+			return false
+		r["steps"].append("%s action %d" % [label, index])
+	return true
 
 
 func audit_token(id: String, type: String) -> Dictionary:
@@ -260,9 +334,7 @@ func audit_card(id: String) -> Dictionary:
 	if id in ["LOF_068", "SEC_072", "SHD_245", "HMW_085"]:
 		ps.deck.push_front(m._new_inst("JTL_260", 0))
 		ps.deck.push_front(m._new_inst("JTL_058", 0))
-	var c := m._new_inst(id, 0)
-	c.zone = "hand"
-	ps.hand.append(c)
+	var c := give_card(m, id)
 	var data: Dictionary = c.data
 	var t := c.card_type()
 	# --- play it
@@ -279,21 +351,34 @@ func audit_card(id: String) -> Dictionary:
 		return r
 	# give the Force token unless the card is what grants it (so either use is observable)
 	m.players[0].force_token = str(data.get("text", "")).to_lower().find("the force is with you") < 0
-	var before := snapshot(m)
+	var cost := m.play_cost(0, c)
+	var before := snapshot(m, c, cost)
 	m.do_action({"a": "play", "uid": c.uid})
 	if not resolve(m, 60, r):
 		r["issues"].append("stuck after play (pending %s)" % m.pending.get("kind", ""))
 		return r
-	var after := snapshot(m)
+	var after := snapshot(m, c, cost)
 	r["steps"].append("played")
 	if has_trigger(data, ["when_played", "event"]):
-		# the play itself always changes hand/resources; compare everything except them
-		var changed := _strip(before) != _strip(after) or m.events.any(func(e): return e.get("t") in ["draw", "discard", "bounce"])
-		if not changed:
-			r["issues"].append("no-op: when-played/event effect changed nothing")
+		var changed := before != after or m.events.any(func(e): return e.get("t") in ["draw", "discard", "bounce", "reveal"])
+		if not changed and not r.get("optional_declined", 0):
+			r["issues"].append("no-op: no observable change beyond playing the card")
 	var s := sane(m)
 	if s != "":
 		r["issues"].append(s)
+	if t == "upgrade" and c.zone == "upgrade":
+		if not audit_actions(m, c, r, "Upgrade"):
+			return r
+		if c.zone == "upgrade":
+			m.defeat(c)
+			m.pump()
+			if not resolve(m, 60, r):
+				r["issues"].append("stuck after upgrade defeat")
+			elif c.zone == "upgrade":
+				r["issues"].append("defeated upgrade remained attached")
+			else:
+				r["steps"].append("upgrade defeated")
+		return r
 	if t != "unit" or not c.in_play():
 		return r
 	# --- attack
@@ -309,38 +394,15 @@ func audit_card(id: String) -> Dictionary:
 		if not m.do_action({"a": "attack", "uid": c.uid, "target": tgts[0]}):
 			r["issues"].append("staged attack was rejected")
 			return r
-		if not resolve(m):
+		if not resolve(m, 60, r):
 			r["issues"].append("stuck after attack (pending %s)" % m.pending.get("kind", ""))
 			return r
 		r["steps"].append("attacked")
 		if snapshot(m) == b2:
 			r["issues"].append("attack changed nothing")
 	# --- action abilities
-	if c.in_play():
-		var acts := c.abilities_with("action")
-		for i in acts.size():
-			c.exhausted = false
-			var controller := c.controller
-			for rr in m.players[controller].resources:
-				rr.exhausted = false
-			m.active = controller
-			if not m.can_act(controller):
-				break
-			var ok := false
-			for a in m.legal_actions(controller):
-				if a["a"] == "ability" and a["uid"] == c.uid and int(a["idx"]) == i:
-					ok = true
-			if not ok:
-				r["issues"].append("action %d not usable" % i)
-				continue
-			var b3 := snapshot(m)
-			m.do_action({"a": "ability", "uid": c.uid, "idx": i})
-			if not resolve(m, 60, r):
-				r["issues"].append("stuck after action ability")
-				return r
-			r["steps"].append("action")
-			if snapshot(m) == b3:
-				r["issues"].append("no-op: action ability changed nothing")
+	if c.in_play() and not audit_actions(m, c, r, "Unit"):
+		return r
 	# --- defeat
 	if c.in_play():
 		m.defeat(c)
@@ -355,14 +417,6 @@ func audit_card(id: String) -> Dictionary:
 	return r
 
 
-## Omit counters that always change when a card is played. Keep total resources
-## so effects that create resources still register after their cost is paid.
-func _strip(snap: String) -> String:
-	var p := snap.split("|")
-	var a := p[0].split(" ")
-	return " ".join([a[0], a[2], a[4].get_slice("/", 1), a[5], a[6]]) + "|" + "|".join(p.slice(1))
-
-
 func audit_leader(id: String) -> Dictionary:
 	var r := {"steps": [], "issues": []}
 	var m := new_match(id)
@@ -370,37 +424,8 @@ func audit_leader(id: String) -> Dictionary:
 	var ps: PlayerState = m.players[0]
 	var l: CardInst = ps.leader
 	ps.force_token = str(l.data.get("text", "")).to_lower().find("the force is with you") < 0
-	var acts := l.abilities_with("action")
-	for i in acts.size():
-		l.exhausted = false
-		for rr in ps.resources:
-			rr.exhausted = false
-		m.active = 0
-		# give the leader something to work with for "play from hand" style actions
-		var helper := m._new_inst(filler, 0)
-		helper.zone = "hand"
-		ps.hand.append(helper)
-		var ok := false
-		for a in m.legal_actions(0):
-			if a["a"] == "ability" and a["uid"] == l.uid and int(a["idx"]) == i:
-				ok = true
-		if not ok:
-			r["issues"].append("leader action %d not usable" % i)
-			continue
-		var b := snapshot(m)
-		m.do_action({"a": "ability", "uid": l.uid, "idx": i})
-		if not resolve(m):
-			r["issues"].append("stuck after leader action")
-			return r
-		r["steps"].append("action")
-		if snapshot(m) == b:
-			# conditional actions ("If you attacked with...") legitimately do nothing here
-			var cond := false
-			for e in acts[i].get("effects", []):
-				if e.has("if"):
-					cond = true
-			if not cond:
-				r["issues"].append("no-op: leader action changed nothing")
+	if not audit_actions(m, l, r, "Leader"):
+		return r
 	l.exhausted = false
 	m.active = 0
 	var dep := false
@@ -414,7 +439,7 @@ func audit_leader(id: String) -> Dictionary:
 		r["issues"].append("cannot deploy with 16 resources")
 		return r
 	m.do_action({"a": "deploy"})
-	if not resolve(m):
+	if not resolve(m, 60, r):
 		r["issues"].append("stuck after deploy")
 		return r
 	r["steps"].append("deployed")
@@ -427,15 +452,18 @@ func audit_leader(id: String) -> Dictionary:
 	if not tg.is_empty():
 		var b2 := snapshot(m)
 		m.do_action({"a": "attack", "uid": l.uid, "target": tg[0]})
-		if not resolve(m):
+		if not resolve(m, 60, r):
 			r["issues"].append("stuck after leader attack")
 			return r
 		r["steps"].append("attacked")
 		if snapshot(m) == b2:
 			r["issues"].append("leader attack changed nothing")
-	m.defeat(l)
-	m.pump()
-	resolve(m)
+	if l.in_play() and not audit_actions(m, l, r, "Deployed leader"):
+		return r
+	if l.in_play():
+		m.defeat(l)
+		m.pump()
+		resolve(m, 60, r)
 	if l.zone != "leader":
 		r["issues"].append("defeated leader did not return to leader zone")
 	var s := sane(m)
@@ -446,6 +474,9 @@ func audit_leader(id: String) -> Dictionary:
 
 func audit_base(id: String) -> Dictionary:
 	var r := {"steps": [], "issues": []}
+	var staged := new_match("SEC_015", id)
+	stage(staged)
+	audit_actions(staged, staged.players[0].base, r, "Base")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(id + scenario)
 	var m := Match.new()

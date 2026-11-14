@@ -85,11 +85,12 @@ func _run() -> void:
 	# The Saga campaign's terminal node is an actual completed chapter run.
 	var chapter: Dictionary = CardDB.episodes[4]["chapters"][0]
 	var saga_run := CampaignRun.start(chapter, chapter["leader_options"][0], 987)
+	var finale := _prepare_finale(saga_run, chapter)
 	Save.set_run(saga_run)
 	var match_game := Match.new()
-	match_game.setup(CardDB.lib, CampaignRun.match_config(saga_run, chapter, CampaignRun.node_by_id(chapter, "boss"), CampaignFlow.treasures_for(chapter)))
+	match_game.setup(CardDB.lib, CampaignRun.match_config(saga_run, chapter, finale, CampaignFlow.treasures_for(chapter)))
 	match_game.winner = 0
-	var result := CampaignFlow.on_match_end({"chapter_id": chapter["id"], "node_id": "boss"}, match_game)
+	var result := CampaignFlow.on_match_end({"chapter_id": chapter["id"], "node_id": finale["id"]}, match_game)
 	check(not result.get("pack", "").is_empty() and Progression.packs().size() == 2, "Saga completion grants pack")
 	# Use a single pack for the visual flow below.
 	Progression.packs().pop_back()
@@ -139,9 +140,43 @@ func _run() -> void:
 	await _wait(0.5)
 	check(not Cosmetics.state()["gm"] and is_zero_approx(slider.value) and Progression.credits() == 420,
 		"Dragging back restores normal progression and credits")
+	var reset := _button(settings, "Reset all progress")
+	settings.body.get_node("Scroll").ensure_control_visible(reset)
+	await _wait(0.3)
+	await _click(reset)
+	await _click(reset)
+	var welcome := get_tree().current_scene
+	check(welcome.scene_file_path.ends_with("welcome.tscn"), "Settings reset opens set selection")
+	Save.load_save()
+	Progression._ready()
+	check(Progression.needs_welcome() and Progression.credits() == 0 and Save.data["vault"].is_empty(),
+		"Relaunching after reset keeps selection pending without granting old starters")
+	if welcome.scene_file_path.ends_with("welcome.tscn"):
+		var set_button := _button(welcome, "Spark of Rebellion")
+		welcome._scroll.ensure_control_visible(set_button)
+		await _wait(0.3)
+		await _click(set_button)
+		await _click(_button(welcome, "Choose this set"))
+		check(get_tree().current_scene.scene_file_path.ends_with("main_menu.tscn"), "Confirming a new set opens the main menu")
+		check(Progression.credits() == 1000 and Progression.packs().size() == 3
+			and Progression.packs().all(func(pack): return pack["set"] == "SOR"),
+			"Reset starter choice grants three matching boosters and 1,000 credits")
+		check(CardDB.official_pair("SOR").all(Progression.deck_owned), "Reset starter choice unlocks both decks")
+		check(not Progression.claim_starting_set("SHD"), "Starter choice cannot be redeemed twice")
 	print("PROGRESSION: %d checks, %d failed" % [checks, failures])
 	if failures:
 		get_tree().quit(1)
+
+
+func _prepare_finale(run: Dictionary, chapter: Dictionary) -> Dictionary:
+	var row: Array = chapter["map"]["rows"].back()
+	var finale := CampaignRun.node_by_id(chapter, row[0])
+	var edges: Dictionary = chapter["map"]["edges"]
+	for node in edges:
+		if finale["id"] in edges[node]:
+			CampaignRun.complete_node(run, node)
+			break
+	return finale
 
 
 func _test_credits_and_episode() -> void:
@@ -168,10 +203,10 @@ func _test_credits_and_episode() -> void:
 		var run := Save.run()
 		check(int(run["credits"]) == [0, 30, 80][index], "Saga carries the remaining run balance")
 		var game := Match.new()
-		var boss := CampaignRun.node_by_id(ch, "boss")
+		var boss := _prepare_finale(run, ch)
 		game.setup(CardDB.lib, CampaignRun.match_config(run, ch, boss, CampaignFlow.treasures_for(ch)))
 		game.winner = 0
-		var outcome := CampaignFlow.on_match_end({"chapter_id": ch["id"], "node_id": "boss"}, game)
+		var outcome := CampaignFlow.on_match_end({"chapter_id": ch["id"], "node_id": boss["id"]}, game)
 		check(CampaignFlow.multiplier(run) == [1.5, 2.0, 3.0][index], "consecutive Saga clear increases the payout multiplier")
 		if index == 0:
 			run["credits"] = int(run["credits"]) - 20

@@ -40,6 +40,13 @@ func _run() -> void:
 	Save.data = Save.default_data()
 	Sabacc.settings["anim_speed"] = 1.0
 	Sabacc.settings["perf_mode"] = false
+	if only == "tie_advanced":
+		await _test_tie_advanced_target_picker()
+		print("TIE ADVANCED INPUT: %d checks, %d failed" % [checks, failures])
+		if failures:
+			get_tree().quit(1)
+			await get_tree().process_frame
+		return
 	await _go("res://ui/screens/boot.tscn")
 	await _wait(4.5)
 	var welcome := get_tree().current_scene
@@ -141,6 +148,102 @@ func _run() -> void:
 		await _wait(0.65)
 		check(get_tree().current_scene.scene_file_path.ends_with("main_menu.tscn"), "Escape returns to menu")
 		print("INPUT RATIO COMPLETE ", dims)
+	await _test_tie_advanced_target_picker()
 	print("INTERACTION: %d checks, %d failed" % [checks, failures])
 	if failures:
 		get_tree().quit(1)
+		await get_tree().process_frame
+
+
+func _test_tie_advanced_target_picker() -> void:
+	for scenario in ["portrait", "landscape", "no_target"]:
+		var portrait: bool = scenario != "landscape"
+		var no_target: bool = scenario == "no_target"
+		await _size(570 if portrait else 1280, 1280 if portrait else 720)
+		var rules := RuleSet.premier()
+		rules.aspect_penalties = false
+		rules.allow_mulligan = false
+		rules.starting_hand = 0
+		rules.starting_resources = 0
+		var preplaced: Array = [{"id": "SOR_237"}]
+		if not no_target:
+			preplaced.append_array([{"id": "SOR_128", "ready": false}, {"id": "SOR_225"}])
+		await _go("match", {"cfg": {"rules": rules, "seed": 31, "first": 0, "players": [
+			{"leader": "SOR_010", "base": "SOR_023", "ai": false, "bonus_hand": ["SOR_231"],
+				"deck": ["SOR_225", "SOR_225", "SOR_225", "SOR_225"], "extra_resources": 4,
+				"preplaced": preplaced},
+			{"leader": "SOR_005", "base": "SOR_029", "ai": false},
+		]}})
+		var screen := get_tree().current_scene
+		var battle: Match = screen.m
+		var tie: CardInst = battle.players[0].hand[0]
+		for _i in 18:
+			if not screen.busy and screen.hand.cards.has(tie.uid):
+				break
+			await _wait(0.1)
+		check(not screen.busy and screen.hand.cards.has(tie.uid), "TIE Advanced match can accept input")
+		if screen.busy or not screen.hand.cards.has(tie.uid):
+			continue
+		var card: CardView = screen.hand.cards[tie.uid]
+		await _wait(0.45)
+		await _drag_hand_card_to_board(card)
+		if no_target:
+			var notice: Label
+			for _i in 18:
+				notice = screen.fx_layer.find_children("*", "Label", true, false).filter(func(label):
+					return label.text == "TIE ADVANCED: NO OTHER FRIENDLY IMPERIAL UNIT IN PLAY.").front() if screen.fx_layer.find_children("*", "Label", true, false).any(func(label):
+					return label.text == "TIE ADVANCED: NO OTHER FRIENDLY IMPERIAL UNIT IN PLAY.") else null
+				if notice:
+					break
+				await _wait(0.1)
+			check(tie.in_play() and not screen.prompt_bar.visible and battle.pending.is_empty() and battle.active == 1,
+				"With no eligible unit, TIE Advanced plays and the turn continues")
+			check(notice != null, "The board explains why no Experience was granted")
+			if notice and DisplayServer.get_name() != "headless":
+				await _wait(0.35)
+				await _shot("tie-advanced-no-eligible-imperial")
+			continue
+		for _i in 18:
+			if screen.prompt_bar.visible:
+				break
+			await _wait(0.1)
+		check(tie.in_play() and screen.prompt_bar.visible, "Dragging TIE Advanced onto the board opens its required target prompt")
+		if not screen.prompt_bar.visible:
+			continue
+		var rebel: CardInst = battle.players[0].units[0]
+		var ground: CardInst = battle.players[0].units[1]
+		var space: CardInst = battle.players[0].units[2]
+		check(screen.tokens[ground.uid].highlight == UnitToken.Hi.TARGET and screen.tokens[space.uid].highlight == UnitToken.Hi.TARGET
+			and screen.tokens[rebel.uid].highlight == UnitToken.Hi.NONE, "Board highlights eligible Imperials in both arenas")
+		if DisplayServer.get_name() != "headless":
+			await _shot("tie-advanced-%s-targets" % ("portrait" if portrait else "landscape"))
+		await _click(screen.tokens[rebel.uid], Vector2(0.5, 0.35))
+		check(screen.prompt_bar.visible and rebel.upgrades.is_empty(), "Tapping a non-Imperial leaves the prompt open")
+		var target := ground if portrait else space
+		await _click(screen.tokens[target.uid], Vector2(0.5, 0.35))
+		check(battle.pending.is_empty() and not screen.prompt_bar.visible and target.upgrades.size() == 2,
+			"Selecting a highlighted Imperial gives it both Experience tokens")
+
+
+func _drag_hand_card_to_board(card: CardView) -> void:
+	var start := card.get_global_transform_with_canvas() * (card.size * Vector2(0.5, 0.22))
+	var finish := get_viewport().get_visible_rect().get_center()
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = start
+	press.global_position = start
+	get_viewport().push_input(press, true)
+	await get_tree().process_frame
+	var motion := InputEventMouseMotion.new()
+	motion.button_mask = MOUSE_BUTTON_MASK_LEFT
+	motion.position = finish
+	motion.global_position = finish
+	motion.relative = finish - start
+	get_viewport().push_input(motion, true)
+	await get_tree().process_frame
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.position = finish
+	release.global_position = finish
+	get_viewport().push_input(release, true)

@@ -94,7 +94,7 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 					m.deal_damage(t, dealer.power(), dealer)
 		"heal":
 			for t in targets:
-				m.heal(t, n)
+				m.heal(t, t.damage if e.get("all_damage", false) else n)
 		"draw":
 			m.draw(m.opp(ctl) if e.get("who") == "opponent" else ctl, n)
 			if e.get("who") == "all":
@@ -206,6 +206,8 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 				for _i in n:
 					var created := m.create_unit_token(ctl, e.get("name", "battle_droid"))
 					if created:
+						if e.get("ready", false):
+							m.exhaust(created, false)
 						ctx["it"] = created.uid
 						ctx["did"] = true
 				return DONE
@@ -363,7 +365,16 @@ static func _targets(m: Match, e: Dictionary, ctx: Dictionary):
 	var cands := candidates(m, t, ctx)
 	if e.get("op") in ["defeat", "bounce"]:
 		cands = cands.filter(func(c): return not _enemy_effect_immune(c, ctl, e["op"]))
+	var optional: bool = e.get("optional", false) or t.get("opt", false) or t.get("upto", false)
 	if cands.is_empty():
+		if src and e.get("op") == "experience" and not optional:
+			var detail := "No eligible unit for Experience."
+			if t.get("other", false) and t.get("side") == "friendly" and t.get("trait") == "imperial":
+				detail = "No other friendly Imperial unit in play."
+			var message := "%s: %s" % [src.name(), detail]
+			m._log(message)
+			if not m.players[ctl].is_ai:
+				m.events.append({"t": "target_unavailable", "text": message})
 		return []
 	var count := int(t.get("count", 1))
 	if t.get("random", false):
@@ -373,7 +384,6 @@ static func _targets(m: Match, e: Dictionary, ctx: Dictionary):
 			cands.erase(c)
 			pick.append(c)
 		return pick
-	var optional: bool = e.get("optional", false) or t.get("opt", false) or t.get("upto", false)
 	var mx := mini(count, cands.size())
 	var mn := 0 if optional else mx
 	var uids: Array = []
@@ -497,6 +507,8 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 		return false
 	if t.has("trait") and not c.has_trait(t["trait"]):
 		return false
+	if t.has("keyword") and not c.has_kw(t["keyword"]):
+		return false
 	if t.has("traits_any"):
 		var any_ok := false
 		for tr in t["traits_any"]:
@@ -534,6 +546,17 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 
 static func condition(m: Match, cond: Dictionary, ctx: Dictionary) -> bool:
 	var ctl: int = ctx.get("ctl", 0)
+	if cond.has("any"):
+		return cond["any"].any(func(option): return condition(m, option, ctx))
+	if cond.has("not"):
+		return not condition(m, cond["not"], ctx)
+	if cond.get("force_token", false):
+		return m.players[ctl].force_token
+	if cond.has("base_trait"):
+		return m.players[ctl].base.has_trait(cond["base_trait"])
+	if cond.has("attached_name"):
+		var upgrade := m.card(ctx.get("src", 0))
+		return upgrade != null and upgrade.attached_to != null and upgrade.attached_to.name().to_lower() == cond["attached_name"]
 	if cond.get("base_upgraded", false):
 		return not m.players[ctl].base.upgrades.is_empty()
 	if cond.has("fewer_units_in"):

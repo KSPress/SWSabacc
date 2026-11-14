@@ -138,6 +138,43 @@ func _run() -> void:
 			await _click(screen.tokens[host.uid])
 			check(pilot.attached_to == host and host.has_kw("sentinel"), "Selecting the Vehicle attaches the Pilot")
 	if pilot.attached_to == host:
+		var turret := m._new_inst("JTL_172", 0)
+		m.attach_upgrade(turret, host)
+		screen._sync()
+		await _wait(0.4)
+		var token: UnitToken = screen.tokens[host.uid]
+		check(token.attachment_caption == "Academy Graduate +1" and "Twin Laser Turret" in token.tooltip_text,
+			"The Vehicle shows its Pilot in a named attachment tab and includes the other upgrade")
+		if only == "capture":
+			await _shot("pilot-and-upgrade-board")
+		await _click(token)
+		var inspectors := get_tree().get_nodes_in_group("back_dismissible").filter(func(c): return c is InspectOverlay)
+		check(inspectors.size() == 1, "Clicking the Vehicle opens the inspection overlay")
+		if inspectors.size() == 1:
+			var inspector: InspectOverlay = inspectors[0]
+			var selector := inspector._attachment_picker
+			check(selector != null and selector.item_count == 3 and inspector._inst == host,
+				"Inspection starts on the Vehicle and lists both attachments")
+			if selector and selector.item_count == 3:
+				await _click(selector)
+				check(selector.get_popup().visible, "The attachment selector opens via portrait input")
+				if only == "capture":
+					await _shot("pilot-and-upgrade-selector")
+				selector.get_popup().hide()
+				selector.select(1)
+				selector.item_selected.emit(1)
+				check(inspector._inst == pilot and "Attached unit gains Sentinel" in _printed_ability(inspector),
+					"Pilot inspection displays the active Piloting text")
+				if only == "capture":
+					await _shot("attached-pilot-inspection")
+				selector.select(2)
+				selector.item_selected.emit(2)
+				check(inspector._inst == turret and "Deal 1 damage" in _printed_ability(inspector),
+					"Upgrade inspection displays its printed ability")
+				selector.select(0)
+				selector.item_selected.emit(0)
+				check(inspector._inst == host, "The attachment selector returns to the host")
+			await _click(_button(inspector, "Close"))
 		m.active = 0
 		m.push_frame([{"op": "defeat", "t": {"s": "choose", "kind": "upgrade"}}], {"ctl": 0})
 		m.pump()
@@ -150,6 +187,8 @@ func _run() -> void:
 			await _click(picker._views[pilot.uid])
 			await _click(_button(picker, "Confirm"))
 			check(pilot.zone == "discard" and not host.has_kw("sentinel"), "The chosen upgrade is removed")
+			check(screen.tokens[host.uid].attachment_caption == "Twin Laser Turret",
+				"The attached card caption updates when the Pilot is defeated")
 	m.active = 0
 	var base := m._new_inst("LOF_028", 0)
 	base.zone = "base"
@@ -202,27 +241,42 @@ func _run() -> void:
 			break
 		await _wait(0.15)
 	check(leader.attached_to == host and host.is_leader_unit(), "Dragging the leader tile deploys it directly onto a Vehicle")
+	if leader.attached_to == host:
+		var leader_inspect := InspectOverlay.open(screen, leader.id, Rect2(), leader)
+		check(leader_inspect._back and not leader_inspect._flip_button.visible and "Create 2 TIE Fighter tokens" in _printed_ability(leader_inspect),
+			"A deployed Pilot leader shows its printed upgrade face and ability")
+		await _wait(0.4)
+		await _click(_button(leader_inspect, "Close"))
+		check(not is_instance_valid(leader_inspect), "Close dismisses the deployed Pilot inspector")
 	m.active = 0
 	for i in 6 - m.players[0].resources.size():
 		m.move_to_resources(0, m.players[0].deck[0])
 	for resource in m.players[0].resources:
 		resource.exhausted = false
+	for held in m.players[0].hand.duplicate():
+		m._remove_from_zones(held)
+		held.zone = "discard"
+		m.players[0].discard.append(held)
 	var fortification := m._new_inst("HMW_095", 0)
 	fortification.zone = "hand"
 	m.players[0].hand.append(fortification)
 	screen._sync()
 	await _wait(0.5)
+	check(not screen.busy and not screen._legal_for(fortification.uid, "play").is_empty(), "Fortification can be played before dragging")
 	for child in screen.hand.get_children():
 		if child is CardView and child.inst == fortification:
-			await _drag(child.get_global_rect().get_center(), tile.get_global_rect().get_center())
+			var grab: Vector2 = child.get_global_transform_with_canvas() * (child.size * Vector2(0.5, 0.3))
+			if only == "capture":
+				await _shot("fortification-before-drag")
+			await _drag(grab, tile.get_global_rect().get_center())
 			break
 	for i in 50:
 		if not screen.busy:
 			break
 		await _wait(0.15)
 	var tab: Button = screen.hud[0].fortification_tab
-	check(fortification.attached_to == base and tab.visible and tab.text == fortification.name(),
-		"Dragging Fortify onto the base displays the named attachment")
+	check(fortification.attached_to == base, "Dragging Fortify onto the base attaches it")
+	check(tab.visible and tab.text == fortification.name(), "The base displays the named Fortification attachment")
 	if tab.visible:
 		m.active = 0
 		screen._sync()
@@ -292,6 +346,10 @@ func _run() -> void:
 	print("CAMPAIGN INPUT: %d checks, %d failed" % [checks, failures])
 	if failures:
 		get_tree().quit(1)
+
+
+func _printed_ability(inspector: InspectOverlay) -> String:
+	return inspector._panels[1].get_child(0).get_child(0).get_child(1).text
 
 
 func _test_tatooine_route(chapter: Dictionary) -> void:

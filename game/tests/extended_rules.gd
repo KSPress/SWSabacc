@@ -10,7 +10,9 @@ func _init() -> void:
 	test_plot_and_fortify()
 	test_fortifications()
 	test_reported_card_abilities()
+	test_tie_advanced()
 	test_early_combat_and_tokens()
+	test_multiword_traits()
 	test_support_and_recovery()
 	test_coordinate_triggers()
 	test_card_play_triggers()
@@ -112,6 +114,39 @@ func test_reported_card_abilities() -> void:
 	check(cheap.uid in force_match.pending.get("options", []) and returned.uid not in force_match.pending.get("options", [])
 		and force_match.submit_choice([cheap.uid])
 		and cheap.in_play() and force_match.players[0].available() == resources, "Qui-Gon plays a cheaper non-Villainy unit for free")
+
+
+func test_tie_advanced() -> void:
+	for target_id in ["SOR_128", "SOR_225"]:
+		var m := funded_match()
+		var ground := add_unit(m, 0, "SOR_128", false)
+		var space := add_unit(m, 0, "SOR_225")
+		var enemy := add_unit(m, 1, "SOR_225")
+		var ally := add_unit(m, 0, "SOR_237")
+		var token := m.create_unit_token(0, "tie_fighter")
+		var tie := put_in_hand(m, "SOR_231")
+		check(token != null and not token.has_trait("imperial"), "Generic TIE Fighter token has no Imperial trait")
+		check(m.do_action({"a": "play", "uid": tie.uid}) and tie.in_play(), "TIE Advanced enters through normal card play")
+		check(m.pending.get("options") == [ground.uid, space.uid] and m.pending.get("min") == 1,
+			"TIE Advanced requires choosing another friendly Imperial in either arena")
+		check(not m.submit_choice([tie.uid]) and not m.submit_choice([enemy.uid]) and not m.submit_choice([ally.uid])
+			and token and not m.submit_choice([token.uid]), "TIE Advanced excludes itself, enemies and non-Imperial allies")
+		var selected := ground if target_id == "SOR_128" else space
+		var unselected := space if selected == ground else ground
+		var power := selected.power()
+		var hp := selected.max_hp()
+		check(m.submit_choice([selected.uid]) and m.pending.is_empty() and m.active == 1, "TIE Advanced finishes the action after the target is chosen")
+		check(selected.upgrades.size() == 2 and selected.upgrades.all(func(upgrade): return upgrade.name() == "Experience")
+			and selected.power() == power + 2 and selected.max_hp() == hp + 2 and unselected.upgrades.is_empty(),
+			"TIE Advanced gives the selected Imperial exactly two Experience tokens")
+
+	var m := funded_match()
+	m.create_unit_token(0, "tie_fighter")
+	add_unit(m, 1, "SOR_225")
+	var tie := put_in_hand(m, "SOR_231")
+	check(m.do_action({"a": "play", "uid": tie.uid}) and tie.in_play() and tie.upgrades.is_empty()
+		and m.pending.is_empty() and m.active == 1, "TIE Advanced enters and passes the turn with no eligible Imperial")
+	check(m.log_lines.has("TIE Advanced: No other friendly Imperial unit in play."), "TIE Advanced explains the missing target")
 
 
 func test_fortifications() -> void:
@@ -975,6 +1010,40 @@ func test_early_combat_and_tokens() -> void:
 	check(m.card(uid) == null and guard.flags.get("captives", []).is_empty(), "captured token ceases to exist")
 	m.defeat(guard)
 	check(m.card(uid) == null, "captured token cannot be rescued")
+
+	var battle := funded_match()
+	var existing := battle.create_unit_token(0, "battle_droid")
+	var doorstep := put_in_hand(battle, "TWI_190")
+	check(battle.do_action({"a": "play", "uid": doorstep.uid}), "On the Doorstep plays as a normal event")
+	var created: Array = battle.players[0].units.filter(func(unit): return unit != existing and unit.id == existing.id)
+	check(created.size() == 3 and created.all(func(unit): return not unit.exhausted),
+		"On the Doorstep creates and readies exactly three Battle Droids")
+	check(existing.exhausted, "On the Doorstep leaves previously exhausted Battle Droids alone")
+
+
+func test_multiword_traits() -> void:
+	var m := funded_match()
+	var enemy_first_order := add_unit(m, 1, "LOF_080")
+	var first_order := add_unit(m, 0, "LOF_084")
+	var trooper := add_unit(m, 0, "SOR_128")
+	var phasma := put_in_hand(m, "JTL_088")
+	check(m.do_action({"a": "play", "uid": phasma.uid}), "Captain Phasma plays from hand")
+	var options: Array = m.pending.get("options", [])
+	check(first_order.uid in options and enemy_first_order.uid in options and trooper.uid not in options and phasma.uid not in options,
+		"Captain Phasma can select any other First Order unit")
+	var original_power := first_order.power()
+	var original_hp := first_order.max_hp()
+	check(m.submit_choice([first_order.uid]) and first_order.power() == original_power + 2 and first_order.max_hp() == original_hp + 2,
+		"Captain Phasma applies +2/+2 to the selected First Order unit")
+
+	var hunt := funded_match()
+	var hunter := add_unit(hunt, 0, "SOR_182", false)
+	var exhausted := add_unit(hunt, 0, "SOR_128", false)
+	var ventress := put_in_hand(hunt, "LAW_061")
+	check(hunt.do_action({"a": "play", "uid": ventress.uid}), "Asajj Ventress plays from hand")
+	check(hunt.pending.get("options", []) == [hunter.uid] and hunt.submit_choice([hunter.uid]),
+		"Asajj Ventress offers the other Bounty Hunter and excludes the non-Bounty Hunter")
+	check(not hunter.exhausted and exhausted.exhausted, "Asajj Ventress readies only the selected Bounty Hunter")
 
 
 func test_support_and_recovery() -> void:

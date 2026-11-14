@@ -38,7 +38,7 @@ static func float_text(layer: Control, at: Vector2, text: String, col: Color, si
 	tw.tween_callback(l.queue_free)
 
 
-static func banner(layer: Control, text: String, col: Color, sub := "") -> void:
+static func banner(layer: Control, text: String, col: Color, sub := "", font_size := 56) -> void:
 	var box := VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var vs := layer.get_viewport_rect().size
@@ -50,7 +50,8 @@ static func banner(layer: Control, text: String, col: Color, sub := "") -> void:
 	bar.size = box.size
 	bar.position = box.position
 	layer.add_child(bar)
-	var l := UIKit.title(text, 56, col)
+	var l := UIKit.title(text, font_size, col)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(l)
 	if sub != "":
 		box.add_child(UIKit.aurebesh(sub, 22))
