@@ -8,6 +8,9 @@ var only := ""
 
 
 func _ready() -> void:
+	AudioServer.set_bus_mute(0, true)
+	Sabacc.settings["music_enabled"] = false
+	Music._apply()
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		out = args[0]
@@ -23,14 +26,17 @@ func _ready() -> void:
 		get_tree().current_scene = dummy
 		reparent.call_deferred(get_tree().root)
 		await get_tree().process_frame
-	Kyber.settings["anim_speed"] = 2.0
+	Sabacc.settings["anim_speed"] = 2.0
 	await _run()
 	get_tree().quit()
 
 
 func _size(w: int, h: int) -> void:
-	DisplayServer.window_set_size(Vector2i(w, h))
+	get_tree().root.mode = Window.MODE_WINDOWED
+	get_tree().root.min_size = Vector2i.ZERO
+	get_tree().root.size = Vector2i(w, h)
 	await _wait(0.6)
+	print("viewport requested ", Vector2i(w, h), " actual window ", get_tree().root.size, " canvas ", get_viewport().get_visible_rect().size)
 
 
 func _wait(t: float) -> void:
@@ -272,7 +278,7 @@ func _input_test() -> void:
 ## Plays whole matches through the real UI (bot on both sides), rotating the
 ## window every few actions, to shake out crashes.
 func _soak(games: int) -> void:
-	Kyber.settings["anim_speed"] = 2.5
+	Sabacc.settings["anim_speed"] = 2.5
 	for g in games:
 		await _go("match")
 		await _wait(1.5)
@@ -400,7 +406,7 @@ const ANIM_CASES := [
 
 
 func _anims() -> void:
-	Kyber.settings["anim_speed"] = 1.0
+	Sabacc.settings["anim_speed"] = 1.0
 	await _size(540, 960)
 	for case in ANIM_CASES:
 		await _go("match")
@@ -434,8 +440,10 @@ func _anims() -> void:
 			continue
 		print("ANIM %s style=%s" % [case[2], AttackStyle.of(a)["style"]])
 		ms._act({"a": "attack", "uid": a.uid, "target": d.uid})
-		for f in [0.18, 0.42, 0.62, 0.9]:
-			await get_tree().create_timer(f - (0.0 if f == 0.18 else 0.0)).timeout
+		var previous := 0.0
+		for f in [0.12, 0.32, 0.54, 0.64, 0.86, 1.15]:
+			await get_tree().create_timer(f - previous).timeout
+			previous = f
 			await _shot("anim_%s_%02d" % [case[2], int(f * 100)])
 		await _wait(1.5)
 
@@ -493,7 +501,7 @@ func _new_screens() -> void:
 
 
 func _tokens_shots() -> void:
-	Kyber.settings["anim_speed"] = 1.0
+	Sabacc.settings["anim_speed"] = 1.0
 	for sz in [[540, 960, "p"], [1280, 720, "l"]]:
 		await _size(sz[0], sz[1])
 		await _go("match")
@@ -633,7 +641,7 @@ func _spotlight_e2e() -> void:
 	await _wait(1.5)
 	await _shot("e2e_victory")
 	for c in get_tree().root.find_children("*", "", true, false):
-		if c is KyberButton and c.text == "Continue":
+		if c is SabaccButton and c.text == "Continue":
 			c.pressed.emit()
 	await _wait(2.5)
 	await _shot("e2e_reward")

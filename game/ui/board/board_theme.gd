@@ -30,6 +30,23 @@ var _next_capital := 12.0
 var _side := 0
 var _par := Vector2.ZERO        # smoothed pointer parallax offset (-1..1)
 var _rng := RandomNumberGenerator.new()
+var _datapad: DatapadBackground
+
+
+func _ready() -> void:
+	_datapad = DatapadBackground.new()
+	UIKit.fill_rect(_datapad)
+	add_child(_datapad)
+	Appearance.changed.connect(_apply_theme)
+	_apply_theme()
+
+
+func _apply_theme() -> void:
+	var spec := Appearance.preset()
+	_datapad.visible = spec["kind"] == "datapad"
+	_planet = null
+	_photo = Cosmetics.background_texture(spec.get("art", "")) if spec["kind"] == "planet" else null
+	queue_redraw()
 
 
 func setup(id: String) -> void:
@@ -61,6 +78,7 @@ func setup(id: String) -> void:
 	var corner := Vector2(_rng.randf_range(-0.25, 0.55), _rng.randf_range(-0.2, 0.35))
 	_planet_rect = Rect2(corner, Vector2(sz, sz))
 	_planet_spin = _rng.randf_range(-0.004, 0.004)
+	_apply_theme()
 
 
 ## Leaders decide which fleets fly past. Call after the match is set up.
@@ -88,7 +106,9 @@ static func faction_for(data: Dictionary, manifest: Dictionary) -> String:
 
 
 func _process(dt: float) -> void:
-	if Kyber.perf():
+	if Appearance.preset()["kind"] in ["datapad", "planet"]:
+		return
+	if Sabacc.perf():
 		if _t == 0.0:
 			_t = 0.001
 			queue_redraw()
@@ -164,7 +184,9 @@ func _vp(p: Vector2, z: float) -> Vector2:
 
 func _draw() -> void:
 	var s := size
-	draw_rect(Rect2(Vector2.ZERO, s), Kyber.C_BG)
+	draw_rect(Rect2(Vector2.ZERO, s), Appearance.preset()["base"])
+	if Appearance.preset()["kind"] == "datapad":
+		return
 	# faint nebula wash
 	draw_circle(Vector2(s.x * 0.2, s.y * 0.25), s.length() * 0.35, Color(0.18, 0.12, 0.35, 0.10))
 	draw_circle(Vector2(s.x * 0.85, s.y * 0.8), s.length() * 0.3, Color(0.35, 0.1, 0.15, 0.07))
@@ -217,7 +239,11 @@ func _star(st: Dictionary, s: Vector2) -> void:
 	var drift := Vector2(-4.0, 1.2) * _t * z      # slow
 	var pos := Vector2(fposmod(p.x * s.x + drift.x, s.x), fposmod(p.y * s.y + drift.y, s.y)) + _par * 10.0 * z
 	var tw := 0.65 + 0.35 * sin(_t * (0.6 + z) + st["tw"])
-	draw_circle(pos, 0.6 + 1.3 * z, Color(0.82, 0.9, 1.0, (0.25 + 0.6 * z) * tw))
+	var col := Color(0.82, 0.9, 1.0, (0.25 + 0.6 * z) * tw)
+	if Sabacc.settings.get("theme") == "space_hyperspace":
+		draw_line(pos, pos + (pos - s / 2.0).normalized() * z * 44.0, col, 1.2, true)
+	else:
+		draw_circle(pos, 0.6 + 1.3 * z, col)
 
 
 func _ship(sh: Dictionary, s: Vector2) -> void:

@@ -1,18 +1,18 @@
 extends Node
 ## Global config, palette and user settings. Rename the game here only.
 
-const GAME_TITLE := "SWU Kyber"
+const GAME_TITLE := "SWU Sabacc"
 const GAME_SUBTITLE := "A Star Wars: Unlimited fan project"
-const VERSION := "0.1.0-foundation"
+const VERSION := ReleaseInfo.VERSION_NAME
 
-# Palette — dark HUD with Rebel blue / Imperial red / kyber cyan accents.
+# Palette — dark HUD with Rebel blue / Imperial red / holographic cyan accents.
 const C_BG := Color("05080d")
 const C_PANEL := Color("0b131d")
 const C_PANEL_HI := Color("142233")
 const C_LINE := Color("2b3d52")
 const C_TEXT := Color("e8eef5")
 const C_DIM := Color("8796a8")
-const C_KYBER := Color("4fe3ff")
+const C_ACCENT := Color("4fe3ff")
 const C_REBEL := Color("3d8bff")
 const C_EMPIRE := Color("ff3b30")
 const C_GOLD := Color("f5c518")
@@ -43,11 +43,14 @@ const SABER_COLORS := {
 signal settings_changed
 
 var settings := {
+	"theme": "datapad_republic",
+	"auto_update": true,
 	"perf_mode": false,        # fewer particles, static backgrounds
 	"anim_speed": 1.0,
 	"text_scale": 1.0,
 	"sfx_volume": 0.7,
 	"music_volume": 0.5,
+	"music_enabled": true,
 	"orientation": "auto",     # auto | portrait | landscape
 	"show_aurebesh": true,
 	"quick_mode": "traditional",  # one_lane | traditional | ground | space

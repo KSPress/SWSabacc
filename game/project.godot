@@ -1,11 +1,12 @@
 ; Engine configuration file.
-; SWU Kyber (working title). Rename via autoload/kyber.gd GAME_TITLE.
+; SWU Sabacc (working title). Rename via autoload/sabacc.gd GAME_TITLE.
 
 config_version=5
 
 [application]
 
-config/name="SWU Kyber"
+config/name="SWU Sabacc"
+config/quit_on_go_back=false
 config/description="Star Wars: Unlimited rules in a fast, Hearthstone-style mobile frame. Non-commercial fan project."
 run/main_scene="res://ui/screens/boot.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
@@ -15,12 +16,17 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-Kyber="*res://autoload/kyber.gd"
+Sabacc="*res://autoload/sabacc.gd"
 CardDB="*res://autoload/card_db.gd"
 Art="*res://autoload/art.gd"
 Save="*res://autoload/save.gd"
 Router="*res://autoload/router.gd"
 Sfx="*res://autoload/sfx.gd"
+Music="*res://autoload/music.gd"
+Cosmetics="*res://autoload/cosmetics.gd"
+Progression="*res://autoload/progression.gd"
+Appearance="*res://autoload/appearance.gd"
+Updater="*res://autoload/updater.gd"
 
 [display]
 

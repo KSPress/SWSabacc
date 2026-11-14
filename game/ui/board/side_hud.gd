@@ -5,6 +5,9 @@ extends Control
 
 signal leader_pressed(hud: SideHud)
 signal base_pressed(hud: SideHud)
+signal fortification_pressed(hud: SideHud, rect: Rect2)
+signal leader_dragged(hud: SideHud, at: Vector2)
+signal leader_dropped(hud: SideHud, at: Vector2)
 signal resources_pressed(hud: SideHud)
 signal inspect(id: String, rect: Rect2, inst: CardInst)
 
@@ -15,6 +18,10 @@ var leader_view: LeaderView
 var res_view: ResourceView
 var info: Label
 var _ps: PlayerState
+var deck_back: TextureRect
+var profile_badge: ProfileBadge
+var fortification_tab: Button
+var _fortification_art := ""
 
 
 func _init(idx: int, p_friendly: bool) -> void:
@@ -27,6 +34,8 @@ func _ready() -> void:
 	leader_view = LeaderView.new()
 	leader_view.friendly = friendly
 	leader_view.pressed.connect(func(): leader_pressed.emit(self))
+	leader_view.dragged.connect(func(at): leader_dragged.emit(self, at))
+	leader_view.dropped.connect(func(at): leader_dropped.emit(self, at))
 	leader_view.inspect.connect(func(): inspect.emit(leader_view.card_id(), leader_view.get_global_rect(), _ps.leader))
 	add_child(leader_view)
 	base_view = BaseView.new()
@@ -34,11 +43,29 @@ func _ready() -> void:
 	base_view.pressed.connect(func(): base_pressed.emit(self))
 	base_view.inspect.connect(func(): inspect.emit(_ps.base.id, base_view.get_global_rect(), _ps.base))
 	add_child(base_view)
+	fortification_tab = Button.new()
+	fortification_tab.hide()
+	fortification_tab.focus_mode = Control.FOCUS_NONE
+	fortification_tab.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	fortification_tab.expand_icon = true
+	fortification_tab.add_theme_constant_override("icon_max_width", 19)
+	fortification_tab.add_theme_font_size_override("font_size", 14)
+	fortification_tab.pressed.connect(func(): fortification_pressed.emit(self, fortification_tab.get_global_rect()))
+	add_child(fortification_tab)
 	res_view = ResourceView.new()
 	res_view.pressed.connect(func(): resources_pressed.emit(self))
 	add_child(res_view)
-	info = UIKit.fit_label(UIKit.label("", 16, Kyber.C_DIM))
+	info = UIKit.fit_label(UIKit.label("", 16, Sabacc.C_DIM))
 	add_child(info)
+	deck_back = TextureRect.new()
+	deck_back.texture = Cosmetics.texture("cardback") if friendly else Art.card_back
+	deck_back.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	deck_back.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	deck_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(deck_back)
+	if friendly:
+		profile_badge = ProfileBadge.new()
+		add_child(profile_badge)
 
 
 func bind(ps: PlayerState) -> void:
@@ -52,6 +79,19 @@ func refresh() -> void:
 	if _ps == null:
 		return
 	base_view.queue_redraw()
+	var upgrades: Array = _ps.base.upgrades
+	fortification_tab.visible = not upgrades.is_empty()
+	if not upgrades.is_empty():
+		fortification_tab.text = upgrades[0].name() if upgrades.size() == 1 else "Fortifications (%d)" % upgrades.size()
+		fortification_tab.tooltip_text = "\n".join(upgrades.map(func(up): return up.name()))
+	var art_key: String = upgrades.back().data.get("art", upgrades.back().id) if not upgrades.is_empty() else ""
+	if art_key != _fortification_art:
+		_fortification_art = art_key
+		fortification_tab.icon = null
+		if art_key != "":
+			fortification_tab.icon = Art.request(art_key, func(tex):
+				if _fortification_art == art_key:
+					fortification_tab.icon = tex)
 	leader_view.refresh()
 	res_view.ready_n = _ps.ready_resources()
 	res_view.total = _ps.resources.size()
@@ -62,6 +102,11 @@ func refresh() -> void:
 func arrange(r: Rect2, horizontal: bool) -> void:
 	position = r.position
 	size = r.size
+	deck_back.size = Vector2(32, 45)
+	deck_back.position = Vector2(r.size.x - 38, r.size.y - 47)
+	if profile_badge:
+		profile_badge.size = Vector2(40, 40)
+		profile_badge.position = Vector2(r.size.x - 84, r.size.y - 44)
 	if horizontal:
 		var h := r.size.y
 		var lw := minf(h * 1.4, r.size.x * 0.24)
@@ -74,6 +119,7 @@ func arrange(r: Rect2, horizontal: bool) -> void:
 		res_view.size = Vector2(r.size.x - lw - bw - 24, h * 0.5)
 		info.position = Vector2(lw + bw + 20, h * 0.55)
 		info.size = Vector2(r.size.x - lw - bw - 24, 24)
+		info.size.x = maxf(20, info.size.x - 82)
 	else:
 		var w := r.size.x
 		leader_view.position = Vector2(0, 0)
@@ -84,6 +130,9 @@ func arrange(r: Rect2, horizontal: bool) -> void:
 		res_view.size = Vector2(w, r.size.y * 0.16)
 		info.position = Vector2(0, r.size.y * 0.9)
 		info.size = Vector2(w, 24)
+		info.size.x = maxf(20, w - 82)
+	fortification_tab.position = base_view.position + Vector2(3, 3)
+	fortification_tab.size = Vector2(maxf(40, base_view.size.x - 6), 26)
 	leader_view.queue_redraw()
 	base_view.queue_redraw()
 
@@ -120,6 +169,7 @@ class BaseView extends Control:
 	var _flash := 0.0
 	var _shown_hp := -1.0
 	var _press_t := -1.0
+	var _press_position := Vector2.ZERO
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
@@ -161,10 +211,10 @@ class BaseView extends Control:
 		if inst == null:
 			return
 		var r := Rect2(Vector2.ZERO, size)
-		var side := Kyber.C_REBEL if friendly else Kyber.C_EMPIRE
+		var side := Appearance.color_at(1) if friendly else Sabacc.C_EMPIRE
 		if targetable:
 			var k := 0.5 + 0.5 * sin(_t * 5.0)
-			draw_rect(r.grow(5 + k * 3), Color(Kyber.C_EMPIRE, 0.5 + 0.4 * k), false, 4.0)
+			draw_rect(r.grow(5 + k * 3), Color(Sabacc.C_EMPIRE, 0.5 + 0.4 * k), false, 4.0)
 		draw_rect(r, Color("0a0f16"))
 		if _tex and _tex != Art.placeholder:
 			# landscape base render: crop the art band
@@ -184,7 +234,7 @@ class BaseView extends Control:
 			for i in 8:
 				var k := i / 8.0
 				draw_rect(Rect2(Vector2(0, r.size.y * k), Vector2(r.size.x, r.size.y / 8.0 + 1)), side.darkened(0.55 + k * 0.35))
-			UIKit.draw_fit(self, Kyber.font_aurebesh, Vector2(0, r.size.y * 0.42), str(inst.data.get("name", "")).to_lower(), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(r.size.y * 0.22), Color(1, 1, 1, 0.12))
+			UIKit.draw_fit(self, Sabacc.font_aurebesh, Vector2(0, r.size.y * 0.42), str(inst.data.get("name", "")).to_lower(), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(r.size.y * 0.22), Color(1, 1, 1, 0.12))
 		draw_rect(Rect2(Vector2(0, r.size.y * 0.55), Vector2(r.size.x, r.size.y * 0.45)), Color(0, 0, 0, 0.55))
 		if _flash > 0:
 			draw_rect(r, Color(1, 0.2, 0.1, _flash * 0.45))
@@ -193,29 +243,36 @@ class BaseView extends Control:
 		var frac := clampf(_shown_hp / maxf(1.0, maxhp), 0.0, 1.0)
 		var bar := Rect2(Vector2(8, r.size.y - 14), Vector2(r.size.x - 16, 8))
 		draw_rect(bar, Color(0.1, 0.1, 0.12))
-		var bc := Kyber.C_GOOD if frac > 0.5 else (Kyber.C_GOLD if frac > 0.25 else Kyber.C_EMPIRE)
+		var bc := Sabacc.C_GOOD if frac > 0.5 else (Sabacc.C_GOLD if frac > 0.25 else Sabacc.C_EMPIRE)
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), bc)
 		var fs := int(clampf(r.size.y * 0.38, 18, 52))
 		var hp_txt := str(roundi(_shown_hp))
-		var hp_w := Kyber.font_title.get_string_size(hp_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		UIKit.draw_fit(self, Kyber.font_title, Vector2(10, r.size.y - 22), hp_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+		var hp_w := Sabacc.font_title.get_string_size(hp_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		UIKit.draw_fit(self, Sabacc.font_title, Vector2(10, r.size.y - 22), hp_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 		var max_txt := "/ %d" % maxhp
 		var max_fs := int(fs * 0.45)
-		var max_w := Kyber.font_body.get_string_size(max_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, max_fs).x
-		UIKit.draw_fit(self, Kyber.font_body, Vector2(14 + hp_w, r.size.y - 22), max_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, max_fs, Kyber.C_DIM)
+		var max_w := Sabacc.font_body.get_string_size(max_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, max_fs).x
+		UIKit.draw_fit(self, Sabacc.font_body, Vector2(14 + hp_w, r.size.y - 22), max_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, max_fs, Sabacc.C_DIM)
 		# name gets only the space to the right of the HP readout
 		var name_x := 24.0 + hp_w + max_w
 		var nm: String = inst.data.get("name", "")
-		UIKit.draw_fit(self, Kyber.font_title, Vector2(name_x, r.size.y - 22), nm.to_upper(), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - name_x - 8, int(clampf(r.size.y * 0.16, 12, 20)), Kyber.C_TEXT)
+		UIKit.draw_fit(self, Sabacc.font_title, Vector2(name_x, r.size.y - 22), nm.to_upper(), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - name_x - 8, int(clampf(r.size.y * 0.16, 12, 20)), Sabacc.C_TEXT)
 		_light_overlay()
 
 	func _gui_input(ev: InputEvent) -> void:
+		if ev is InputEventMouseMotion and friendly and _press_t >= 0.0:
+			if ev.position.distance_to(_press_position) >= 18.0:
+				_press_t = -1.0
+				pressed.emit()
+				accept_event()
+			return
 		if ev is InputEventMouseButton:
 			if ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
 				inspect.emit()
 			elif ev.button_index == MOUSE_BUTTON_LEFT:
 				if ev.pressed:
 					_press_t = 0.0
+					_press_position = ev.position
 				elif _press_t >= 0.0:
 					_press_t = -1.0
 					pressed.emit()
@@ -249,9 +306,14 @@ class LeaderView extends Control:
 		set(v):
 			actionable = v
 			queue_redraw()
+	var pilot_actionable := false
 	var _tex: Texture2D
 	var _t := 0.0
 	var _press_t := -1.0
+	var _press_position := Vector2.ZERO
+	var _dragging := false
+	signal dragged(at: Vector2)
+	signal dropped(at: Vector2)
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
@@ -287,7 +349,7 @@ class LeaderView extends Control:
 		var r := Rect2(Vector2.ZERO, size)
 		if actionable:
 			var k := 0.5 + 0.5 * sin(_t * 4.0)
-			draw_rect(r.grow(4 + 3 * k), Color(Kyber.C_GOLD, 0.45 + 0.4 * k), false, 4.0)
+			draw_rect(r.grow(4 + 3 * k), Color(Sabacc.C_GOLD, 0.45 + 0.4 * k), false, 4.0)
 		var tint := Color(0.5, 0.5, 0.55) if (inst.exhausted or inst.deployed) else Color.WHITE
 		if _tex and _tex != Art.placeholder:
 			var ts := _tex.get_size()
@@ -305,15 +367,17 @@ class LeaderView extends Control:
 			draw_texture_rect_region(_tex, r, src, tint)
 		else:
 			draw_rect(r, Color("1a2636"))
-		draw_rect(r, Kyber.C_GOLD, false, 3.0)
+		draw_rect(r, Sabacc.C_GOLD, false, 3.0)
 		var strip := Rect2(Vector2(0, r.size.y - 22), Vector2(r.size.x, 22))
 		draw_rect(strip, Color(0, 0, 0, 0.7))
 		var label := inst.name()
 		if inst.deployed:
 			label = "DEPLOYED"
+		elif pilot_actionable:
+			label = "DRAG TO PILOT"
 		elif inst.exhausted:
 			label = "EXHAUSTED"
-		UIKit.draw_fit(self, Kyber.font_title, strip.position + Vector2(0, 16), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 14, Kyber.C_GOLD if actionable else Kyber.C_TEXT)
+		UIKit.draw_fit(self, Sabacc.font_title, strip.position + Vector2(0, 16), label, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 14, Sabacc.C_GOLD if actionable else Sabacc.C_TEXT)
 		_light_overlay()
 
 	func _gui_input(ev: InputEvent) -> void:
@@ -323,10 +387,22 @@ class LeaderView extends Control:
 			elif ev.button_index == MOUSE_BUTTON_LEFT:
 				if ev.pressed:
 					_press_t = 0.0
+					_press_position = ev.position
+					_dragging = false
+				elif _dragging:
+					_dragging = false
+					dropped.emit(get_global_transform() * ev.position)
 				elif _press_t >= 0.0:
 					_press_t = -1.0
 					pressed.emit()
 			accept_event()
+		elif ev is InputEventMouseMotion and friendly and inst and not inst.deployed and inst.data.has("pilot"):
+			if _press_t >= 0.0 and _press_position.distance_to(ev.position) >= 14.0:
+				_dragging = true
+				_press_t = -1.0
+			if _dragging:
+				dragged.emit(get_global_transform() * ev.position)
+				accept_event()
 
 
 ## Resource pips: gold = ready, dim = exhausted.
@@ -342,7 +418,7 @@ class ResourceView extends Control:
 	func _draw() -> void:
 		var n := maxi(total, 1)
 		var pip := clampf(minf(size.x / (minf(n, 8) * 1.15 + 2.5), size.y * 0.75), 12.0, 34.0)
-		UIKit.draw_fit(self, Kyber.font_title, Vector2(0, pip * 0.8), "%d/%d" % [ready_n, total], HORIZONTAL_ALIGNMENT_LEFT, -1, int(pip * 0.8), Kyber.C_COST)
+		UIKit.draw_fit(self, Sabacc.font_title, Vector2(0, pip * 0.8), "%d/%d" % [ready_n, total], HORIZONTAL_ALIGNMENT_LEFT, -1, int(pip * 0.8), Sabacc.C_COST)
 		var x0 := pip * 2.6
 		for i in total:
 			var row := i / 8
@@ -353,7 +429,7 @@ class ResourceView extends Control:
 				var a := PI / 6 + k * PI / 3.0
 				hexp.append(c + Vector2(cos(a), sin(a)) * pip * 0.5)
 			var is_ready := i < ready_n
-			draw_colored_polygon(hexp, Kyber.C_COST if is_ready else Color(0.25, 0.22, 0.12))
+			draw_colored_polygon(hexp, Sabacc.C_COST if is_ready else Color(0.25, 0.22, 0.12))
 			hexp.append(hexp[0])
 			draw_polyline(hexp, Color(1, 0.95, 0.7, 0.9 if is_ready else 0.3), 1.5, true)
 

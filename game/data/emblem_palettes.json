@@ -1,0 +1,102 @@
+{
+  "crimson_block": [
+    "#b84728",
+    "#ebae9d"
+  ],
+  "deaths_head": [
+    "#d4d1be",
+    "#f4eddb"
+  ],
+  "ember_stripes": [
+    "#cc5e2d",
+    "#ebb298"
+  ],
+  "fett_crest": [
+    "#c3c79a",
+    "#797e68"
+  ],
+  "galactic_empire": [
+    "#bdbdbd",
+    "#f0f0f0"
+  ],
+  "galactic_republic": [
+    "#a6a6a6",
+    "#f0f0f0"
+  ],
+  "hex_shield": [
+    "#cf933b",
+    "#ebcea4"
+  ],
+  "imperial_grey": [
+    "#c8c8c8",
+    "#f0f0f0"
+  ],
+  "iron_crest": [
+    "#b8b7b3",
+    "#b8283a"
+  ],
+  "medic_cross": [
+    "#b82837",
+    "#eb97a0"
+  ],
+  "new_republic": [
+    "#bea22a",
+    "#ebdb9a"
+  ],
+  "old_republic": [
+    "#b3a88c",
+    "#e0d3b0"
+  ],
+  "phoenix": [
+    "#d48734",
+    "#ebc7a0"
+  ],
+  "rebel_alliance": [
+    "#d0792e",
+    "#ebbd95"
+  ],
+  "rebel_gold": [
+    "#d3a52f",
+    "#ebd191"
+  ],
+  "red_cipher": [
+    "#b83a30",
+    "#eba7a2"
+  ],
+  "red_horizon": [
+    "#b82837",
+    "#eb9aa2"
+  ],
+  "red_slash": [
+    "#b8282e",
+    "#eb9b9e"
+  ],
+  "rust_starbird": [
+    "#b86442",
+    "#ebbeab"
+  ],
+  "sabacc": [
+    "#d3892e",
+    "#ebc596"
+  ],
+  "separatists": [
+    "#85a9b8",
+    "#d0e3eb"
+  ],
+  "sith_empire": [
+    "#b8282d",
+    "#eb9a9d"
+  ],
+  "sith_eternal": [
+    "#b82a28",
+    "#eb9796"
+  ],
+  "twin_blades": [
+    "#c86d2c",
+    "#ebba98"
+  ],
+  "twin_spires": [
+    "#ba9467",
+    "#ebd6bf"
+  ]
+}

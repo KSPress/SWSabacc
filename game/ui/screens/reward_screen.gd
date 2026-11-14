@@ -16,14 +16,16 @@ func build() -> void:
 	_box = VBoxContainer.new()
 	_box.add_theme_constant_override("separation", 14)
 	body.add_child(_box)
+	if int(res.get("run_credits", 0)) > 0:
+		_box.add_child(UIKit.credit_label("+%d run credits" % int(res["run_credits"])))
 	if res.get("boss", false):
 		_build_clear()
 		return
 	if res.has("pickup"):
-		var pl := UIKit.label("%s joins your deck!" % CardDB.card(res["pickup"]).get("name", ""), 22, Kyber.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+		var pl := UIKit.label("%s joins your deck!" % CardDB.card(res["pickup"]).get("name", ""), 22, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 		_box.add_child(pl)
-	_box.add_child(UIKit.title("Choose a card", 34, Kyber.C_KYBER))
-	_box.add_child(UIKit.label("Tap to take it · long-press to inspect", 16, Kyber.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	_box.add_child(UIKit.title("Choose a card", 34, Sabacc.C_ACCENT))
+	_box.add_child(UIKit.label("Tap to take it · long-press to inspect", 16, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	_row = HBoxContainer.new()
 	_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_row.add_theme_constant_override("separation", 14)
@@ -34,15 +36,15 @@ func build() -> void:
 		i += 1
 	var tre: Array = res.get("treasures", [])
 	if not tre.is_empty():
-		_box.add_child(UIKit.title("…or a treasure", 26, Kyber.C_GOLD))
+		_box.add_child(UIKit.title("…or a treasure", 26, Sabacc.C_GOLD))
 		var tdefs := CampaignFlow.treasures_for(chapter)
 		for t in tre:
 			var td: Dictionary = tdefs.get(t, {})
-			var b := KyberButton.make("%s — %s" % [td.get("name", t), td.get("desc", "")], KyberButton.Style.GOLD, "star")
+			var b := SabaccButton.make("%s — %s" % [td.get("name", t), td.get("desc", "")], SabaccButton.Style.GOLD, "star")
 			b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			b.pressed.connect(func(): _take({"treasure": t}))
 			_box.add_child(b)
-	var skip := KyberButton.make("Skip reward", KyberButton.Style.GHOST)
+	var skip := SabaccButton.make("Skip reward", SabaccButton.Style.GHOST)
 	skip.pressed.connect(func(): _take({}))
 	_box.add_child(skip)
 
@@ -63,7 +65,7 @@ func _reward_card(id: String, i: int) -> Control:
 	cv.tapped.connect(func(_c): _take({"add_cards": [id]}))
 	cv.inspect_requested.connect(func(c): InspectOverlay.open(self, c.card_id, c.get_global_rect()))
 	slot.add_child(cv)
-	get_tree().create_timer(Kyber.anim(0.4 + i * 0.25)).timeout.connect(func():
+	get_tree().create_timer(Sabacc.anim(0.4 + i * 0.25)).timeout.connect(func():
 		Sfx.play("draw")
 		cv.flip_to(true))
 	return slot
@@ -87,9 +89,13 @@ func _take(effect: Dictionary) -> void:
 
 func _build_clear() -> void:
 	_box.add_child(UIKit.aurebesh("chapter complete", 26))
-	_box.add_child(UIKit.title("%s cleared!" % chapter.get("title", ""), 44, Kyber.C_GOLD))
+	_box.add_child(UIKit.title("%s cleared!" % chapter.get("title", ""), 44, Sabacc.C_GOLD))
 	var unlocked: Array = res.get("unlocked", [])
-	_box.add_child(UIKit.label("%d new card(s) added to your Collection Vault." % unlocked.size(), 20, Kyber.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	if not res.get("pack", "").is_empty():
+		var pack_button := SabaccButton.make("Campaign pack earned · Open packs", SabaccButton.Style.GOLD, "star")
+		pack_button.pressed.connect(func(): Router.go("packs"))
+		_box.add_child(pack_button)
+	_box.add_child(UIKit.label("%d new card(s) added to your Collection Vault." % unlocked.size(), 20, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size.y = CardView.PORTRAIT.y * 0.5 + 20
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -115,11 +121,21 @@ func _build_clear() -> void:
 		UIKit.pop_in(cv, i * 0.05)
 		i += 1
 	var next: String = chapter.get("next_chapter", "")
-	if next != "":
-		var b := KyberButton.make("Next chapter", KyberButton.Style.PRIMARY, "play", true)
+	var run := Save.run()
+	var paid := int(res.get("payout", 0))
+	if paid > 0:
+		_box.add_child(UIKit.credit_label("+%d credits to Collection Vault · ×%s" % [paid, CampaignFlow.multiplier(run)]))
+	if CampaignFlow.can_continue(run, next):
+		_box.add_child(UIKit.credit_label("%d run credits · ×%s if you cash out now" % [int(run.get("credits", 0)), CampaignFlow.multiplier(run)]))
+		var b := SabaccButton.make("Next chapter", SabaccButton.Style.PRIMARY, "play", true)
 		b.pressed.connect(func(): Router.go("chapter", {"chapter_id": next}))
 		_box.add_child(b)
-	var back := KyberButton.make("Campaign", KyberButton.Style.GHOST, "back")
+		var cash := SabaccButton.make("Cash out %d credits" % CampaignFlow.payout(run), SabaccButton.Style.GOLD)
+		cash.pressed.connect(func():
+			CampaignFlow.cash_out(run)
+			Router.go("collection"))
+		_box.add_child(cash)
+	var back := SabaccButton.make("Campaign", SabaccButton.Style.GHOST, "back")
 	back.pressed.connect(func(): Router.go("episodes"))
 	_box.add_child(back)
 

@@ -1,7 +1,8 @@
 extends Node
 ## Local, offline, versioned save (spec 2: "Save data: local only, offline-first").
 
-const PATH := "user://kyber_save.json"
+const PATH := "user://sabacc_save.json"
+const LEGACY_PATH := "user://kyber_save.json" # upgrade compatibility
 const VERSION := 1
 
 var data: Dictionary = {}
@@ -10,35 +11,54 @@ var data: Dictionary = {}
 func _ready() -> void:
 	load_save()
 	for k in data.get("settings", {}):
-		Kyber.settings[k] = data["settings"][k]
-	Kyber.apply_orientation()
+		Sabacc.settings[k] = data["settings"][k]
+	Sabacc.apply_orientation()
 
 
 func default_data() -> Dictionary:
 	return {
 		"version": VERSION,
 		"settings": {},
+		"credits": 0,
 		"vault": [],                 # card ids unlocked for vault / bot / PvP play
 		"decks": [],                 # deckbuilder decks (see save_deck)
+		"cosmetics": {"earned": ["emblem:sabacc", "cardback:default", "background:datapad"], "equipped": {"emblem": "sabacc", "cardback": "default", "background": "datapad"}, "gm": false, "recorded": []},
 		"spotlight_runs": {},        # Spotlight Campaign: deck id -> active run
 		"spotlight_records": {},     # Spotlight Campaign: deck id -> record (runs, bests, history)
 		"campaign": {
 			"cleared": [],           # chapter ids
 			"run": {},               # active chapter run (see CampaignRun)
 		},
-		"stats": {"matches": 0, "wins": 0},
+		"stats": {"matches": 0, "wins": 0, "draws": 0, "credits_earned": 0,
+			"aspects": {}, "played_aspects": {}, "leaders": {}, "boosters": {}},
 	}
 
 
 func load_save() -> void:
 	data = default_data()
-	if not FileAccess.file_exists(PATH):
+	var path := PATH if FileAccess.file_exists(PATH) else _legacy_source()
+	if not FileAccess.file_exists(path):
 		return
-	var parsed = JSON.parse_string(FileAccess.get_file_as_string(PATH))
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if typeof(parsed) != TYPE_DICTIONARY:
 		push_warning("Save: unreadable save, starting fresh")
 		return
 	data = _migrate(parsed)
+	if path != PATH:
+		write()
+
+
+func _legacy_source() -> String:
+	# Android retains the existing files directory because its package ID stays
+	# unchanged. On Windows the displayed game name determines user://, so read
+	# the former directory once and migrate into the newly named game's save.
+	if FileAccess.file_exists(LEGACY_PATH):
+		return LEGACY_PATH
+	if OS.get_name() == "Windows":
+		var appdata := OS.get_environment("APPDATA")
+		if not appdata.is_empty():
+			return appdata.path_join("Godot/app_userdata/SWU Kyber/kyber_save.json")
+	return LEGACY_PATH
 
 
 func _migrate(d: Dictionary) -> Dictionary:

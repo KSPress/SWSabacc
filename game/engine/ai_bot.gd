@@ -80,8 +80,12 @@ static func score_action(m: Match, p: int, a: Dictionary) -> float:
 						if e.has("t") and Effects.candidates(m, e["t"], {"ctl": p}).is_empty():
 							return -1.0
 			return 1.5
-		"deploy":
+		"deploy", "deploy_pilot":
 			return 7.0
+		"pilot":
+			var pilot := m.card(a["uid"])
+			var data: Dictionary = pilot.data["pilot"]
+			return 2.5 + int(data["power"]) * 0.8 + int(data["hp"]) * 0.65
 		"play", "smuggle":
 			var c := m.card(a["uid"])
 			var cost := m.play_cost(p, c, a["a"] == "smuggle")
@@ -112,6 +116,13 @@ static func score_action(m: Match, p: int, a: Dictionary) -> float:
 			s2 -= (unit_value(at) if dies else dp * 0.2) * w["keep_units"]
 			if t.flags.get("protected", false):
 				s2 += 8.0
+			if m.rules.name == "campaign" and ap > 0 and not t.flags.get("protected", false):
+				# A swarm can clear a Sentinel over several attacks. Passing or
+				# claiming a token leaves that same blocker in place next round.
+				var follow_up := me.units_in(at.zone).any(func(ally):
+					return ally != at and not ally.exhausted and ally.power(true) > 0)
+				if not dies or kills or follow_up:
+					s2 = maxf(s2, 0.8 + minf(ap, t.remaining_hp()) * 0.2)
 			return s2
 		"ability":
 			return 1.5
@@ -154,15 +165,24 @@ static func choose(m: Match) -> Array:
 			sel = [1 if cheap < 2 else 0]
 		"yesno":
 			sel = [1]
+		"damage_assignment":
+			var ranked := opts.duplicate()
+			var assigned: Dictionary = pd.get("assigned", {})
+			ranked.sort_custom(func(a, b):
+				return _damage_assignment_score(m.card(a), assigned, pd["hostile"]) \
+					> _damage_assignment_score(m.card(b), assigned, pd["hostile"]))
+			sel = ranked.slice(0, 1)
 		"option":
 			# prefer the option with the most immediately useful effects;
 			# when an opponent forces the choice, pick the least harmful
 			var opt_list: Array = pd.get("effect", {}).get("options", [])
-			var best_i := 0
+			var best_i: int = opts[0]
 			var best_v := -INF
 			var src := m.card(pd.get("src", 0))
 			var mine: bool = src == null or src.controller == p
-			for i in opt_list.size():
+			for i in opts:
+				if i >= opt_list.size():
+					continue
 				var v := 0.0
 				for ef in opt_list[i].get("effects", []):
 					var op: String = ef.get("op", "")
@@ -204,13 +224,24 @@ static func choose(m: Match) -> Array:
 		_:
 			sel = _choose_targets(m, pd)
 	sel = sel.slice(0, mx)
-	while sel.size() < mn:
-		for o in opts:
-			if not (o in sel):
-				sel.append(o)
-				break
-	m.submit_choice(sel)
-	return sel
+	for option in opts:
+		if sel.size() >= mn:
+			break
+		if option not in sel:
+			sel.append(option)
+	return sel if m.submit_choice(sel) else []
+
+
+static func _damage_assignment_score(card: CardInst, assigned: Dictionary, hostile: bool) -> float:
+	var left := card.remaining_hp() - int(assigned.get(card.uid, 0))
+	if card.zone == "base":
+		if left <= 1:
+			return 100.0 if hostile else -100.0
+		return 2.0 if hostile else minf(left * 0.75, 5.0)
+	var value := unit_value(card)
+	if hostile:
+		return value / maxf(1.0, left)
+	return -value if left <= 1 else 1.5 / maxf(1.0, value)
 
 
 static func _resource_rank(m: Match, p: int, c: CardInst) -> float:

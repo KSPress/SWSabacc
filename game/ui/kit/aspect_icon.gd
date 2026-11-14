@@ -51,11 +51,12 @@ static var _tex_cache: Dictionary = {}
 static func texture(a: String) -> Texture2D:
 	if _tex_cache.has(a):
 		return _tex_cache[a]
-	var t: Texture2D = Art.ui_texture("aspects/" + a)
+	var path := "res://ui/art/aspects/%s.png" % a
+	var t: Texture2D = load(path) if a in ORDER and ResourceLoader.exists(path) else Art.ui_texture("aspects/" + a)
 	if t:
 		_tex_cache[a] = t
 		return t
-	var path := "res://ip/ui/aspects/%s.png" % a
+	path = "res://ip/ui/aspects/%s.png" % a
 	if FileAccess.file_exists(path):
 		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
 		if img:
@@ -87,13 +88,13 @@ func _draw() -> void:
 	var box := Rect2((size - Vector2(s * 0.91, s)) / 2.0, Vector2(s * 0.91, s))
 	if toggle and on:
 		var k := 0.5 + 0.5 * sin(_t * 4.0)
-		draw_rect(box.grow(3 + 2 * k), Color(Kyber.C_GOLD, 0.35 + 0.3 * k), false, 3.0)
+		draw_rect(box.grow(3 + 2 * k), Color(Sabacc.C_GOLD, 0.35 + 0.3 * k), false, 3.0)
 	if _hover and toggle:
-		draw_rect(box.grow(2), Color(Kyber.C_GOLD, 0.8), false, 2.0)
+		draw_rect(box.grow(2), Color(Sabacc.C_GOLD, 0.8), false, 2.0)
 	if tex:
 		draw_texture_rect(tex, box, false, Color(1, 1, 1, 1.0) if lit else Color(0.45, 0.45, 0.5, 0.55))
 	else:
-		draw_rect(box, Kyber.aspect_color(aspect) if lit else Color(Kyber.aspect_color(aspect), 0.3))
+		draw_rect(box, Sabacc.aspect_color(aspect) if lit else Color(Sabacc.aspect_color(aspect), 0.3))
 
 
 func _gui_input(ev: InputEvent) -> void:

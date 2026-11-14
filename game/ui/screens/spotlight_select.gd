@@ -8,7 +8,7 @@ var _box: VBoxContainer
 
 
 func build() -> void:
-	set_header("Spotlight Campaign")
+	set_header("Spotlight Campaign", "hub")
 	bg.backdrop = Art.ui_texture("swu_background")
 	bg.backdrop_alpha = 0.2
 	_scroll = ScrollContainer.new()
@@ -17,7 +17,7 @@ func build() -> void:
 	_box = VBoxContainer.new()
 	_box.add_theme_constant_override("separation", 14)
 	_scroll.add_child(_box)
-	var intro := UIKit.label("Pick a Spotlight deck. You start with its leader, base and part of its list; win battles to earn the rest, buy and upgrade cards, and push through ever-harder sectors until your base falls. Each deck keeps its own record.", 17, Kyber.C_DIM)
+	var intro := UIKit.label("Pick a Spotlight deck. You start with its leader, base and part of its list; win battles to earn the rest, buy and upgrade cards, and push through ever-harder sectors until your base falls. Each deck keeps its own record.", 17, Sabacc.C_DIM)
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(intro)
 	var flow := HFlowContainer.new()
@@ -46,10 +46,10 @@ func _entry(d: Dictionary, i: int) -> Control:
 		line = "No runs yet"
 	else:
 		line = "Runs %d · Best sector %d · Most wins %d · Bosses %d" % [int(rec.get("runs", 0)), int(rec.get("best_sector", 0)), int(rec.get("best_wins", 0)), int(rec.get("bosses", 0))]
-	var l := UIKit.label(line, 14, Kyber.C_GOLD if not rec.is_empty() else Kyber.C_DIM)
+	var l := UIKit.label(line, 14, Sabacc.C_GOLD if not rec.is_empty() else Sabacc.C_DIM)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(l)
-	var b := KyberButton.make("Continue · Sector %d" % int(r.get("sector", 1)) if not r.is_empty() else "Start run", KyberButton.Style.PRIMARY if not r.is_empty() else KyberButton.Style.REBEL, "play", not r.is_empty())
+	var b := SabaccButton.make("Continue · Sector %d" % int(r.get("sector", 1)) if not r.is_empty() else "Start run", SabaccButton.Style.PRIMARY if not r.is_empty() else SabaccButton.Style.REBEL, "play", not r.is_empty())
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.pressed.connect(func(): _open(d))
 	v.add_child(b)
@@ -58,33 +58,34 @@ func _entry(d: Dictionary, i: int) -> Control:
 
 
 func _open(d: Dictionary) -> void:
+	Appearance.set_deck(d.get("leader", ""), d.get("base", ""), Save.deck_list(d))
 	var r := SpotlightFlow.run(d["id"])
 	if not r.is_empty():
 		Router.go("spotlight_run", {"deck_id": d["id"]})
 		return
 	var rec := SpotlightFlow.record(d["id"])
-	var mp := ModalPanel.open(self, 620.0, Kyber.C_KYBER)
+	var mp := ModalPanel.open(self, 620.0, Sabacc.C_ACCENT)
 	mp.dismiss_on_backdrop = true
-	var t := mp.text(CardDB.card(d["leader"]).get("name", "").to_upper(), 30, Kyber.C_KYBER)
-	t.add_theme_font_override("font", Kyber.font_title)
-	mp.text(d.get("full_name", d["name"]), 16, Kyber.C_DIM)
+	var t := mp.text(CardDB.card(d["leader"]).get("name", "").to_upper(), 30, Sabacc.C_ACCENT)
+	t.add_theme_font_override("font", Sabacc.font_title)
+	mp.text(d.get("full_name", d["name"]), 16, Sabacc.C_DIM)
 	var row := AspectIcon.row_for(d["leader"], d["base"], 34.0)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	mp.add(row)
 	var st: Dictionary = SpotlightRun.cfg().get("start", {})
 	mp.text("Start with %d of the deck's %d cards, a %d-HP base and %d credits." % [int(st.get("cards", 20)), Save.deck_size(d), int(st.get("base_hp", 20)), int(st.get("credits", 20))], 17)
 	if not rec.is_empty():
-		mp.text("RECORD", 18, Kyber.C_GOLD)
-		mp.text("Runs %d · Best sector %d · Most wins in a run %d · Bosses defeated %d" % [int(rec.get("runs", 0)), int(rec.get("best_sector", 0)), int(rec.get("best_wins", 0)), int(rec.get("bosses", 0))], 16, Kyber.C_GOLD)
+		mp.text("RECORD", 18, Sabacc.C_GOLD)
+		mp.text("Runs %d · Best sector %d · Most wins in a run %d · Bosses defeated %d" % [int(rec.get("runs", 0)), int(rec.get("best_sector", 0)), int(rec.get("best_wins", 0)), int(rec.get("bosses", 0))], 16, Sabacc.C_GOLD)
 		for h in rec.get("history", []).slice(0, 5):
-			mp.text("• Sector %d — %d wins, %d bosses, %d cards earned, deck %d" % [int(h.get("sector", 0)), int(h.get("wins", 0)), int(h.get("bosses", 0)), int(h.get("cards", 0)), int(h.get("deck", 0))], 14, Kyber.C_DIM, HORIZONTAL_ALIGNMENT_LEFT)
-	var go := KyberButton.make("Begin run", KyberButton.Style.PRIMARY, "play", true)
+			mp.text("• Sector %d — %d wins, %d bosses, %d cards earned, deck %d" % [int(h.get("sector", 0)), int(h.get("wins", 0)), int(h.get("bosses", 0)), int(h.get("cards", 0)), int(h.get("deck", 0))], 14, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_LEFT)
+	var go := SabaccButton.make("Begin run", SabaccButton.Style.PRIMARY, "play", true)
 	go.pressed.connect(func():
 		mp.close()
 		SpotlightFlow.start(d["id"])
 		Router.go("spotlight_run", {"deck_id": d["id"]}))
 	mp.add(go)
-	var cancel := KyberButton.make("Back", KyberButton.Style.GHOST)
+	var cancel := SabaccButton.make("Back", SabaccButton.Style.GHOST)
 	cancel.pressed.connect(mp.close)
 	mp.add(cancel)
 

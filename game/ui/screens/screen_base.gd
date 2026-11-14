@@ -9,6 +9,7 @@ var body: Control
 var title_label: Label
 var portrait := true
 var _back_target := ""
+var _account_credit: Button
 
 
 func _ready() -> void:
@@ -23,8 +24,14 @@ func _ready() -> void:
 	header = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 12)
 	add_child(header)
+	_account_credit = preload("res://ui/kit/wallet_badge.gd").new()
+	_account_credit.name = "AccountCredits"
+	add_child(_account_credit)
+	Progression.changed.connect(_account_credit.refresh)
+	Cosmetics.changed.connect(_account_credit.refresh)
 	get_viewport().size_changed.connect(_on_resize)
 	build()
+	Appearance.changed.connect(func(): theme = UIKit.build_theme())
 	_on_resize()
 
 
@@ -43,15 +50,15 @@ func set_header(text: String, back_to := "menu") -> void:
 	for c in header.get_children():
 		c.queue_free()
 	if back_to != "":
-		var b := KyberButton.make("", KyberButton.Style.GHOST, "back")
+		var b := SabaccButton.make("", SabaccButton.Style.GHOST, "back")
 		b.custom_minimum_size = Vector2(60, 56)
 		b.pressed.connect(func(): Router.go(_back_target))
 		header.add_child(b)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", -4)
-	title_label = UIKit.fit_label(UIKit.label(text.to_upper(), 30, Kyber.C_TEXT))
+	title_label = UIKit.fit_label(UIKit.label(text.to_upper(), 30, Sabacc.C_TEXT))
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_label.add_theme_font_override("font", Kyber.font_title)
+	title_label.add_theme_font_override("font", Sabacc.font_title)
 	v.add_child(title_label)
 	var au := UIKit.aurebesh(text.to_lower(), 14)
 	au.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -74,9 +81,12 @@ func safe_rect() -> Rect2:
 func _on_resize() -> void:
 	var r := safe_rect()
 	portrait = r.size.y >= r.size.x
-	header.position = r.position
+	_account_credit.position = r.position
+	var header_offset := 32.0
+	header.position = r.position + Vector2(0, header_offset)
 	header.size = Vector2(r.size.x, 64)
-	var content := Rect2(r.position + Vector2(0, 76), r.size - Vector2(0, 76))
+	var body_offset := 76.0 + header_offset
+	var content := Rect2(r.position + Vector2(0, body_offset), r.size - Vector2(0, body_offset))
 	body.position = content.position
 	body.size = content.size
 	relayout(portrait, Rect2(Vector2.ZERO, content.size))

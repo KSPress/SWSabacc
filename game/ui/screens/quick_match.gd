@@ -19,10 +19,10 @@ var _flow: HFlowContainer
 var _auto_row: HBoxContainer
 var _leader_slot
 var _base_slot
-var _opp_btn: KyberButton
-var _mode_btn: KyberButton
-var _ai_btn: KyberButton
-var _go: KyberButton
+var _opp_btn: SabaccButton
+var _mode_btn: SabaccButton
+var _ai_btn: SabaccButton
+var _go: SabaccButton
 var _choices: Array = []        # deck dicts shown as tiles
 var _tiles: Array = []
 var _sel := -1
@@ -83,6 +83,10 @@ static func config_for(you: Dictionary, opp: Dictionary, rules: RuleSet, profile
 
 func build() -> void:
 	_format = int(Router.params.get("format", 0))
+	if _format == 0 and (not Progression.owns(_auto["leader"]) or not Progression.owns(_auto["base"])):
+		var starters := CardDB.spotlight_for_mode("traditional")
+		if not starters.is_empty():
+			_auto = {"leader": starters[0]["leader"], "base": starters[0]["base"]}
 	set_header("Quick Battle" if _format > 0 else "Standard Battle")
 	bg.backdrop = Art.ui_texture("coruscant")
 	bg.backdrop_alpha = 0.25
@@ -93,7 +97,7 @@ func build() -> void:
 	_box.add_theme_constant_override("separation", 12)
 	_scroll.add_child(_box)
 	if _format == 1:
-		_mode_btn = KyberButton.make("", KyberButton.Style.GOLD, "ground")
+		_mode_btn = SabaccButton.make("", SabaccButton.Style.GOLD, "ground")
 		_mode_btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_mode_btn.pressed.connect(_cycle_mode)
 		_box.add_child(_mode_btn)
@@ -102,7 +106,7 @@ func build() -> void:
 	actions.add_theme_constant_override("h_separation", 10)
 	actions.add_theme_constant_override("v_separation", 10)
 	_box.add_child(actions)
-	_box.add_child(UIKit.label("YOUR DECK", 20, Kyber.C_KYBER))
+	_box.add_child(UIKit.label("YOUR DECK", 20, Sabacc.C_ACCENT))
 	_flow = HFlowContainer.new()
 	_flow.add_theme_constant_override("h_separation", 12)
 	_flow.add_theme_constant_override("v_separation", 12)
@@ -121,18 +125,18 @@ func build() -> void:
 	_auto_row.add_child(_leader_slot)
 	_auto_row.add_child(_base_slot)
 	_box.add_child(_auto_row)
-	_opp_btn = KyberButton.make("", KyberButton.Style.EMPIRE, "boss")
+	_opp_btn = SabaccButton.make("", SabaccButton.Style.EMPIRE, "boss")
 	_opp_btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_opp_btn.custom_minimum_size.x = 300
 	_opp_btn.pressed.connect(_cycle_opp)
 	actions.add_child(_opp_btn)
-	_ai_btn = KyberButton.make("", KyberButton.Style.GHOST, "gear")
+	_ai_btn = SabaccButton.make("", SabaccButton.Style.GHOST, "gear")
 	_ai_btn.pressed.connect(func():
 		_profile = (_profile + 1) % PROFILES.size()
 		_refresh_labels())
 	_ai_btn.custom_minimum_size.x = 220
 	actions.add_child(_ai_btn)
-	_go = KyberButton.make("Battle!", KyberButton.Style.PRIMARY, "fight", true)
+	_go = SabaccButton.make("Battle!", SabaccButton.Style.PRIMARY, "fight", true)
 	_go.custom_minimum_size = Vector2(220, 64)
 	_go.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_go.pressed.connect(_start)
@@ -141,12 +145,12 @@ func build() -> void:
 
 
 func _mode() -> String:
-	return str(Kyber.settings.get("quick_mode", "traditional"))
+	return str(Sabacc.settings.get("quick_mode", "traditional"))
 
 
 func _cycle_mode() -> void:
 	var i := MODE_ORDER.find(_mode())
-	Kyber.set_setting("quick_mode", MODE_ORDER[(i + 1) % MODE_ORDER.size()])
+	Sabacc.set_setting("quick_mode", MODE_ORDER[(i + 1) % MODE_ORDER.size()])
 	_opp_idx = -1
 	_fill_decks()
 
@@ -163,9 +167,10 @@ func _fill_decks() -> void:
 	if _format == 0:
 		for d in Save.decks():
 			_choices.append(d)
-		_choices.append({"auto": true, "name": "Auto-build", "icon": "gear", "leader": _auto["leader"], "base": _auto["base"], "count": 50})
+		_choices.append({"auto": true, "name": "Auto-build", "icon": "gear", "leader": _auto["leader"], "base": _auto["base"], "count": DeckBuilder.minimum_size(CardDB.lib, RuleSet.premier(), _auto["base"])})
 		for d in CardDB.spotlight_for_mode("traditional"):
-			_choices.append(d)
+			if Progression.deck_owned(d):
+				_choices.append(d)
 	else:
 		_choices = CardDB.spotlight_for_mode(_mode())
 	var i := 0
@@ -194,6 +199,8 @@ func _select(i: int) -> void:
 	for k in _tiles.size():
 		_tiles[k].selected = k == i
 	var d: Dictionary = _choices[i]
+	var selected_deck: Dictionary = _auto if d.get("auto", false) else d
+	Appearance.set_deck(selected_deck.get("leader", ""), selected_deck.get("base", ""), Save.deck_list(selected_deck))
 	_auto_row.visible = d.get("auto", false)
 	if _auto_row.visible:
 		_leader_slot.set_card(_auto["leader"])
@@ -203,7 +210,7 @@ func _select(i: int) -> void:
 
 func _pick(kind: String) -> void:
 	var slot: Control = _leader_slot if kind == "leader" else _base_slot
-	var flt := {}
+	var flt := {"ids": Progression.owned_ids()} if _format == 0 else {}
 	if _format == 1:
 		flt["pilot"] = "only" if _mode() == "space" else "exclude"
 	var p := CardPicker.open(self, kind, slot.get_global_rect(), flt)
@@ -225,7 +232,7 @@ func _cycle_opp() -> void:
 
 func _refresh_labels() -> void:
 	if _mode_btn:
-		var m: Array = Kyber.QUICK_MODES.get(_mode(), ["?", ""])
+		var m: Array = Sabacc.QUICK_MODES.get(_mode(), ["?", ""])
 		_mode_btn.text = "Mode: %s — %s  (tap to change)" % [m[0], m[1]]
 	var pool := _opp_pool()
 	if _opp_idx < 0 or _opp_idx >= pool.size():
@@ -253,10 +260,16 @@ func _start() -> void:
 	var mode := _mode() if _format == 1 else "standard"
 	var rules := RuleSet.quick_mode(mode) if _format == 1 else RuleSet.premier()
 	var d: Dictionary = _choices[_sel]
+	if not d.get("spotlight", false) and not d.get("auto", false) and not Progression.deck_owned(d):
+		_go.text = "Deck contains locked cards"
+		return
 	var you: Dictionary
 	if d.get("auto", false):
 		you = {"leader": _auto["leader"], "base": _auto["base"],
-			"list": DeckBuilder.auto_deck(CardDB.lib, _auto["leader"], _auto["base"], 50, rng, rules.arenas)}
+			"list": DeckBuilder.auto_deck(CardDB.lib, _auto["leader"], _auto["base"], rules.deck_min, rng, rules.arenas, 7, Progression.owned_ids())}
+		if you["list"].size() < DeckBuilder.minimum_size(CardDB.lib, rules, _auto["base"]):
+			_go.text = "Not enough unlocked cards · choose a starter deck"
+			return
 	else:
 		you = d
 	var pool := _opp_pool()
@@ -270,8 +283,8 @@ func _start() -> void:
 		opp = others[rng.randi_range(0, others.size() - 1)]
 	var cfg := config_for(you, opp, rules, PROFILES[_profile], rng)
 	var theme: String = "auto"
-	var title: String = "Standard Battle" if _format == 0 else "Quick · " + Kyber.QUICK_MODES[mode][0]
-	Router.go("match", {"mode": "quick", "format": _format, "cfg": cfg, "theme": theme, "title": title})
+	var title: String = "Standard Battle" if _format == 0 else "Quick · " + Sabacc.QUICK_MODES[mode][0]
+	Router.go("match", {"mode": "quick", "format": _format, "traditional": mode in ["standard", "traditional"], "cfg": cfg, "theme": theme, "title": title})
 
 
 func relayout(_p: bool, r: Rect2) -> void:

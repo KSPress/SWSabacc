@@ -23,14 +23,14 @@ var ui_layer: Control
 var hud: Array = []                  # SideHud x2 (index = player)
 var hand: HandView
 var enemy_hand_label: Label
-var pass_btn: KyberButton
+var pass_btn: SabaccButton
 var tray: BoxContainer
 var coin: TableTokens.InitiativeCoin
 var force_orbs: Array = []
 var prompt_bar: PanelContainer
 var prompt_label: Label
-var prompt_skip: KyberButton
-var prompt_confirm: KyberButton
+var prompt_skip: SabaccButton
+var prompt_confirm: SabaccButton
 var tracker: Label
 var log_panel: PanelContainer
 var log_text: RichTextLabel
@@ -44,15 +44,20 @@ var _selected: UnitToken
 var _arrow: Fx.TargetArrow
 var _target_sel: Array = []
 var _choice_open := false
+var _result_recorded := false
 
 
 func _ready() -> void:
-	theme = UIKit.build_theme()
 	params = Router.params.duplicate()
 	var cfg: Dictionary = params.get("cfg", {})
 	if cfg.is_empty():
 		cfg = QuickMatch.default_config()
 		params["mode"] = "quick"
+	var player: Dictionary = cfg.get("players", [{}])[0]
+	Appearance.set_deck(player.get("leader", ""), player.get("base", ""), player.get("deck", []))
+	Appearance.begin_match(cfg["players"])
+	theme = UIKit.build_theme()
+	Appearance.changed.connect(func(): theme = UIKit.build_theme())
 	m = Match.new()
 	_build()
 	m.setup(CardDB.lib, cfg)
@@ -75,8 +80,8 @@ func _ready() -> void:
 	coin.holder = m.initiative
 	_layout()
 	tracker.text = m.objective.tracker(m)
-	Fx.banner(fx_layer, params.get("title", "Battle"), Kyber.C_KYBER, m.objective.describe())
-	await get_tree().create_timer(Kyber.anim(0.9)).timeout
+	Fx.banner(fx_layer, params.get("title", "Battle"), Appearance.color_at(0), m.objective.describe())
+	await get_tree().create_timer(Sabacc.anim(0.9)).timeout
 	_step()
 
 
@@ -100,6 +105,9 @@ func _build() -> void:
 		ui_layer.add_child(h)
 		h.leader_pressed.connect(_on_leader_pressed)
 		h.base_pressed.connect(_on_base_pressed)
+		h.fortification_pressed.connect(_on_fortification_pressed)
+		h.leader_dragged.connect(_on_leader_dragged)
+		h.leader_dropped.connect(_on_leader_dropped)
 		h.resources_pressed.connect(_on_resources_pressed)
 		h.inspect.connect(func(id, r, inst): InspectOverlay.open(self, id, r, inst))
 		hud.append(h)
@@ -109,9 +117,9 @@ func _build() -> void:
 		board_layer.add_child(l)
 		board_layer.add_child(l2)
 		_arena_labels[a] = [l, l2]
-	enemy_hand_label = UIKit.fit_label(UIKit.label("", 16, Kyber.C_DIM))
+	enemy_hand_label = UIKit.fit_label(UIKit.label("", 16, Sabacc.C_DIM))
 	ui_layer.add_child(enemy_hand_label)
-	tracker = UIKit.fit_label(UIKit.label("", 18, Kyber.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
+	tracker = UIKit.fit_label(UIKit.label("", 18, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 	tracker.add_theme_constant_override("outline_size", 6)
 	tracker.add_theme_color_override("font_outline_color", Color.BLACK)
 	ui_layer.add_child(tracker)
@@ -123,47 +131,47 @@ func _build() -> void:
 	for i in 2:
 		var orb := TableTokens.ForceOrb.new()
 		force_orbs.append(orb)
-	pass_btn = KyberButton.make("PASS", KyberButton.Style.PRIMARY, "", true)
+	pass_btn = SabaccButton.make("PASS", SabaccButton.Style.PRIMARY, "", true)
 	pass_btn.custom_minimum_size = Vector2(150, 64)
 	pass_btn.pressed.connect(_on_pass)
 	ui_layer.add_child(pass_btn)
-	var log_btn := KyberButton.make("", KyberButton.Style.GHOST, "log")
+	var log_btn := SabaccButton.make("", SabaccButton.Style.GHOST, "log")
 	log_btn.custom_minimum_size = Vector2(56, 56)
 	log_btn.name = "LogBtn"
 	log_btn.pressed.connect(_toggle_log)
 	ui_layer.add_child(log_btn)
-	var menu_btn := KyberButton.make("", KyberButton.Style.GHOST, "gear")
+	var menu_btn := SabaccButton.make("", SabaccButton.Style.GHOST, "gear")
 	menu_btn.custom_minimum_size = Vector2(56, 56)
 	menu_btn.name = "MenuBtn"
 	menu_btn.pressed.connect(_open_menu)
 	ui_layer.add_child(menu_btn)
 	hand = HandView.new()
 	ui_layer.add_child(hand)
-	hand.card_tapped.connect(func(c): InspectOverlay.open(self, c.card_id, c.get_global_rect(), c.inst))
+	hand.card_tapped.connect(_on_hand_tapped)
 	hand.card_inspect.connect(func(c): InspectOverlay.open(self, c.card_id, c.get_global_rect(), c.inst))
 	hand.card_drag_moved.connect(_on_hand_drag_moved)
 	hand.card_dropped.connect(_on_hand_drop)
 	# prompt bar for board targeting
-	prompt_bar = UIKit.panel(Color(0.02, 0.05, 0.09, 0.92), Kyber.C_GOLD, 12, 10)
+	prompt_bar = UIKit.panel(Color(0.02, 0.05, 0.09, 0.92), Sabacc.C_GOLD, 12, 10)
 	var ph := HBoxContainer.new()
 	ph.add_theme_constant_override("separation", 10)
 	prompt_bar.add_child(ph)
-	prompt_label = UIKit.label("", 19, Kyber.C_TEXT)
+	prompt_label = UIKit.label("", 19, Sabacc.C_TEXT)
 	prompt_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	prompt_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ph.add_child(prompt_label)
-	prompt_confirm = KyberButton.make("OK", KyberButton.Style.PRIMARY)
+	prompt_confirm = SabaccButton.make("OK", SabaccButton.Style.PRIMARY)
 	prompt_confirm.custom_minimum_size = Vector2(90, 48)
 	prompt_confirm.pressed.connect(func(): _submit_targets(_target_sel))
 	ph.add_child(prompt_confirm)
-	prompt_skip = KyberButton.make("Skip", KyberButton.Style.GHOST)
+	prompt_skip = SabaccButton.make("Skip", SabaccButton.Style.GHOST)
 	prompt_skip.custom_minimum_size = Vector2(90, 48)
 	prompt_skip.pressed.connect(func(): _submit_targets([]))
 	ph.add_child(prompt_skip)
 	prompt_bar.visible = false
 	ui_layer.add_child(prompt_bar)
 	# log
-	log_panel = UIKit.panel(Color(0.02, 0.04, 0.07, 0.95), Kyber.C_LINE, 12)
+	log_panel = UIKit.panel(Color(0.02, 0.04, 0.07, 0.95), Sabacc.C_LINE, 12)
 	log_text = RichTextLabel.new()
 	log_text.scroll_following = true
 	log_text.add_theme_font_size_override("normal_font_size", 16)
@@ -202,6 +210,8 @@ func _layout() -> void:
 		hand.position = Vector2(0, vs.y - hand_h)
 		hand.size = Vector2(vs.x, hand_h)
 		var row_y := arena_area.end.y + 8
+		pass_btn.custom_minimum_size = Vector2(150, 64)
+		pass_btn.size = Vector2(150, 64)
 		pass_btn.position = Vector2(vs.x - 170, row_y)
 		tray.vertical = false
 		tray.position = Vector2(12 + TableTokens.InitiativeCoin.SIZE + 16, row_y + 4)
@@ -211,8 +221,9 @@ func _layout() -> void:
 		enemy_hand_label.size = Vector2(vs.x * 0.3 - 10, 24)
 		ui_layer.get_node("LogBtn").position = Vector2(vs.x - 236, row_y + 4)
 		ui_layer.get_node("MenuBtn").position = Vector2(vs.x - 300, row_y + 4)
-		prompt_bar.position = Vector2(12, top_h + 32)
-		prompt_bar.size = Vector2(vs.x - 24, 70)
+		var prompt_left := 24.0 + TableTokens.InitiativeCoin.SIZE
+		prompt_bar.position = Vector2(prompt_left, top_h + 32)
+		prompt_bar.size = Vector2(vs.x - prompt_left - 12, 70)
 		log_panel.position = Vector2(vs.x * 0.05, vs.y * 0.15)
 		log_panel.size = Vector2(vs.x * 0.9, vs.y * 0.55)
 	else:
@@ -229,6 +240,7 @@ func _layout() -> void:
 		var rx := vs.x - right_w - 12
 		pass_btn.position = Vector2(rx, vs.y * 0.5 - 32)
 		pass_btn.custom_minimum_size.x = right_w
+		pass_btn.size = Vector2(right_w, 64)
 		tray.vertical = true
 		tray.position = Vector2(rx, vs.y * 0.5 + 50)
 		tracker.position = Vector2(side_w + 30, 12)
@@ -292,26 +304,27 @@ func _draw_board() -> void:
 		board_layer.draw_rect(r, col)
 		board_layer.draw_rect(r, Color(1, 1, 1, 0.08), false, 2.0)
 		var y := r.position.y + r.size.y / 2.0
-		board_layer.draw_line(Vector2(r.position.x + 140, y), Vector2(r.end.x - 20, y), Color(Kyber.C_KYBER, 0.25), 2.0)
+		board_layer.draw_line(Vector2(r.position.x + 140, y), Vector2(r.end.x - 20, y), Color(Appearance.color_at(0), 0.25), 2.0)
 
 
 func _token_scale() -> float:
-	var best := 10.0
+	var vs := get_viewport_rect().size
+	var best := 1.2 if vs.x > 1400 else 1.0
+	if m.rules.arenas.size() == 1:
+		best = 1.4
 	for k in arena_rects:
 		var r: Rect2 = arena_rects[k]
-		best = minf(best, (r.size.y - 12) / UnitToken.SIZE.y)
-	var vs := get_viewport_rect().size
-	var widest := 1
-	for k in arena_rects:
 		var parts: PackedStringArray = k.split("_")
-		widest = maxi(widest, m.players[int(parts[1])].units_in(parts[0]).size())
-	for k in arena_rects:
-		var r2: Rect2 = arena_rects[k]
-		best = minf(best, (r2.size.x - 40) / (maxf(widest, 3 if m.rules.arenas.size() == 1 else 4) * (UnitToken.SIZE.x + 10)))
-	var cap := 1.2 if vs.x > 1400 else 1.0
-	if m.rules.arenas.size() == 1:
-		cap = 1.4  # Quick format: one arena gets the whole board, so tokens can be big
-	return clampf(best, 0.42, cap)
+		var count: int = m.players[int(parts[1])].units_in(parts[0]).size()
+		var columns := _arena_columns(r, maxi(count, 3 if m.rules.arenas.size() == 1 else 4))
+		var rows := maxi(1, ceili(count / float(columns)))
+		best = minf(best, ((r.size.x - 24.0) / columns - 8.0) / UnitToken.SIZE.x)
+		best = minf(best, ((r.size.y - 14.0) / rows - 8.0) / UnitToken.SIZE.y)
+	return maxf(0.08, best)
+
+
+func _arena_columns(rect: Rect2, count: int) -> int:
+	return clampi(floori((rect.size.x - 24.0) / (UnitToken.SIZE.x * 0.58 + 8.0)), 1, maxi(1, count))
 
 
 func _position_tokens(animate := true) -> void:
@@ -324,17 +337,21 @@ func _position_tokens(animate := true) -> void:
 			var r: Rect2 = arena_rects[key]
 			var units: Array = m.players[p].units_in(a)
 			var n := units.size()
-			var w := UnitToken.SIZE.x * sc + 10
-			var x0 := r.position.x + (r.size.x - w * n) / 2.0 + 5
-			var y := r.position.y + (r.size.y - UnitToken.SIZE.y * sc) / 2.0
+			var columns := _arena_columns(r, n)
+			var rows := ceili(n / float(columns))
+			var step := UnitToken.SIZE * sc + Vector2(8, 8)
+			var y := r.position.y + (r.size.y - step.y * rows + 8.0) / 2.0
 			for i in n:
 				var tok: UnitToken = tokens.get(units[i].uid)
 				if tok == null:
 					continue
+				var row := floori(i / float(columns))
+				var row_size := mini(columns, n - row * columns)
+				var x := r.position.x + (r.size.x - step.x * row_size + 8.0) / 2.0
 				tok.scale = Vector2(sc, sc) if not tok._dying else tok.scale
-				tok.home_pos = Vector2(x0 + i * w, y)
+				tok.home_pos = Vector2(x + (i % columns) * step.x, y + row * step.y) - tok.pivot_offset * (1.0 - sc)
 				if animate:
-					tok.create_tween().tween_property(tok, "position", tok.home_pos, Kyber.anim(0.3)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+					tok.create_tween().tween_property(tok, "position", tok.home_pos, Sabacc.anim(0.3)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 				else:
 					tok.position = tok.home_pos
 
@@ -348,6 +365,7 @@ func _step() -> void:
 	while true:
 		await _drain()
 		_sync()
+		Appearance.set_acting_player(m.active)
 		if m.is_over():
 			busy = false
 			_game_over()
@@ -355,14 +373,14 @@ func _step() -> void:
 		if not m.pending.is_empty():
 			var who: int = m.pending["player"]
 			if m.players[who].is_ai:
-				await get_tree().create_timer(Kyber.anim(0.3)).timeout
+				await get_tree().create_timer(Sabacc.anim(0.3)).timeout
 				AiBot.choose(m)
 				continue
 			busy = false
 			_show_pending()
 			return
 		if m.phase == "action" and m.players[m.active].is_ai:
-			await get_tree().create_timer(Kyber.anim(0.55)).timeout
+			await get_tree().create_timer(Sabacc.anim(0.55)).timeout
 			AiBot.act(m)
 			continue
 		break
@@ -386,39 +404,67 @@ func _drain() -> void:
 		match e["t"]:
 			"log":
 				log_text.append_text(e["text"] + "\n")
+			"control":
+				_position_tokens()
+			"reveal_top":
+				var revealed := m.card(e["uid"])
+				if revealed:
+					Fx.banner(fx_layer, revealed.name(), Sabacc.C_GOLD, "Revealed from deck")
+					await _wait(0.8)
 			"enter":
 				_ensure_token(m.card(e["uid"]), true)
+				if m.card(e["uid"]):
+					Sfx.entered(m.card(e["uid"]).data)
 				_position_tokens()
 				Sfx.play("play")
 				await _wait(0.18)
 			"play":
 				await _anim_play(e)
-			"attack":
-				await _anim_attack(m.card(e["a"]), m.card(e["target"]))
+			"attack", "overwhelm":
+				await _anim_attack(m.card(e["a"]), m.card(e["target"]), e["t"] == "attack")
 			"damage":
 				_anim_damage(m.card(e["uid"]), int(e["n"]), m.card(int(e.get("src", 0))))
 				await _wait(0.12)
 			"heal":
 				var hc := m.card(e["uid"])
-				Fx.float_text(fx_layer, _card_center(hc), "+%d" % int(e["n"]), Kyber.C_GOOD)
+				var healed_token: UnitToken = tokens.get(e["uid"])
+				if healed_token:
+					healed_token.effects.heal()
+					healed_token.queue_redraw()
+				Fx.float_text(fx_layer, _card_center(hc), "+%d" % int(e["n"]), Sabacc.C_GOOD)
 			"shield_break":
-				Fx.shatter(fx_layer, _card_center(m.card(e["uid"])))
-				await _wait(0.15)
+				Sfx.shield_sound(true)
+				var shielded_token: UnitToken = tokens.get(e["uid"])
+				if shielded_token and UnitEffects.sheet("shield_break"):
+					shielded_token.effects.break_shield(int(e["remaining"]) > 0)
+					shielded_token.queue_redraw()
+					await _wait(0.55)
+				else:
+					Fx.shatter(fx_layer, _card_center(m.card(e["uid"])))
+					await _wait(0.15)
 			"token":
+				if e["kind"] == "shield":
+					Sfx.shield_sound()
 				var tk: UnitToken = tokens.get(e["on"])
 				if tk:
 					tk.refresh()
-					tk.flash(Kyber.C_KYBER if e["kind"] == "shield" else Kyber.C_GOLD)
-					Fx.float_text(fx_layer, tk.center_global(), e["kind"].capitalize(), Kyber.C_KYBER, 26)
-					Sfx.play("shield" if e["kind"] == "shield" else "deploy", 1.3)
+					tk.flash(Appearance.color_at(0) if e["kind"] == "shield" else Sabacc.C_GOLD)
+					Fx.float_text(fx_layer, tk.center_global(), e["kind"].capitalize(), Appearance.color_at(0), 26)
+					if e["kind"] != "shield":
+						Sfx.play("deploy", 1.3)
 				await _wait(0.15)
 			"buff":
+				if e.get("kw") == "shielded":
+					Sfx.shield_sound()
 				var bt: UnitToken = tokens.get(e["uid"])
 				if bt:
 					bt.refresh()
 					var txt: String = e.get("kw", "").capitalize() if e.has("kw") else "%+d/%+d" % [int(e.get("p", 0)), int(e.get("h", 0))]
-					Fx.float_text(fx_layer, bt.center_global(), txt, Kyber.C_GOLD, 26)
+					Fx.float_text(fx_layer, bt.center_global(), txt, Sabacc.C_GOLD, 26)
 			"defeat":
+				if m.card(e["uid"]):
+					var dead := m.card(e["uid"])
+					Sfx.defeated(dead.data, dead.arena())
 				var dt: UnitToken = tokens.get(e["uid"])
 				if dt:
 					tokens.erase(e["uid"])
@@ -437,7 +483,7 @@ func _drain() -> void:
 					et.refresh()
 			"deploy":
 				var l := m.card(e["uid"])
-				Fx.banner(fx_layer, "%s deploys" % l.name(), Kyber.C_GOLD, "deploy")
+				Fx.banner(fx_layer, "%s deploys" % l.name(), Sabacc.C_GOLD, "deploy")
 				Sfx.play("deploy")
 				await _wait(0.5)
 			"claim":
@@ -445,15 +491,15 @@ func _drain() -> void:
 				if tok_name == "initiative":
 					await coin.fly_to(coin_pos(int(e["p"])), int(e["p"]), true)
 					continue
-				Fx.float_text(fx_layer, hud[e["p"]].get_global_rect().get_center(), tok_name.capitalize().replace("_", " "), Kyber.C_GOLD, 34)
+				Fx.float_text(fx_layer, hud[e["p"]].get_global_rect().get_center(), tok_name.capitalize().replace("_", " "), Sabacc.C_GOLD, 34)
 				Sfx.play("turn")
 				await _wait(0.3)
 			"phase":
 				if e["phase"] == "action":
 					coin.flip_to(false)
-					Fx.banner(fx_layer, "Round %d" % int(e["round"]), Kyber.C_KYBER, "round")
+					Fx.banner(fx_layer, "Round %d" % int(e["round"]), Appearance.color_at(0), "round")
 				else:
-					Fx.banner(fx_layer, "Regroup", Kyber.C_GOLD, "regroup")
+					Fx.banner(fx_layer, "Regroup", Sabacc.C_GOLD, "regroup")
 				Sfx.play("turn", 0.8)
 				await _wait(0.75)
 			"turn":
@@ -461,7 +507,7 @@ func _drain() -> void:
 					Sfx.play("turn")
 			"pass":
 				if not e.get("auto", false):
-					Fx.float_text(fx_layer, hud[e["p"]].get_global_rect().get_center(), "Pass", Kyber.C_DIM, 30)
+					Fx.float_text(fx_layer, hud[e["p"]].get_global_rect().get_center(), "Pass", Sabacc.C_DIM, 30)
 			"discard":
 				pass
 			"force":
@@ -472,9 +518,11 @@ func _drain() -> void:
 				force_orbs[int(e["p"])].spend()
 				await _wait(0.3)
 			"ability":
+				if m.card(e["uid"]):
+					Sfx.acted(m.card(e["uid"]).data)
 				var at: UnitToken = tokens.get(e["uid"])
 				if at:
-					at.flash(Kyber.C_GOLD)
+					at.flash(Sabacc.C_GOLD)
 				Sfx.play("deploy", 1.6)
 				await _wait(0.2)
 		hud[0].refresh()
@@ -482,7 +530,7 @@ func _drain() -> void:
 
 
 func _wait(t: float) -> void:
-	await get_tree().create_timer(Kyber.anim(t)).timeout
+	await get_tree().create_timer(Sabacc.anim(t)).timeout
 
 
 func _card_center(c: CardInst) -> Vector2:
@@ -514,187 +562,109 @@ func _anim_play(e: Dictionary) -> void:
 		cv.scale = Vector2(sc * 0.5, sc * 0.5)
 		cv.modulate.a = 0.0
 		var tw := cv.create_tween().set_parallel(true)
-		tw.tween_property(cv, "position", vs / 2.0 - cv.size / 2.0, Kyber.anim(0.25)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tw.tween_property(cv, "scale", Vector2(sc, sc), Kyber.anim(0.25)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(cv, "modulate:a", 1.0, Kyber.anim(0.15))
-		tw.chain().tween_interval(Kyber.anim(0.65))
-		tw.chain().tween_property(cv, "modulate:a", 0.0, Kyber.anim(0.2))
-		tw.parallel().tween_property(cv, "scale", Vector2(sc * 0.7, sc * 0.7), Kyber.anim(0.2))
+		tw.tween_property(cv, "position", vs / 2.0 - cv.size / 2.0, Sabacc.anim(0.25)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(cv, "scale", Vector2(sc, sc), Sabacc.anim(0.25)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(cv, "modulate:a", 1.0, Sabacc.anim(0.15))
+		tw.chain().tween_interval(Sabacc.anim(0.65))
+		tw.chain().tween_property(cv, "modulate:a", 0.0, Sabacc.anim(0.2))
+		tw.parallel().tween_property(cv, "scale", Vector2(sc * 0.7, sc * 0.7), Sabacc.anim(0.2))
 		tw.chain().tween_callback(cv.queue_free)
 		await _wait(0.75)
 
 
-func _anim_attack(a: CardInst, t: CardInst) -> void:
+func _anim_attack(a: CardInst, t: CardInst, announce_action := true) -> void:
 	if a == null or t == null:
 		return
-	var at: UnitToken = tokens.get(a.uid)
-	if at == null:
+	if announce_action:
+		Sfx.acted(a.data)
+	var attacker: UnitToken = tokens.get(a.uid)
+	if attacker == null:
 		return
-	var target_pos := _card_center(t)
-	var st := AttackStyle.of(a)
-	var col: Color = st["color"]
-	at.z_index = 20
-	match st["style"]:
-		"saber":
-			await _anim_saber(at, target_pos, col)
-		"ship":
-			await _anim_ship(at, target_pos, col)
-		"heavy":
-			await _anim_ranged(at, target_pos, col, true)
-		"melee":
-			await _anim_melee(at, target_pos)
-		_:
-			await _anim_ranged(at, target_pos, col, false)
-	if is_instance_valid(at):
-		at.z_index = 0
+	var target := _card_center(t)
+	var attack_style := AttackStyle.of(a)
+	var style: String = attack_style["style"]
+	var palette: String = attack_style["palette"]
+	attacker.z_index = 20
+	if style in ["saber", "claw", "melee"]:
+		await _anim_close_attack(attacker, target, style, palette)
+	else:
+		await _anim_burst(attacker, target, style, palette)
+	attacker.z_index = 0
 
 
-## Position that puts the token's centre at global point `p` (tokens scale about their centre).
-func _token_pos_for(p: Vector2) -> Vector2:
-	return p - board_layer.global_position - Vector2(UnitToken.SIZE.x / 2.0, UnitToken.HEX_H / 2.0)
+func _anim_close_attack(attacker: UnitToken, target: Vector2, style: String, palette: String) -> void:
+	var start := attacker.position
+	var direction := attacker.center_global().direction_to(target)
+	var target_position := start + target - attacker.center_global() - direction * 62.0 * attacker.scale.x
+	var approach := create_tween()
+	approach.tween_property(attacker, "position", target_position, Sabacc.anim(0.22)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await approach.finished
+
+	if style == "saber":
+		Sfx.play("swing")
+		var slash := CombatSprite.spawn(fx_layer, CombatSprite.slash_sheet(palette), target,
+			128.0 * attacker.scale.x, Sabacc.anim(0.40))
+		if direction.x < -0.1:
+			slash.scale.x = -1.0
+		await _wait(0.12)
+		Sfx.play("saber_hit")
+	elif style == "claw":
+		Sfx.play("melee")
+		CombatSprite.spawn(fx_layer, "Claw Slash", target, 112.0 * attacker.scale.x, Sabacc.anim(0.42))
+	else:
+		Sfx.play("melee")
+		Sfx.play("hit")
+	await _wait(0.18)
+	var retreat := create_tween()
+	retreat.tween_property(attacker, "position", start, Sabacc.anim(0.24)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	await retreat.finished
 
 
-func _rest_rot(at: UnitToken) -> float:
-	return -0.14 if at.inst.exhausted else 0.0
+func _anim_burst(attacker: UnitToken, target: Vector2, style: String, palette: String) -> void:
+	var start := attacker.position
+	var direction := attacker.center_global().direction_to(target)
+	var side := Vector2(-direction.y, direction.x)
+	var paired := style in ["heavy", "ship"]
+	var scale_factor := attacker.scale.x
+	var ready_position := start + direction * (25.0 if paired else 14.0) * scale_factor
+	var aim := create_tween()
+	aim.tween_property(attacker, "position", ready_position, Sabacc.anim(0.14))
+	await aim.finished
+
+	var muzzle := attacker.center_global() + direction * 42.0 * scale_factor
+	var travel := clampf(muzzle.distance_to(target) / 1200.0, 0.16, 0.42)
+	var lanes := [-12.0, 12.0] if paired else [0.0]
+	var bursts := randi_range(1, 3)
+	var sheet := "Bolt " + palette.capitalize()
+	var cue := Sfx.attack_sound(attacker.inst.data, style)
+	for burst in bursts:
+		for lane in lanes.size():
+			var offset := side * float(lanes[lane]) * scale_factor
+			_launch_bolt(muzzle + offset, target + offset, sheet, cue, travel, scale_factor)
+			if lane + 1 < lanes.size():
+				await _wait(0.022)
+		if burst + 1 < bursts:
+			await _wait(0.12)
+	await _wait(travel + 0.16)
+	var retreat := create_tween()
+	retreat.tween_property(attacker, "position", start, Sabacc.anim(0.21)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	await retreat.finished
 
 
-## Lightsaber: the blade ignites beside the unit, the unit dashes in and the
-## blade swings through the target in the character's saber colour.
-func _anim_saber(at: UnitToken, target: Vector2, col: Color) -> void:
-	var s0 := at.scale
-	var start := at.position
-	var dir := (target - at.center_global()).normalized()
-	var side := 1.0 if dir.x >= -0.1 else -1.0
-	var blade := Fx.FxSaberBlade.new()
-	blade.color = col
-	blade.blade_px = 120.0 * s0.x + 40.0
-	blade.angle = -PI / 2.0 - 0.4 * side
-	fx_layer.add_child(blade)
-	blade.follow = at
-	blade.offset = Vector2(48.0 * s0.x * side, -18.0 * s0.y)
-	# ignite
-	Sfx.play("saber_on")
-	var t1 := create_tween().set_parallel(true)
-	t1.tween_property(blade, "length", 1.0, Kyber.anim(0.26)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	t1.tween_property(at, "scale", s0 * 1.12, Kyber.anim(0.26)).set_trans(Tween.TRANS_BACK)
-	await t1.finished
-	# dash in
-	var t2 := create_tween()
-	t2.tween_property(at, "position", _token_pos_for(target - dir * 75.0 * s0.x), Kyber.anim(0.2)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
-	await t2.finished
-	# swing through the target
-	Sfx.play("swing")
-	var base_a := dir.angle()
-	blade.angle = base_a - 2.3 * side
-	var t3 := create_tween().set_parallel(true)
-	t3.tween_property(blade, "angle", base_a + 1.3 * side, Kyber.anim(0.2)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	t3.tween_property(at, "rotation", 0.25 * side, Kyber.anim(0.2))
-	var lit := func(_v):
-		if is_instance_valid(blade):
-			var tip := blade.global_position + Vector2(cos(blade.angle), sin(blade.angle)) * blade.blade_px * 0.7
-			Fx.light_at(tip, col, 170.0, 1.0)
-	t3.tween_method(lit, 0.0, 1.0, Kyber.anim(0.2))
-	get_tree().create_timer(Kyber.anim(0.11)).timeout.connect(func():
-		Fx.punch(fx_layer, target, col, 1.2, at.center_global())
-		Sfx.play("hit", 0.8)
-		Fx.shake(board_layer, 7.0, 0.2))
-	await t3.finished
-	await _wait(0.08)
-	# retract and return
-	var t4 := create_tween().set_parallel(true)
-	t4.tween_property(blade, "length", 0.0, Kyber.anim(0.18))
-	t4.tween_property(at, "position", start, Kyber.anim(0.3)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t4.tween_property(at, "scale", s0, Kyber.anim(0.3))
-	t4.tween_property(at, "rotation", _rest_rot(at), Kyber.anim(0.3))
-	await t4.finished
-	blade.queue_free()
-
-
-## Blasters / heavy cannons: the unit rises, recoils with every shot, bolts
-## streak across with muzzle flashes and per-bolt impacts.
-func _anim_ranged(at: UnitToken, target: Vector2, col: Color, heavy: bool) -> void:
-	var s0 := at.scale
-	var start := at.position
-	var dir := (target - at.center_global()).normalized()
-	var ready_pos := start + dir * 18.0
-	var t1 := create_tween().set_parallel(true)
-	t1.tween_property(at, "scale", s0 * 1.1, Kyber.anim(0.15)).set_trans(Tween.TRANS_BACK)
-	t1.tween_property(at, "position", ready_pos, Kyber.anim(0.15))
-	await t1.finished
-	var shots := 3 if heavy else clampi(2 + at.inst.power(true), 3, 6)
-	var gap := Kyber.anim(0.15 if heavy else 0.08)
-	var muzzle_at := at.center_global() + dir * 50.0 * s0.x
-	var dur := Fx.volley(fx_layer, muzzle_at, target, col, shots, gap, 1.9 if heavy else 1.15, 22.0 if heavy else 14.0)
-	var rec := create_tween()
-	for i in shots:
-		rec.tween_property(at, "position", ready_pos - dir * (11.0 if heavy else 6.0), gap * 0.4)
-		rec.tween_property(at, "position", ready_pos, gap * 0.6)
-	if heavy:
-		get_tree().create_timer(Kyber.anim(0.2)).timeout.connect(func(): Fx.shake(board_layer, 9.0, 0.35))
-	await get_tree().create_timer(dur).timeout
-	Fx.punch(fx_layer, target, col, 1.25 if heavy else 1.0, at.center_global())
-	var t2 := create_tween().set_parallel(true)
-	t2.tween_property(at, "position", start, Kyber.anim(0.25)).set_trans(Tween.TRANS_BACK)
-	t2.tween_property(at, "scale", s0, Kyber.anim(0.25))
-	await t2.finished
-
-
-## Starships: bank into a strafing run, fire twin lasers in pairs, peel away.
-func _anim_ship(at: UnitToken, target: Vector2, col: Color) -> void:
-	var s0 := at.scale
-	var start := at.position
-	var dir := (target - at.center_global()).normalized()
-	var side := Vector2(-dir.y, dir.x)
-	Sfx.play("whoosh", 1.4)
-	var t1 := create_tween().set_parallel(true)
-	var gap_px := (target - at.center_global()).length()
-	t1.tween_property(at, "position", start + dir * minf(90.0, gap_px * 0.3) + side * 40.0, Kyber.anim(0.22)).set_trans(Tween.TRANS_SINE)
-	t1.tween_property(at, "rotation", 0.3 * signf(side.x + 0.01), Kyber.anim(0.22))
-	t1.tween_property(at, "scale", s0 * 1.15, Kyber.anim(0.22))
-	await t1.finished
-	var c := at.center_global()
-	var off := side * 14.0 * s0.x
-	for i in 3:
-		Fx.volley(fx_layer, c + off, target + off * 0.5, col, 1, 0.0, 1.0, 10.0)
-		Fx.volley(fx_layer, c - off, target - off * 0.5, col, 1, 0.0, 1.0, 10.0)
-		await _wait(0.09)
-	await _wait(0.12)
-	Fx.punch(fx_layer, target, col, 1.0, c)
-	Fx.shake(board_layer, 6.0, 0.18)
-	var t2 := create_tween().set_parallel(true)
-	t2.tween_property(at, "position", start, Kyber.anim(0.32)).set_trans(Tween.TRANS_SINE)
-	t2.tween_property(at, "rotation", _rest_rot(at), Kyber.anim(0.32))
-	t2.tween_property(at, "scale", s0, Kyber.anim(0.32))
-	await t2.finished
-
-
-## Melee (no blaster on the card): the card leaps up off the board, hangs for a
-## beat, then slams down into the target with a shockwave.
-func _anim_melee(at: UnitToken, target: Vector2) -> void:
-	var s0 := at.scale
-	var start := at.position
-	Sfx.play("whoosh", 0.8)
-	var t1 := create_tween().set_parallel(true)
-	t1.tween_property(at, "position", start + Vector2(0, -80.0 * s0.y), Kyber.anim(0.26)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t1.tween_property(at, "scale", s0 * 1.35, Kyber.anim(0.26)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t1.tween_property(at, "rotation", -0.25, Kyber.anim(0.26))
-	await t1.finished
-	await _wait(0.06)
-	var t2 := create_tween().set_parallel(true)
-	t2.tween_property(at, "position", _token_pos_for(target), Kyber.anim(0.15)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
-	t2.tween_property(at, "scale", s0 * 1.05, Kyber.anim(0.15))
-	t2.tween_property(at, "rotation", 0.12, Kyber.anim(0.15))
-	await t2.finished
-	Fx.shockwave(fx_layer, target)
-	Fx.punch(fx_layer, target, Color(1, 0.8, 0.45), 1.35, at.center_global() + Vector2(0, -120))
-	Sfx.play("hit", 0.7)
-	Fx.shake(board_layer, 12.0, 0.3)
-	await _wait(0.08)
-	var t3 := create_tween().set_parallel(true)
-	t3.tween_property(at, "position", start, Kyber.anim(0.35)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t3.tween_property(at, "scale", s0, Kyber.anim(0.35))
-	t3.tween_property(at, "rotation", _rest_rot(at), Kyber.anim(0.35))
-	await t3.finished
+func _launch_bolt(origin: Vector2, target: Vector2, sheet: String, cue: String, travel: float, scale_factor: float) -> void:
+	Sfx.play(cue)
+	var duration := Sabacc.anim(travel)
+	var bolt := CombatSprite.spawn(fx_layer, sheet, origin, maxf(62.0, 94.0 * scale_factor),
+		duration, (target - origin).angle(), 0.8)
+	bolt.free_on_finish = false
+	bolt.first_frame = 4
+	bolt.last_frame = 8
+	var flight := create_tween()
+	flight.tween_property(bolt, "global_position", target, duration)
+	await flight.finished
+	bolt.queue_free()
+	CombatSprite.spawn(fx_layer, sheet + " HIT", target, maxf(64.0, 100.0 * scale_factor), Sabacc.anim(0.38))
+	Sfx.play("hit")
 
 
 func _anim_damage(c: CardInst, n: int, src: CardInst = null) -> void:
@@ -732,7 +702,7 @@ func _ensure_token(c: CardInst, animate: bool) -> UnitToken:
 	tok.scale = Vector2(sc, sc)
 	if animate:
 		tok.pop_in()
-		create_tween().tween_property(tok, "scale", Vector2(sc, sc), Kyber.anim(0.4)).set_trans(Tween.TRANS_BACK)
+		create_tween().tween_property(tok, "scale", Vector2(sc, sc), Sabacc.anim(0.4)).set_trans(Tween.TRANS_BACK)
 	return tok
 
 
@@ -761,13 +731,21 @@ func _sync() -> void:
 	_position_tokens()
 	# hand
 	var playable := {}
+	var unit_play := {}
+	var pilot_play := {}
 	var costs := {}
 	var legal := m.legal_actions(HUMAN)
 	for a in legal:
-		if a["a"] == "play":
+		if a["a"] in ["play", "pilot"]:
 			playable[a["uid"]] = true
+		if a["a"] == "play":
+			unit_play[a["uid"]] = true
+		elif a["a"] == "pilot":
+			pilot_play[a["uid"]] = true
 	for c in m.players[HUMAN].hand:
 		costs[c.uid] = m.play_cost(HUMAN, c)
+		if pilot_play.has(c.uid) and not unit_play.has(c.uid):
+			costs[c.uid] = m.play_cost(HUMAN, c, false, {"piloting": true})
 	hand.sync(m.players[HUMAN].hand, playable, costs)
 	# highlights
 	var can_attack := {}
@@ -781,11 +759,20 @@ func _sync() -> void:
 		t2.highlight = UnitToken.Hi.CAN_ACT if can_attack.has(uid) and m.pending.is_empty() else UnitToken.Hi.NONE
 	var lv: SideHud.LeaderView = hud[HUMAN].leader_view
 	lv.actionable = false
+	lv.pilot_actionable = false
 	for a in legal:
-		if a["a"] == "deploy" or (a["a"] == "ability" and m.players[HUMAN].leader and a["uid"] == m.players[HUMAN].leader.uid):
+		if a["a"] == "deploy_pilot":
+			lv.pilot_actionable = true
+		if a["a"] in ["deploy", "deploy_pilot"] or (a["a"] == "ability" and m.players[HUMAN].leader and a["uid"] == m.players[HUMAN].leader.uid):
 			lv.actionable = true
 	hud[0].refresh()
 	hud[1].refresh()
+	for player in 2:
+		var force: TableTokens.ForceOrb = force_orbs[player]
+		if m.players[player].force_token and not force.active:
+			force.gather()
+		elif not m.players[player].force_token and force.active:
+			force.spend()
 	hud[1].base_view.targetable = false
 	hud[0].base_view.targetable = false
 	# controls
@@ -793,6 +780,8 @@ func _sync() -> void:
 	pass_btn.disabled = not my_turn
 	pass_btn.breathe = my_turn
 	pass_btn.text = ("END TURN" if m.rules.turn_mode == RuleSet.TurnMode.BURST else "PASS") if my_turn else "ENEMY…"
+	if not m.pending.is_empty() and m.pending["player"] == HUMAN:
+		pass_btn.text = "CHOOSE"
 	_rebuild_tray(legal)
 	var can_claim := false
 	for a in legal:
@@ -805,6 +794,7 @@ func _sync() -> void:
 
 func _rebuild_tray(legal: Array) -> void:
 	for c in tray.get_children():
+		tray.remove_child(c)
 		c.queue_free()
 	for tk in m.tokens:
 		if tk["id"] == "initiative":
@@ -826,9 +816,9 @@ func _rebuild_tray(legal: Array) -> void:
 			tb.pressed.connect(func(): _act({"a": "claim", "token": tid}))
 			tray.add_child(tb)
 			continue
-		var b := KyberButton.make(tk.get("name", tk["id"]), KyberButton.Style.GOLD, tk.get("icon", "initiative"), false)
+		var b := SabaccButton.make(tk.get("name", tk["id"]), SabaccButton.Style.GOLD)
+		b.wrap_text = false
 		b.custom_minimum_size = Vector2(150 if portrait else 0, 52)
-		b.add_theme_font_size_override("font_size", 16)
 		b.disabled = not claimable
 		b.tooltip_text = tk.get("desc", "")
 		if claimed_by >= 0:
@@ -836,6 +826,8 @@ func _rebuild_tray(legal: Array) -> void:
 		var id: String = tk["id"]
 		b.pressed.connect(func(): _act({"a": "claim", "token": id}))
 		tray.add_child(b)
+		b.add_theme_font_size_override("font_size", 18)
+		b.autowrap_mode = TextServer.AUTOWRAP_OFF
 
 
 # ================================================================ human input
@@ -854,23 +846,106 @@ func _legal_for(uid: int, kind: String) -> Array:
 
 func _on_hand_drag_moved(card: CardView, at: Vector2) -> void:
 	card.selected = at.y < _hand_top - 30 and card.playable
+	if card.inst and card.inst.data.has("pilot"):
+		_show_pilot_targets(card.inst, "pilot")
+
+
+func _show_pilot_targets(pilot: CardInst, action: String) -> void:
+	_clear_pilot_targets()
+	if busy or _legal_for(pilot.uid, action).is_empty():
+		return
+	for host in Effects.upgrade_targets(m, HUMAN, pilot, true):
+		if tokens.has(host.uid):
+			tokens[host.uid].highlight = UnitToken.Hi.TARGET
+
+
+func _clear_pilot_targets() -> void:
+	for token in tokens.values():
+		if token.highlight == UnitToken.Hi.TARGET:
+			token.highlight = UnitToken.Hi.NONE
+
+
+func _unit_at_drop(at: Vector2) -> CardInst:
+	for token: UnitToken in tokens.values():
+		if Rect2(token.global_position, UnitToken.SIZE * token.scale).has_point(at):
+			return token.inst
+	return null
+
+
+func _drop_pilot(pilot: CardInst, host: CardInst, action: String, at: Vector2) -> bool:
+	if host and not busy and not _legal_for(pilot.uid, action).is_empty() and host in Effects.upgrade_targets(m, HUMAN, pilot, true):
+		_act({"a": action, "uid": pilot.uid, "target": host.uid})
+		return true
+	Fx.float_text(fx_layer, at, "Choose an eligible friendly Vehicle", Sabacc.C_GOLD, 18)
+	return false
+
+
+func _on_leader_dragged(h: SideHud, _at: Vector2) -> void:
+	if h.player_idx == HUMAN and m.players[HUMAN].leader:
+		_show_pilot_targets(m.players[HUMAN].leader, "deploy_pilot")
+
+
+func _on_leader_dropped(h: SideHud, at: Vector2) -> void:
+	if h.player_idx != HUMAN:
+		return
+	_clear_pilot_targets()
+	var leader: CardInst = m.players[HUMAN].leader
+	if leader:
+		_drop_pilot(leader, _unit_at_drop(at), "deploy_pilot", at)
+
+
+func _on_hand_tapped(card: CardView) -> void:
+	if not _show_pilot_options(card):
+		InspectOverlay.open(self, card.card_id, card.get_global_rect(), card.inst)
+
+
+func _show_pilot_options(card: CardView) -> bool:
+	if card.inst == null or not card.inst.data.has("pilot"):
+		return false
+	var uid := card.inst.uid
+	var pilots := _legal_for(uid, "pilot")
+	if pilots.is_empty():
+		return false
+	var opts: Array = []
+	var plays := _legal_for(uid, "play")
+	if not plays.is_empty():
+		opts.append(["Play as unit (%d)" % m.play_cost(HUMAN, card.inst), plays[0]])
+	opts.append(["Play as Pilot (%d)" % m.play_cost(HUMAN, card.inst, false, {"piloting": true}), pilots[0]])
+	opts.append(["Inspect", {"inspect": uid}])
+	_popup_menu(card.get_global_rect(), opts)
+	return true
 
 
 func _on_hand_drop(card: CardView, at: Vector2) -> void:
 	card.selected = false
+	if card.inst and card.inst.data.has("pilot"):
+		_clear_pilot_targets()
+		var host := _unit_at_drop(at)
+		if host and not busy and m.can_act(HUMAN):
+			card.spring_home()
+			_drop_pilot(card.inst, host, "pilot", at)
+			return
 	var uid: int = card.get_meta("uid")
+	if card.inst and card.inst.has_kw("fortify") and hud[HUMAN].base_view.get_global_rect().has_point(at):
+		card.spring_home()
+		if not _legal_for(uid, "play").is_empty():
+			_act({"a": "play", "uid": uid, "target": m.players[HUMAN].base.uid})
+		return
 	if at.y < _hand_top - 30 and card.playable and m.can_act(HUMAN):
+		if _show_pilot_options(card):
+			card.spring_home()
+			return
 		var removed := hand.remove_card(uid)
 		if removed:
 			# fly into the arena then vanish; the token/event animation takes over
 			var tw := removed.create_tween().set_parallel(true)
-			tw.tween_property(removed, "scale", removed.scale * 0.4, Kyber.anim(0.18))
-			tw.tween_property(removed, "modulate:a", 0.0, Kyber.anim(0.18))
+			tw.tween_property(removed, "scale", removed.scale * 0.4, Sabacc.anim(0.18))
+			tw.tween_property(removed, "modulate:a", 0.0, Sabacc.anim(0.18))
 			tw.chain().tween_callback(removed.queue_free)
 		_act({"a": "play", "uid": uid})
 	else:
 		if at.y < _hand_top - 30 and not card.playable:
-			Fx.float_text(fx_layer, at, "Can't play that now", Kyber.C_EMPIRE, 24)
+			Fx.float_text(fx_layer, at, "Can't play that now", Sabacc.C_EMPIRE, 24)
 		card.spring_home()
 
 
@@ -925,7 +1000,7 @@ func _try_attack(tok: UnitToken, target_uid: int) -> void:
 	if target_uid in m.attack_targets(tok.inst):
 		_act({"a": "attack", "uid": tok.inst.uid, "target": target_uid})
 	else:
-		Fx.float_text(fx_layer, tok.center_global(), "Invalid target", Kyber.C_EMPIRE, 24)
+		Fx.float_text(fx_layer, tok.center_global(), "Invalid target", Sabacc.C_EMPIRE, 24)
 		_clear_selection()
 
 
@@ -935,7 +1010,7 @@ func _on_token_drag_start(tok: UnitToken) -> void:
 	_select_attacker(tok)
 	_arrow.from = tok.center_global()
 	_arrow.to = tok.center_global()
-	_arrow.color = Kyber.C_EMPIRE
+	_arrow.color = Sabacc.C_EMPIRE
 	_arrow.visible = true
 
 
@@ -943,7 +1018,7 @@ func _on_token_drag_moved(tok: UnitToken, at: Vector2) -> void:
 	if _arrow.visible and _selected == tok:
 		_arrow.from = tok.center_global()
 		_arrow.to = at
-		_arrow.color = Kyber.C_GOLD if _target_at(at) >= 0 else Kyber.C_EMPIRE
+		_arrow.color = Sabacc.C_GOLD if _target_at(at) >= 0 else Sabacc.C_EMPIRE
 
 
 func _on_token_drag_released(tok: UnitToken, at: Vector2) -> void:
@@ -979,7 +1054,53 @@ func _on_base_pressed(h: SideHud) -> void:
 	if _selected and h.player_idx != HUMAN:
 		_try_attack(_selected, b.uid)
 		return
+	if h.player_idx == HUMAN:
+		var can_peek := b.abilities_with("constant").any(func(ability): return ability.get("flag") == "peek_own_deck")
+		var opts: Array = []
+		for source in [b] + b.upgrades:
+			var abilities: Array = source.abilities_with("action")
+			var legal: Array = _legal_for(source.uid, "ability")
+			for i in abilities.size():
+				var action := {"a": "ability", "uid": source.uid, "idx": i}
+				var reason := ""
+				if action not in legal:
+					reason = "Epic Action already used" if abilities[i].get("epic", false) and source.epic_used else "Unavailable this action"
+				var label: String = abilities[i].get("text", "Base action")
+				opts.append([label if source == b else "%s · %s" % [source.name(), label], action, reason])
+		if not opts.is_empty() or can_peek:
+			if can_peek and not m.players[HUMAN].deck.is_empty():
+				opts.append(["Look at top card", {"inspect": m.players[HUMAN].deck[0].uid}])
+			opts.append(["Inspect base", {"inspect": b.uid}])
+			_popup_menu(h.base_view.get_global_rect(), opts)
+			return
 	InspectOverlay.open(self, b.id, h.base_view.get_global_rect(), b)
+
+
+func _on_fortification_pressed(h: SideHud, rect: Rect2) -> void:
+	if (prompt_bar.visible and not m.pending.is_empty()) or (_selected and h.player_idx != HUMAN):
+		_on_base_pressed(h)
+		return
+	var base: CardInst = m.players[h.player_idx].base
+	if base.upgrades.is_empty():
+		return
+	var opts: Array = []
+	for up in base.upgrades:
+		opts.append(["Inspect %s" % up.name(), {"inspect": up.uid}])
+		if h.player_idx != HUMAN:
+			continue
+		if base.abilities_with("constant").any(func(ability):
+			return ability.get("flag") == "peek_own_deck" and ability.get("grant_source", 0) == up.uid):
+			if not m.players[HUMAN].deck.is_empty():
+				opts.append(["Look at top card", {"inspect": m.players[HUMAN].deck[0].uid}])
+		for source in [up, base]:
+			var abilities: Array = source.abilities_with("action")
+			var legal := _legal_for(source.uid, "ability")
+			for i in abilities.size():
+				if source == base and abilities[i].get("grant_source", 0) != up.uid:
+					continue
+				var action := {"a": "ability", "uid": source.uid, "idx": i}
+				opts.append([abilities[i].get("text", up.name()), action, "" if action in legal else "Unavailable this action"])
+	_popup_menu(rect, opts)
 
 
 func _on_leader_pressed(h: SideHud) -> void:
@@ -1038,6 +1159,16 @@ func _leader_options(l: CardInst) -> Array:
 			else:
 				dwhy = "needs %d resources (you have %d)" % [epic, ps.resources.size()]
 		opts.append(["Epic Action: deploy %s" % l.name(), {"a": "deploy"}, dwhy])
+		if l.data.has("pilot"):
+			var pilot := {"a": "deploy_pilot", "uid": l.uid}
+			var flip: bool = l.data["pilot"].has("flip_cost")
+			opts.append(["%s as Pilot" % ("Flip" if flip else "Deploy"), pilot,
+				"" if pilot in legal else "Requires an eligible Vehicle and available action"])
+	elif l.is_pilot_upgrade():
+		for i in l.abilities_with("action").size():
+			var action := {"a": "ability", "uid": l.uid, "idx": i}
+			opts.append([l.abilities_with("action")[i].get("text", "Pilot action"), action,
+				"" if action in legal else "Unavailable this action"])
 	else:
 		opts.append(["%s is deployed — tap the unit on the board to attack or use its abilities" % l.name(), {}, "deployed"])
 	opts.append(["Inspect leader", {"inspect": l.uid}, ""])
@@ -1060,7 +1191,7 @@ func _on_resources_pressed(h: SideHud) -> void:
 			var c := m.card(a["uid"])
 			opts.append(["Smuggle %s (%d)" % [c.name(), m.play_cost(HUMAN, c, true)], a])
 	if opts.is_empty():
-		Fx.float_text(fx_layer, h.res_view.get_global_rect().get_center(), "%d ready / %d resources" % [m.players[HUMAN].ready_resources(), m.players[HUMAN].resources.size()], Kyber.C_COST, 22)
+		Fx.float_text(fx_layer, h.res_view.get_global_rect().get_center(), "%d ready / %d resources" % [m.players[HUMAN].ready_resources(), m.players[HUMAN].resources.size()], Sabacc.C_COST, 22)
 		return
 	_popup_menu(h.res_view.get_global_rect(), opts)
 
@@ -1079,15 +1210,23 @@ func _unit_menu(tok: UnitToken, can_attack: bool, abilities: Array) -> void:
 func _popup_menu(anchor: Rect2, opts: Array) -> void:
 	if menu_popup:
 		menu_popup.queue_free()
-	menu_popup = UIKit.panel(Color(0.03, 0.06, 0.1, 0.97), Kyber.C_GOLD, 12, 12)
+	menu_popup = UIKit.panel(Color(0.03, 0.06, 0.1, 0.97), Sabacc.C_GOLD, 12, 12)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
-	menu_popup.add_child(v)
 	var vs := get_viewport_rect().size
+	if (opts.size() + 1) * 62 > vs.y * 0.7:
+		var scroll := ScrollContainer.new()
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.custom_minimum_size = Vector2(minf(vs.x * 0.85, 480), vs.y * 0.7)
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.add_child(v)
+		menu_popup.add_child(scroll)
+	else:
+		menu_popup.add_child(v)
 	for o in opts:
 		var why: String = o[2] if o.size() > 2 else ""
 		var label := str(o[0]) if why == "" else "%s\n(%s)" % [o[0], why]
-		var b := KyberButton.make(label, KyberButton.Style.GOLD if not o[1].has("inspect") else KyberButton.Style.GHOST)
+		var b := SabaccButton.make(label, SabaccButton.Style.GOLD if not o[1].has("inspect") else SabaccButton.Style.GHOST)
 		b.disabled = why != ""
 		b.add_theme_font_size_override("font_size", 17)
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1104,7 +1243,7 @@ func _popup_menu(anchor: Rect2, opts: Array) -> void:
 			else:
 				_act(act))
 		v.add_child(b)
-	var cancel := KyberButton.make("Cancel", KyberButton.Style.GHOST)
+	var cancel := SabaccButton.make("Cancel", SabaccButton.Style.GHOST)
 	cancel.pressed.connect(func():
 		menu_popup.queue_free()
 		menu_popup = null)
@@ -1123,7 +1262,9 @@ func _popup_menu(anchor: Rect2, opts: Array) -> void:
 func _show_pending() -> void:
 	var pd := m.pending
 	var kind: String = pd["kind"]
-	if kind in ["target", "attack_target"]:
+	var board_options: bool = pd["options"].all(func(uid):
+		return tokens.has(uid) or uid in [m.players[0].base.uid, m.players[1].base.uid])
+	if kind in ["target", "attack_target", "damage_assignment"] and board_options:
 		_target_sel = []
 		prompt_label.text = pd.get("prompt", "Choose a target")
 		prompt_skip.visible = int(pd["min"]) == 0
@@ -1174,13 +1315,12 @@ func _toggle_target(uid: int) -> void:
 func _submit_targets(sel: Array) -> void:
 	if m.pending.is_empty():
 		return
-	if sel.size() < int(m.pending["min"]):
+	if not m.submit_choice(sel):
 		return
 	prompt_bar.visible = false
 	for p in 2:
 		hud[p].base_view.targetable = false
-	if m.submit_choice(sel):
-		_step()
+	_step()
 
 
 # ================================================================ misc UI
@@ -1198,7 +1338,7 @@ func _open_menu() -> void:
 	# Re-wire the concede button (popup handles actions generically).
 	await get_tree().process_frame
 	if menu_popup:
-		var first: KyberButton = menu_popup.get_child(0).get_child(0)
+		var first: SabaccButton = menu_popup.get_child(0).get_child(0)
 		for c in first.pressed.get_connections():
 			first.pressed.disconnect(c["callable"])
 		first.pressed.connect(func():
@@ -1209,7 +1349,20 @@ func _open_menu() -> void:
 
 
 func _game_over() -> void:
+	if _result_recorded:
+		return
+	_result_recorded = true
 	var won := m.winner == HUMAN
+	var identity := "%s_%s" % [Time.get_unix_time_from_system(), get_instance_id()]
+	var player: PlayerState = m.players[HUMAN]
+	var leader_id := player.leader.id if player.leader else ""
+	var cosmetic_reward := Cosmetics.record_match(won, identity, m.winner, player.aspect_pool(), leader_id, m.played_aspect_counts[HUMAN])
+	var credits_earned := 0
+	if params.get("mode", "quick") == "quick" and m.winner != 2:
+		credits_earned = Progression.award_credits("battle:" + identity, Progression.BATTLE_WIN if won else Progression.BATTLE_LOSS)
+	var pack_reward := ""
+	if params.get("mode", "quick") == "quick" and params.get("traditional", params.get("format", -1) == 0):
+		pack_reward = Progression.traditional_result(identity)
 	for c in get_tree().root.find_children("*", "", true, false):
 		if c is ChoicePanel or c is InspectOverlay:
 			c.get_parent().queue_free()
@@ -1217,7 +1370,11 @@ func _game_over() -> void:
 	if menu_popup:
 		menu_popup.queue_free()
 		menu_popup = null
-	Sfx.play("win" if won else "lose")
+	Sfx.play("draw" if m.winner == 2 else ("win" if won else "lose"))
+	if m.winner in [0, 1]:
+		var victor: PlayerState = m.players[m.winner]
+		var aspects := Appearance.aspects_for([victor.leader.data, victor.base.data])
+		Sfx.result_cues(victor.leader, m.players[1 - m.winner].leader, won, aspects)
 	var layer := CanvasLayer.new()
 	layer.layer = 45
 	add_child(layer)
@@ -1234,32 +1391,42 @@ func _game_over() -> void:
 	UIKit.fill_rect(v)
 	root.add_child(v)
 	v.add_child(UIKit.aurebesh("victory" if won else "defeat", 30))
-	var t := UIKit.title("Victory" if won else ("Draw" if m.winner == 2 else "Defeat"), 72, Kyber.C_GOLD if won else Kyber.C_EMPIRE)
+	var t := UIKit.title("Victory" if won else ("Draw" if m.winner == 2 else "Defeat"), 72, Sabacc.C_GOLD if won else Sabacc.C_EMPIRE)
 	v.add_child(t)
 	UIKit.pop_in(t)
-	v.add_child(UIKit.label(m.log_lines.back() if not m.log_lines.is_empty() else "", 20, Kyber.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	v.add_child(UIKit.label(m.log_lines.back() if not m.log_lines.is_empty() else "", 20, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 16)
 	v.add_child(row)
-	Save.data["stats"]["matches"] += 1
-	if won:
-		Save.data["stats"]["wins"] += 1
-	Save.write()
+	if credits_earned > 0:
+		var credit_reward := UIKit.credit_label("+%d credits" % credits_earned)
+		v.add_child(credit_reward)
+		v.move_child(credit_reward, row.get_index())
+	if not pack_reward.is_empty():
+		v.add_child(UIKit.label("Card pack earned! Open it from Card Packs.", 23, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
+		var open_pack := SabaccButton.make("Open earned pack", SabaccButton.Style.GOLD, "star")
+		open_pack.pressed.connect(func(): Router.go("packs"))
+		v.add_child(open_pack)
+	if not cosmetic_reward.is_empty():
+		var reward := UIKit.label("Cosmetic unlocked: " + cosmetic_reward["name"], 25, Appearance.color_at(1), HORIZONTAL_ALIGNMENT_CENTER)
+		reward.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(reward)
+		v.move_child(reward, row.get_index())
 	if params.get("mode", "quick") == "spotlight":
 		var sres := SpotlightFlow.on_match_end(params, m)
-		var scont := KyberButton.make("Continue", KyberButton.Style.PRIMARY, "play", true)
+		var scont := SabaccButton.make("Continue", SabaccButton.Style.PRIMARY, "play", true)
 		scont.custom_minimum_size.x = 260
 		scont.pressed.connect(func(): SpotlightFlow.after_match(sres))
 		row.add_child(scont)
 	elif params.get("mode", "quick") == "campaign":
 		var res := CampaignFlow.on_match_end(params, m)
-		var cont := KyberButton.make("Continue", KyberButton.Style.PRIMARY, "play", true)
+		var cont := SabaccButton.make("Continue", SabaccButton.Style.PRIMARY, "play", true)
 		cont.custom_minimum_size.x = 260
 		cont.pressed.connect(func(): CampaignFlow.after_match(res))
 		row.add_child(cont)
 	else:
-		var again := KyberButton.make("Rematch", KyberButton.Style.PRIMARY, "play", true)
+		var again := SabaccButton.make("Rematch", SabaccButton.Style.PRIMARY, "play", true)
 		again.custom_minimum_size.x = 220
 		again.pressed.connect(func():
 			# fresh shuffle and fresh bot decks for the rematch
@@ -1274,7 +1441,7 @@ func _game_over() -> void:
 				p2["cfg"] = cfg
 			Router.go("match", p2))
 		row.add_child(again)
-		var menu := KyberButton.make("Menu", KyberButton.Style.GHOST, "back")
+		var menu := SabaccButton.make("Menu", SabaccButton.Style.GHOST, "back")
 		menu.custom_minimum_size.x = 180
 		menu.pressed.connect(func(): Router.go("menu"))
 		row.add_child(menu)
@@ -1300,4 +1467,4 @@ func _on_coin_pressed() -> void:
 		_act({"a": "claim", "token": "initiative"})
 		return
 	var why := "Initiative already claimed this round" if m.tokens_claimed.has("initiative") else "Wait for your action"
-	Fx.float_text(fx_layer, coin.get_global_rect().get_center() + Vector2(0, -50), why, Kyber.C_GOLD, 20)
+	Fx.float_text(fx_layer, coin.get_global_rect().get_center() + Vector2(0, -50), why, Sabacc.C_GOLD, 20)

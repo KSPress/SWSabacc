@@ -4,12 +4,16 @@ extends Node
 signal screen_changed(path: String)
 
 const SCREENS := {
+	"hub": "res://ui/screens/mode_hub.tscn",
+	"packs": "res://ui/screens/pack_opening.tscn",
+	"customization": "res://ui/screens/customization.tscn",
 	"menu": "res://ui/screens/main_menu.tscn",
 	"episodes": "res://ui/screens/episode_select.tscn",
 	"chapter": "res://ui/screens/chapter_map.tscn",
 	"match": "res://ui/screens/match_screen.tscn",
 	"reward": "res://ui/screens/reward_screen.tscn",
 	"collection": "res://ui/screens/collection.tscn",
+	"stats": "res://ui/screens/account_stats.tscn",
 	"settings": "res://ui/screens/settings_screen.tscn",
 	"quick": "res://ui/screens/quick_match.tscn",
 	"decks": "res://ui/screens/decks.tscn",
@@ -22,6 +26,40 @@ var params: Dictionary = {}
 var _layer: CanvasLayer
 var _fade: ColorRect
 var _busy := false
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		handle_back()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and handle_back():
+		get_viewport().set_input_as_handled()
+
+
+## Dismiss only the highest modal, then navigate back from ordinary screens.
+## Android Back must not quit the app or abandon an active match.
+func handle_back() -> bool:
+	if _busy:
+		return true
+	var top: Control
+	var highest := -1
+	for candidate in get_tree().get_nodes_in_group("back_dismissible"):
+		if not candidate.is_visible_in_tree():
+			continue
+		var layer := candidate.get_parent() as CanvasLayer
+		if layer and layer.layer > highest:
+			highest = layer.layer
+			top = candidate
+	if top:
+		top.request_back()
+		return true
+	var scene := get_tree().current_scene as ScreenBase
+	if scene and not scene._back_target.is_empty():
+		go(scene._back_target)
+		return true
+	return false
 
 
 func _ready() -> void:
@@ -38,18 +76,20 @@ func _ready() -> void:
 func go(screen: String, p := {}) -> void:
 	if _busy:
 		return
+	if screen != "match":
+		Appearance.end_match()
 	_busy = true
 	params = p
 	var path: String = SCREENS.get(screen, screen)
 	Sfx.play("whoosh")
 	_fade.mouse_filter = Control.MOUSE_FILTER_STOP
 	var tw := create_tween()
-	tw.tween_property(_fade, "color:a", 1.0, Kyber.anim(0.18))
+	tw.tween_property(_fade, "color:a", 1.0, Sabacc.anim(0.18))
 	await tw.finished
 	get_tree().change_scene_to_file(path)
 	await get_tree().process_frame
 	var tw2 := create_tween()
-	tw2.tween_property(_fade, "color:a", 0.0, Kyber.anim(0.25))
+	tw2.tween_property(_fade, "color:a", 0.0, Sabacc.anim(0.25))
 	await tw2.finished
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_busy = false

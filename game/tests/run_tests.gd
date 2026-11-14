@@ -22,6 +22,7 @@ func _init() -> void:
 		return
 	test_aspect_penalty()
 	test_combat_and_shield()
+	test_attachment_lifetime()
 	test_sentinel_and_saboteur()
 	test_overwhelm_raid_grit()
 	test_alternating_and_initiative()
@@ -95,6 +96,23 @@ func test_combat_and_shield() -> void:
 	check(d.in_play() and d.damage == 0 and d.shield_count() == 0, "shield absorbs the attack")
 	check(a.damage == 3 or not a.in_play(), "defender deals damage back")
 	check(not a.in_play(), "3 damage defeats a 3-HP attacker")
+
+
+func test_attachment_lifetime() -> void:
+	print("attachment lifetime")
+	var m := blank_match()
+	var unit := add_unit(m, 0, "SOR_095")
+	m.attach_token(unit, "experience")
+	m.attach_token(unit, "shield")
+	var attachment: CardInst = unit.upgrades[0]
+	check(attachment.attached_to == unit, "upgrade resolves its living host")
+	var unit_ref: WeakRef = weakref(unit)
+	var attachment_ref: WeakRef = weakref(attachment)
+	unit = null
+	attachment = null
+	m = null
+	check(unit_ref.get_ref() == null, "unit is released after match")
+	check(attachment_ref.get_ref() == null, "attached tokens are released after match")
 
 
 func test_sentinel_and_saboteur() -> void:
@@ -434,6 +452,8 @@ func simulate_quick_modes(n: int) -> void:
 				rounds += m.round_num
 			else:
 				stuck += 1
+				print("  stuck quick seed=%d decks=%s/%s phase=%s round=%d pending=%s actions=%s" % [
+					g, a[0], b[0], m.phase, m.round_num, m.pending.get("kind", ""), m.legal_actions(m.active)])
 		print("  quick %-11s %d decks: p0 %d / p1 %d / draw %d / stuck %d, avg rounds %.1f" % [mode, decks.size(), wins[0], wins[1], wins[2], stuck, rounds / maxf(1.0, n - stuck)])
 		check(stuck == 0, "quick %s: no stuck games" % mode)
 

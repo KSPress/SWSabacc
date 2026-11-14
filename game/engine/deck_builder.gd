@@ -3,11 +3,16 @@ extends RefCounted
 ## Deck validation (spec 3.7) and quick auto-built decks for bot matches / sims.
 
 
+static func minimum_size(lib: CardLibrary, rules: RuleSet, base: String) -> int:
+	return maxi(0, rules.deck_min + int(lib.get_card(base).get("deck_size_delta", 0)))
+
+
 ## Returns a list of human-readable problems (empty = legal).
 static func validate(lib: CardLibrary, rules: RuleSet, leader: String, base: String, deck: Array) -> Array:
 	var errs: Array = []
-	if deck.size() < rules.deck_min:
-		errs.append("Deck has %d cards; minimum is %d." % [deck.size(), rules.deck_min])
+	var minimum := minimum_size(lib, rules, base)
+	if deck.size() < minimum:
+		errs.append("Deck has %d cards; minimum is %d." % [deck.size(), minimum])
 	var counts := {}
 	for id in deck:
 		counts[id] = counts.get(id, 0) + 1
@@ -54,12 +59,15 @@ static func fits_arena(c: Dictionary, arena: String) -> bool:
 
 
 ## Builds a playable deck around a leader+base from fully implemented cards.
-static func auto_deck(lib: CardLibrary, leader: String, base: String, size: int, rng: RandomNumberGenerator, arenas := ["ground", "space"], max_cost := 7) -> Array:
+static func auto_deck(lib: CardLibrary, leader: String, base: String, size: int, rng: RandomNumberGenerator, arenas := ["ground", "space"], max_cost := 7, allowed: Array = []) -> Array:
+	size = maxi(0, size + int(lib.get_card(base).get("deck_size_delta", 0)))
 	var pool_aspects: Array = lib.get_card(leader).get("aspects", []) + lib.get_card(base).get("aspects", [])
 	var hero := "heroism" in pool_aspects
 	var vill := "villainy" in pool_aspects
 	var cands: Array = []
 	for id in lib.cards:
+		if not allowed.is_empty() and not id in allowed:
+			continue
 		var c: Dictionary = lib.cards[id]
 		if c.get("custom", false) or not (c.get("type", "") in ["unit", "event", "upgrade"]):
 			continue
@@ -82,7 +90,8 @@ static func auto_deck(lib: CardLibrary, leader: String, base: String, size: int,
 		return deck
 	# Weighted toward a low curve with mostly units.
 	var guard := 0
-	while deck.size() < size and guard < 10000:
+	var target_size := mini(size, cands.size() * 3)
+	while deck.size() < target_size and guard < 10000:
 		guard += 1
 		var id: String = cands[rng.randi_range(0, cands.size() - 1)]
 		var c: Dictionary = lib.cards[id]
