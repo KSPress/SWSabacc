@@ -1,10 +1,15 @@
 extends Node
 ## Quiet random soundtrack. A shuffle bag avoids repeats between tracks.
+const BOOT_GAIN_DB := 16.0
+const BOOT_FADE_SECONDS := 0.6
+
 var player: AudioStreamPlayer
 var _bag: Array = []
 var _last := ""
 var _duck_until := 0
 var current_path := ""
+var _boot_active := false
+var _boot_mix := 0.0
 
 
 func _ready() -> void:
@@ -21,14 +26,23 @@ func _exit_tree() -> void:
 	player.stream = null
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_boot_mix = move_toward(_boot_mix, 1.0 if _boot_active else 0.0, delta / BOOT_FADE_SECONDS)
 	if player.playing:
 		_set_volume()
 
 
 func _set_volume() -> void:
 	var volume: float = Sabacc.settings.get("music_volume", 0.5)
-	player.volume_db = linear_to_db(maxf(volume, 0.0001)) - 24.0 - (12.0 if Time.get_ticks_msec() < _duck_until else 0.0)
+	player.volume_db = linear_to_db(maxf(volume, 0.0001)) - 24.0 + BOOT_GAIN_DB * _boot_mix \
+		- (12.0 if Time.get_ticks_msec() < _duck_until else 0.0)
+
+
+func set_boot_active(active: bool) -> void:
+	_boot_active = active
+	if active:
+		_boot_mix = 1.0
+	_set_volume()
 
 
 func _apply() -> void:

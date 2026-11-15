@@ -73,23 +73,32 @@ static func next_sector(run: Dictionary, lib: CardLibrary, spots: Array) -> void
 	run["sector"] = int(run.get("sector", 0)) + 1
 	run["current"] = ""
 	run["visited"] = []
+	run.erase("shop_bought")
+	run.erase("shop_traded")
+	run.erase("shop_stock")
 	var rng := rng_for(run, 1)
-	var rows_cfg: Array = cfg().get("rows", [])
+	var faction_id := _sector_faction(run)
+	var faction: Dictionary = cfg()["factions"][faction_id]
+	var themed_cards: Array = []
+	for id in lib.cards:
+		var card: Dictionary = lib.cards[id]
+		if faction["traits"].any(func(tag): return tag in card.get("traits", [])):
+			themed_cards.append(id)
+	var rows_cfg: Array = cfg()["first_rows" if int(run["sector"]) == 1 else "rows"]
 	var rows: Array = []
 	var nodes := {}
 	for ri in rows_cfg.size():
 		var weights: Dictionary = rows_cfg[ri]
 		var count := 1 if weights.has("boss") else rng.randi_range(2, 3)
+		if int(run["sector"]) == 1 and weights.has("shop") and weights.has("event"):
+			count = 3
 		var row: Array = []
-		var used := {}
+		var options := weights.duplicate()
 		for ci in count:
-			var t := _weighted(weights, rng)
-			# avoid a row of identical non-fight nodes
-			if used.has(t) and t != "fight" and weights.size() > 1:
-				t = _weighted(weights, rng)
-			used[t] = true
+			var t := _weighted(options if not options.is_empty() else weights, rng)
+			options.erase(t)
 			var id := "r%d_%d" % [ri, ci]
-			nodes[id] = _make_node(run, lib, t, ri, rng, spots)
+			nodes[id] = _make_node(run, lib, t, ri, rng, spots, faction, themed_cards)
 			nodes[id]["id"] = id
 			row.append(id)
 		rows.append(row)
@@ -106,6 +115,10 @@ static func next_sector(run: Dictionary, lib: CardLibrary, spots: Array) -> void
 				var alt := clampi(roundi(pos) + (1 if rng.randf() < 0.5 else -1), 0, b.size() - 1)
 				if not (b[alt] in targets):
 					targets.append(b[alt])
+			if int(run["sector"]) == 1 and ri in [0, 2]:
+				for next in b:
+					if nodes[next]["type"] == "shop" and next not in targets:
+						targets.append(next)
 			edges[a[i]] = targets
 		for j in b.size():
 			var reached := false
@@ -114,7 +127,24 @@ static func next_sector(run: Dictionary, lib: CardLibrary, spots: Array) -> void
 					reached = true
 			if not reached:
 				edges[a[mini(j, a.size() - 1)]].append(b[j])
-	run["map"] = {"rows": rows, "nodes": nodes, "edges": edges}
+	run["map"] = {"rows": rows, "nodes": nodes, "edges": edges, "faction": faction_id}
+
+
+static func _sector_faction(run: Dictionary) -> String:
+	var order: Array = cfg()["factions"].keys()
+	order.sort()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(run["seed"])
+	for i in range(order.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var item: String = order[i]
+		order[i] = order[j]
+		order[j] = item
+	return order[posmod(int(run["sector"]) - 1, order.size())]
+
+
+static func chapter_faction(run: Dictionary) -> Dictionary:
+	return cfg()["factions"].get(run.get("map", {}).get("faction", ""), {})
 
 
 static func _weighted(w: Dictionary, rng: RandomNumberGenerator) -> String:
@@ -142,110 +172,100 @@ static func node(run: Dictionary, id: String) -> Dictionary:
 
 # ---------------------------------------------------------------- enemies & missions
 
-static func _leaders(lib: CardLibrary, exclude: String) -> Array:
-	var out: Array = []
-	for id in lib.cards:
-		var c: Dictionary = lib.cards[id]
-		if c.get("type") == "leader" and not c.get("custom", false) and id != exclude \
-				and not ("pilot" in c.get("traits", [])) and int(c.get("leader_unit", {}).get("hp", 0)) > 0:
-			out.append(id)
-	out.sort()
-	return out
-
-
-static func _bases(lib: CardLibrary) -> Array:
-	var out: Array = []
-	for id in lib.cards:
-		var c: Dictionary = lib.cards[id]
-		if c.get("type") == "base" and not c.get("custom", false):
-			out.append(id)
-	out.sort()
-	return out
-
-
-static func _make_node(run: Dictionary, lib: CardLibrary, t: String, row: int, rng: RandomNumberGenerator, spots: Array) -> Dictionary:
+static func _make_node(run: Dictionary, lib: CardLibrary, type: String, row: int, rng: RandomNumberGenerator,
+		spots: Array, faction: Dictionary, themed_cards: Array) -> Dictionary:
 	var sector := int(run["sector"])
-	var titles: Array = cfg().get("node_titles", {}).get(t, [t.capitalize()])
-	var n := {"type": t, "title": titles[rng.randi_range(0, titles.size() - 1)], "row": row}
-	if not (t in ["fight", "elite", "objective", "boss"]):
-		if t == "event":
-			var evs: Array = cfg().get("events", [])
-			var ev: Dictionary = evs[rng.randi_range(0, evs.size() - 1)]
-			n["event"] = ev["id"]
-			n["title"] = ev["title"]
+	var titles: Array = cfg()["node_titles"].get(type, [type.capitalize()])
+	var n := {"type": type, "title": titles[rng.randi_range(0, titles.size() - 1)], "row": row}
+	if type == "event":
+		var events: Array = cfg()["events"]
+		var event: Dictionary = events[rng.randi_range(0, events.size() - 1)]
+		n["event"] = event["id"]
+		n["title"] = event["title"]
+	if type not in ["fight", "elite", "objective", "boss"]:
 		return n
-	var leaders := _leaders(lib, run["leader"])
-	var bases := _bases(lib)
-	var enemy := {}
-	if t == "boss":
-		# another Spotlight deck at full strength
-		var pool: Array = []
-		for d in spots:
-			if d["id"] != run["deck_id"]:
-				pool.append(d)
-		var sd: Dictionary = pool[rng.randi_range(0, pool.size() - 1)]
-		var lst: Array = []
-		for cid in sd["cards"]:
-			for i in int(sd["cards"][cid]):
-				lst.append(cid)
-		enemy = {"leader": sd["leader"], "base": sd["base"], "deck": lst, "name": lib.get_card(sd["leader"]).get("name", "Boss")}
-		n["title"] = "Boss: " + lib.get_card(sd["leader"]).get("name", "")
-	else:
-		var l: String = leaders[rng.randi_range(0, leaders.size() - 1)]
-		var b: String = bases[rng.randi_range(0, bases.size() - 1)]
+
+	var enemy := _boss_enemy(run, lib, spots, rng, faction, themed_cards) if type == "boss" else {}
+	if enemy.is_empty():
+		var lineups: Array = faction["patrols"]
+		var lineup: Array = lineups[rng.randi_range(0, lineups.size() - 1)]
 		var size := mini(50, 18 + 5 * (sector - 1) + row)
-		# early sectors field cheaper, scrappier decks; the curve opens up as you go deeper
 		var max_cost := mini(7, 2 + sector)
-		enemy = {"leader": l, "base": b, "deck": DeckBuilder.auto_deck(lib, l, b, size, rng, ["ground", "space"], max_cost), "name": lib.get_card(l).get("name", "Enemy")}
-		if t == "elite":
-			n["title"] = "%s: %s" % [n["title"], enemy["name"]]
-	var hp: int = {"fight": 6 + 3 * sector + row / 2, "objective": 8 + 3 * sector, "elite": 8 + 3 * sector, "boss": 14 + 5 * sector}[t]
+		enemy = _themed_enemy(lib, lineup, size, rng, max_cost, themed_cards)
+	match type:
+		"fight":
+			titles = faction["fights"]
+			n["title"] = titles[rng.randi_range(0, titles.size() - 1)]
+		"elite":
+			titles = faction["elites"]
+			n["title"] = titles[rng.randi_range(0, titles.size() - 1)]
+		"boss":
+			n["title"] = "Boss · " + enemy["name"]
+	var hp: int = {"fight": 6 + 3 * sector + row / 2, "objective": 8 + 3 * sector, "elite": 8 + 3 * sector, "boss": 16 + 5 * sector}[type]
 	enemy["hp"] = hp
-	enemy["extra_resources"] = {"fight": 0, "objective": 0, "elite": mini(sector - 1, 2), "boss": mini(sector - 1, 3)}[t]
-	enemy["profile"] = ["aggressive", "tempo", "defensive"][rng.randi_range(0, 2)] if t != "boss" else "tempo"
-	# elites and bosses start with their strongest unit on the board
-	var pre: Array = []
-	if t == "elite" and sector == 1:
-		enemy["hp"] = int(enemy["hp"]) + 3
-	if t == "boss" or (t == "elite" and sector >= 2):
-		var best := ""
-		var best_cost := -1
-		for id in enemy["deck"]:
-			var c := lib.get_card(id)
-			if c.get("type") == "unit" and int(c.get("cost", 0)) > best_cost and int(c.get("cost", 0)) <= 2 + sector:
-				best = id
-				best_cost = int(c.get("cost", 0))
-		if best != "":
-			enemy["deck"].erase(best)
-			pre.append({"id": best, "arena": lib.get_card(best).get("arena", "ground"), "ready": false})
-	var obj := {"type": "standard"}
-	if t == "objective":
-		var kind: String = ["survive_n", "hunt", "attrition"][rng.randi_range(0, 2)]
-		if kind == "survive_n":
-			obj = {"type": "survive_n", "params": {"rounds": mini(3 + sector, 6)}}
-			n["title"] = "Mission: Hold the Line"
-			enemy["hp"] = 30
-		elif kind == "hunt":
-			var tgt := ""
-			for id in enemy["deck"]:
-				if lib.get_card(id).get("type") == "unit" and int(lib.get_card(id).get("cost", 0)) >= 3:
-					tgt = id
-					break
-			if tgt == "":
-				obj = {"type": "standard"}
-			else:
-				enemy["deck"].erase(tgt)
-				pre.append({"id": tgt, "arena": lib.get_card(tgt).get("arena", "ground"), "ready": false})
-				obj = {"type": "hunt", "params": {"target": tgt, "target_name": lib.get_card(tgt).get("name", "")}}
-				n["title"] = "Mission: Hunt " + lib.get_card(tgt).get("name", "")
+	enemy["extra_resources"] = {"fight": 0, "objective": 0, "elite": mini(sector - 1, 2), "boss": mini(sector - 1, 3)}[type]
+	enemy["profile"] = ["aggressive", "tempo", "defensive"][rng.randi_range(0, 2)] if type != "boss" else "tempo"
+	enemy["preplaced"] = []
+	var objective := {"type": "standard"}
+	if type == "elite":
+		if sector == 1:
+			enemy["hp"] += 3
 		else:
-			obj = {"type": "attrition", "params": {"per": 4}}
-			n["title"] = "Mission: Supply Raid"
-	enemy["preplaced"] = pre
+			var veteran := _mission_unit(lib, enemy["deck"], 2 + sector)
+			if not veteran.is_empty():
+				_predeploy_enemy(lib, enemy, veteran)
+	if type == "objective":
+		var variant := rng.randi_range(0, 2)
+		n["title"] = faction["missions"][variant]
+		match variant:
+			0:
+				objective = {"type": "survive_n", "params": {"rounds": mini(3 + sector, 6)}}
+				enemy["hp"] = 30
+			1:
+				var target := _mission_unit(lib, enemy["deck"], mini(7, 2 + sector))
+				if not target.is_empty():
+					_predeploy_enemy(lib, enemy, target)
+					objective = {"type": "hunt", "params": {"target": target, "target_name": lib.get_card(target).get("name", "")}}
+			2:
+				objective = {"type": "attrition", "params": {"per": 4}}
 	n["enemy"] = enemy
-	n["objective"] = obj
+	n["objective"] = objective
 	return n
 
+
+static func _boss_enemy(run: Dictionary, lib: CardLibrary, spots: Array, rng: RandomNumberGenerator, faction: Dictionary,
+		themed_cards: Array) -> Dictionary:
+	var pool := spots.filter(func(deck): return deck["id"] != run["deck_id"] and deck["id"] in faction["bosses"])
+	if pool.is_empty():
+		return _themed_enemy(lib, faction["reserve_boss"], 50, rng, 9, themed_cards)
+	var boss: Dictionary = pool[rng.randi_range(0, pool.size() - 1)]
+	return {"leader": boss["leader"], "base": boss["base"], "deck": deck_list({"deck": boss["cards"]}),
+		"name": lib.get_card(boss["leader"]).get("name", "Boss")}
+
+
+static func _themed_enemy(lib: CardLibrary, lineup: Array, size: int, rng: RandomNumberGenerator, max_cost: int,
+		themed_cards: Array) -> Dictionary:
+	var leader: String = lineup[0]
+	var base: String = lineup[1]
+	var deck := DeckBuilder.auto_deck(lib, leader, base, size, rng, ["ground", "space"], max_cost, themed_cards)
+	return {"leader": leader, "base": base, "deck": deck, "name": lib.get_card(leader).get("name", "Enemy")}
+
+
+static func _mission_unit(lib: CardLibrary, deck: Array, max_cost: int) -> String:
+	var best := ""
+	var best_cost := -1
+	for id in deck:
+		var card := lib.get_card(id)
+		var cost := int(card.get("cost", 0))
+		if card.get("type") == "unit" and cost > best_cost and cost <= max_cost:
+			best_cost = cost
+			best = id
+	return best
+
+
+static func _predeploy_enemy(lib: CardLibrary, enemy: Dictionary, id: String) -> void:
+	enemy["deck"].erase(id)
+	enemy["preplaced"].append({"id": id, "arena": lib.get_card(id).get("arena", "ground"), "ready": false})
 
 # ---------------------------------------------------------------- perks
 
@@ -345,7 +365,8 @@ static func on_battle_end(run: Dictionary, node_id: String, won: bool, base_dama
 	var bonus := int(50 * float(pe["credit_mult"]))
 	var credits := 50 + bonus
 	run["credits"] = int(run["credits"]) + bonus
-	var reward := {"credits": credits, "cards": roll_cards(run, lib, 3, t in ["elite", "boss"], rng)}
+	var recovered := _recover_spotlight_cards(run, t == "boss", rng) if int(run["sector"]) == 1 else 0
+	var reward := {"credits": credits, "recovered": recovered, "cards": roll_cards(run, lib, 3, t in ["elite", "boss"], rng)}
 	if t in ["elite", "boss"] or (t == "objective" and rng.randf() < 0.5):
 		reward["perks"] = random_perks(run, 2 if t != "boss" else 3, rng)
 	if t == "boss":
@@ -355,6 +376,15 @@ static func on_battle_end(run: Dictionary, node_id: String, won: bool, base_dama
 	run["pending_reward"] = reward
 	res["reward"] = reward
 	return res
+
+
+static func _recover_spotlight_cards(run: Dictionary, boss: bool, rng: RandomNumberGenerator) -> int:
+	var missing := deck_list({"deck": run["locked"]})
+	var battles_left := 1 if boss else maxi(2, 5 - int(run["stats"]["wins"]))
+	var count := ceili(float(missing.size()) / battles_left)
+	for _i in count:
+		gain_card(run, missing.pop_at(rng.randi_range(0, missing.size() - 1)))
+	return count
 
 
 ## Card offers: mostly the Spotlight cards not yet earned, plus loot in the deck's aspects.
@@ -416,12 +446,35 @@ static func gain_card(run: Dictionary, id: String) -> void:
 	run["stats"]["cards"] = int(run["stats"]["cards"]) + 1
 
 
-static func remove_card(run: Dictionary, id: String) -> void:
-	for k in ["owned", "deck"]:
-		if int(run[k].get(id, 0)) > 0:
-			run[k][id] = int(run[k][id]) - 1
-			if int(run[k][id]) <= 0:
-				run[k].erase(id)
+static func can_remove_card(run: Dictionary, id: String) -> bool:
+	var active := int(run["deck"].get(id, 0))
+	var owned := int(run["owned"].get(id, 0))
+	return owned > active or (active > 0 and deck_size(run) > int(cfg()["start"]["deck_min"]))
+
+
+static func remove_card(run: Dictionary, id: String) -> bool:
+	if not can_remove_card(run, id):
+		return false
+	if int(run["owned"][id]) == int(run["deck"].get(id, 0)):
+		_remove_copy(run["deck"], id)
+	_remove_copy(run["owned"], id)
+	return true
+
+
+static func trade_card(run: Dictionary, outgoing: String, incoming: String) -> bool:
+	if outgoing == incoming or int(run["deck"].get(outgoing, 0)) < 1 or int(run["deck"].get(incoming, 0)) >= 3:
+		return false
+	_remove_copy(run["deck"], outgoing)
+	_remove_copy(run["owned"], outgoing)
+	gain_card(run, incoming)
+	return true
+
+
+static func _remove_copy(cards: Dictionary, id: String) -> void:
+	if int(cards[id]) <= 1:
+		cards.erase(id)
+	else:
+		cards[id] = int(cards[id]) - 1
 
 
 static func upgrade_card(run: Dictionary, id: String, kind: String) -> void:
@@ -495,8 +548,11 @@ static func price(lib: CardLibrary, id: String) -> int:
 
 
 static func shop_stock(run: Dictionary, lib: CardLibrary, node_id: String) -> Array:
-	var rng := rng_for(run, hash(node_id))
-	return roll_cards(run, lib, 4, false, rng)
+	var stock: Dictionary = run.get("shop_stock", {})
+	if not stock.has(node_id):
+		stock[node_id] = roll_cards(run, lib, 4, false, rng_for(run, hash(node_id)))
+		run["shop_stock"] = stock
+	return stock[node_id]
 
 
 # ---------------------------------------------------------------- records

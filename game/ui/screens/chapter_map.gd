@@ -240,7 +240,8 @@ func _open_node(n: Dictionary) -> void:
 			var o := Objective.create(n.get("objective", {"type": "standard"}))
 			mp.text("Objective: " + o.describe(), 18, Sabacc.C_ACCENT)
 			var en := CampaignRun.encounter_enemy(run, n)
-			mp.text("Enemy: %s · %d HP · %s" % [en.get("name", "?"), int(en.get("hp", 12)), en.get("ai_profile", "tempo")], 16, Sabacc.C_DIM)
+			var enemy_hp := CampaignRun.enemy_base_hp(en, n.get("objective", {}))
+			mp.text("Enemy: %s · %d HP · %s" % [en.get("name", "?"), enemy_hp, en.get("ai_profile", "tempo")], 16, Sabacc.C_DIM)
 			if n.has("claimable_tokens"):
 				var names: Array = []
 				for tk in Tokens.resolve(n["claimable_tokens"]):

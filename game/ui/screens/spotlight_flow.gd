@@ -28,7 +28,10 @@ static func record(deck_id: String) -> Dictionary:
 
 
 static func start(deck_id: String) -> Dictionary:
-	var r := SpotlightRun.start(spot(deck_id), CardDB.lib, randi(), spots())
+	var owned := spot(deck_id)
+	if owned.is_empty() or not Progression.deck_owned(owned):
+		return {}
+	var r := SpotlightRun.start(owned, CardDB.lib, randi(), spots())
 	save_run(r)
 	return r
 
@@ -52,7 +55,7 @@ static func finish(r: Dictionary) -> int:
 static func start_node(r: Dictionary, node_id: String) -> void:
 	var n := SpotlightRun.node(r, node_id)
 	var cfg := SpotlightRun.match_config(r, n)
-	Router.go("match", {"mode": "spotlight", "cfg": cfg, "theme": "auto", "title": n.get("title", "Battle"),
+	Router.go("match", {"mode": "spotlight", "cfg": cfg, "theme": SpotlightRun.chapter_faction(r).get("backdrop", "auto"), "title": n.get("title", "Battle"),
 		"deck_id": r["deck_id"], "node_id": node_id})
 
 

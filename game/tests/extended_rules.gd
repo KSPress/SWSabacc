@@ -77,8 +77,80 @@ func _init() -> void:
 	test_unit_control_changes()
 	test_upgrade_search_filters()
 	test_spotlight_rules()
+	test_campaign_redesign()
 	print("EXTENDED RULES: %d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
+
+
+func test_campaign_redesign() -> void:
+	var episode: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/campaign/ep4.json"))
+	var pack_sizes := {}
+	for chapter in episode["chapters"]:
+		for seed_value in range(24):
+			var saga := CampaignRun.start(chapter, chapter["leader_options"][0], seed_value)
+			var count := CampaignRun.completion_pack_size(saga, chapter)
+			pack_sizes[count] = true
+			check(count == CampaignRun.completion_pack_size(saga.duplicate(true), chapter), "Saga pack size survives a save reload")
+		var saga := CampaignRun.start(chapter, chapter["leader_options"][0], 52)
+		for node in chapter["nodes"]:
+			if not node.has("enemy"):
+				continue
+			var config := CampaignRun.match_config(saga, chapter, node, {})
+			var original := CampaignRun.encounter_enemy(saga, node)
+			var extra := 2 if config["objective"].get("type", "standard") == "standard" else 0
+			check(config["players"][1]["base_hp"] == int(original.get("hp", 12)) + extra,
+				"Saga raises enemy base HP only in standard encounters")
+	check(pack_sizes.size() == 5 and pack_sizes.has(8) and pack_sizes.has(12), "Saga completion rewards span 8–12 cards")
+
+	var spots := spotlight_pool().filter(func(deck): return "traditional" in deck["modes"])
+	var spot: Dictionary = spots.filter(func(deck): return deck["id"] == "twi_ahsoka")[0]
+	var first := SpotlightRun.start(spot, lib, 1718, spots)
+	check(first["map"] == SpotlightRun.start(spot, lib, 1718, spots)["map"]
+		and first["map"] != SpotlightRun.start(spot, lib, 1719, spots)["map"], "Spotlight maps are seeded and vary between runs")
+	var factions := {}
+	var missions := {}
+	for chapter in 4:
+		var faction := SpotlightRun.chapter_faction(first)
+		factions[faction["name"]] = true
+		for node in first["map"]["nodes"].values():
+			if not node.has("enemy"):
+				continue
+			var enemy: Dictionary = node["enemy"]
+			if node["type"] == "boss":
+				check(enemy["deck"].size() == 50 and enemy["preplaced"].is_empty() and enemy["leader"] != spot["leader"],
+					"The chapter boss has a full deck and uses another leader")
+			else:
+				check(enemy["deck"].size() >= 17 and enemy["deck"].all(func(id):
+					return faction["traits"].any(func(tag): return tag in lib.get_card(id).get("traits", []))),
+					"The patrol deck is playable and every card fits the chapter theme")
+			if node["type"] == "objective":
+				missions[node["objective"]["type"]] = true
+				check(node["title"] in faction["missions"], "Special missions use faction-specific titles")
+		SpotlightRun.next_sector(first, lib, spots)
+	check(factions.size() == 4 and missions.size() >= 2, "The first four chapters cycle all factions and vary objectives")
+
+	var run := SpotlightRun.start(spot, lib, 42, spots)
+	var starter: String = run["deck"].keys()[0]
+	check(SpotlightRun.deck_size(run) == 20 and not SpotlightRun.remove_card(run, starter), "Run starts with 20 cards and cannot sell below the minimum")
+	for row in run["map"]["rows"]:
+		var available := SpotlightRun.available_nodes(run)
+		check(not available.is_empty() and available[0] in row, "A themed route remains connected")
+		var id: String = available[0]
+		var node := SpotlightRun.node(run, id)
+		if node.has("enemy"):
+			var reward := SpotlightRun.on_battle_end(run, id, true, 0, lib)
+			check(reward["reward"]["recovered"] > 0, "Winning a first-chapter battle recovers more of the Spotlight list")
+		else:
+			run["current"] = id
+			run["visited"].append(id)
+	var complete: bool = spot["cards"].keys().all(func(id): return int(run["owned"].get(id, 0)) == int(spot["cards"][id]))
+	check(run["locked"].is_empty() and complete and SpotlightRun.deck_size(run) == 50,
+		"Clearing the first boss recovers every original copy even without loot picks")
+	var stock := SpotlightRun.shop_stock(run, lib, "test_market")
+	var offer: String = stock.filter(func(id): return int(run["deck"].get(id, 0)) < 3 and id != starter).front()
+	check(SpotlightRun.trade_card(run, starter, offer) and SpotlightRun.deck_size(run) == 50
+		and not SpotlightRun.trade_card(run, offer, offer), "A market trade exchanges one active card without shrinking the deck")
+	check(SpotlightRun.shop_stock(run, lib, "test_market") == stock, "Market stock stays fixed after a trade")
 
 
 func run_card_case(test: Callable, ids: Array[String]) -> void:

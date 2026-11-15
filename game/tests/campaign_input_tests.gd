@@ -170,13 +170,31 @@ func _run() -> void:
 				finger_down.position = center
 				finger_down.pressed = true
 				get_viewport().push_input(finger_down, true)
+				var duplicate_press := InputEventMouseButton.new()
+				duplicate_press.button_index = MOUSE_BUTTON_LEFT
+				duplicate_press.position = center
+				duplicate_press.pressed = true
+				get_viewport().push_input(duplicate_press, true)
+				var finger_drag := InputEventScreenDrag.new()
+				finger_drag.index = 3
+				finger_drag.position = center + Vector2(88, 0)
+				finger_drag.relative = Vector2(88, 0)
+				get_viewport().push_input(finger_drag, true)
 				var finger_up := InputEventScreenTouch.new()
 				finger_up.index = 3
 				finger_up.position = center + Vector2(130, 0)
 				get_viewport().push_input(finger_up, true)
+				duplicate_press.pressed = false
+				duplicate_press.position = finger_up.position
+				get_viewport().push_input(duplicate_press, true)
 				await _wait(0.35)
-				check(inspector._inst == turret, "Touch swipe navigates in the other direction")
+				check(inspector._inst == turret, "Touch swipe navigates once with mouse emulation active")
 				await _click(inspector._carousel_arrows[1])
+				var preview_edge: Vector2 = inspector._card.get_global_rect().get_center()
+				preview_edge.x = inspector._card.get_global_rect().end.x + 18
+				await _drag(preview_edge, preview_edge - Vector2(130, 0))
+				await _wait(0.35)
+				check(inspector._inst == pilot, "Dragging from the edge of a background card advances the carousel")
 				await _click(selector)
 				check(selector.get_popup().visible, "The attachment selector opens via portrait input")
 				if only == "capture":

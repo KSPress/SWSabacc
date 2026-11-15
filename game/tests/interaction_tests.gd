@@ -40,6 +40,13 @@ func _run() -> void:
 	Save.data = Save.default_data()
 	Sabacc.settings["anim_speed"] = 1.0
 	Sabacc.settings["perf_mode"] = false
+	if only == "campaign_update":
+		await _test_campaign_update()
+		print("CAMPAIGN UPDATE: %d checks, %d failed" % [checks, failures])
+		if failures:
+			get_tree().quit(1)
+			await get_tree().process_frame
+		return
 	if only == "trigger_picker":
 		await _test_trigger_picker()
 		print("TRIGGER PICKER INPUT: %d checks, %d failed" % [checks, failures])
@@ -160,6 +167,80 @@ func _run() -> void:
 	if failures:
 		get_tree().quit(1)
 		await get_tree().process_frame
+
+
+func _test_campaign_update() -> void:
+	await _size(570, 1080)
+	Sabacc.settings["music_volume"] = 0.5
+	Sabacc.settings["music_enabled"] = true
+	Music._apply()
+	var quiet := Music.player.volume_db
+	var track := Music.current_path
+	await _go("res://ui/screens/boot.tscn")
+	var boot := get_tree().current_scene
+	check(boot.scene_file_path.ends_with("boot.tscn") and Music.player.volume_db >= quiet + 15.0
+		and Music.current_path == track, "The logo boosts the current track without restarting it")
+	await _click(boot)
+	await _wait(0.8)
+	check(get_tree().current_scene.scene_file_path.ends_with("welcome.tscn") and is_equal_approx(Music.player.volume_db, quiet),
+		"Skipping the logo fades to the regular menu level")
+	Sabacc.settings["music_enabled"] = false
+	Music._apply()
+	check(not Music.player.playing, "The startup boost respects the music setting")
+	check(SpotlightFlow.start("sor_luke").is_empty(), "An unowned Spotlight deck cannot start a run")
+	check(Progression.claim_starting_set("SOR"), "Selecting Spark of Rebellion grants the Spotlight pair")
+
+	var chapter := CardDB.chapter("ep4_ch1_tatooine")
+	var boss: Dictionary = chapter["nodes"].filter(func(node): return node["type"] == "boss")[0]
+	var on_route: Array = chapter["map"]["edges"].keys().filter(func(id): return boss["id"] in chapter["map"]["edges"][id])
+	var rewards := {}
+	for size in [8, 12]:
+		for seed_value in range(40):
+			var saga := CampaignRun.start(chapter, chapter["leader_options"][0], seed_value)
+			if CampaignRun.completion_pack_size(saga, chapter) != size:
+				continue
+			saga["current"] = on_route[0]
+			Save.set_run(saga)
+			var battle := Match.new()
+			battle.setup(CardDB.lib, CampaignRun.match_config(saga, chapter, boss, {}))
+			battle.set_winner(0, "test")
+			var result := CampaignFlow.on_match_end({"chapter_id": chapter["id"], "node_id": boss["id"]}, battle)
+			rewards[size] = result.get("pack", "")
+			break
+	for size in [8, 12]:
+		var id: String = rewards.get(size, "")
+		var packs := Progression.packs().filter(func(pack): return pack["id"] == id)
+		check(packs.size() == 1 and packs[0]["cards"].size() == size and packs[0]["cards"].all(func(cid):
+			return CardDB.card(cid).get("set") == packs[0]["set"]), "Saga granted a %d-card pack from a single set" % size)
+		if packs.size() == 1:
+			Progression.tear(id)
+			for index in packs[0]["cards"].size():
+				Progression.reveal(id, index)
+			check(packs[0]["revealed"].size() == size, "The %d-card Saga pack reveals every slot" % size)
+
+	var run := SpotlightFlow.start("sor_luke")
+	check(not run.is_empty() and SpotlightRun.deck_size(run) == 20, "An owned Spotlight starts with an abbreviated deck")
+	var first: String = SpotlightRun.available_nodes(run)[0]
+	SpotlightRun.on_battle_end(run, first, true, 0, CardDB.lib)
+	run["pending_reward"] = {}
+	SpotlightFlow.save_run(run)
+	await _go("spotlight_run", {"deck_id": run["deck_id"]})
+	var screen := get_tree().current_scene
+	var shops := SpotlightRun.available_nodes(run).filter(func(id): return SpotlightRun.node(run, id)["type"] == "shop")
+	check(not shops.is_empty(), "The opening battle unlocks a market route")
+	if shops.is_empty():
+		return
+	await _click(screen._nodes[shops[0]])
+	var trade := _button(screen, "Trade one card")
+	check(trade != null and not trade.disabled, "The generated market offers a card exchange")
+	if not trade or trade.disabled:
+		return
+	var count := SpotlightRun.deck_size(run)
+	await _click(trade)
+	await _click(_find_card(screen))
+	await _click(_find_card(screen))
+	check(shops[0] in run.get("shop_traded", []) and SpotlightRun.deck_size(run) == count,
+		"A portrait market trade swaps cards without changing deck size")
 
 
 func _test_trigger_picker() -> void:

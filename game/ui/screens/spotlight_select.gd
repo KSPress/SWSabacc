@@ -17,7 +17,7 @@ func build() -> void:
 	_box = VBoxContainer.new()
 	_box.add_theme_constant_override("separation", 14)
 	_scroll.add_child(_box)
-	var intro := UIKit.label("Pick a Spotlight deck. You start with its leader, base and part of its list; win battles to earn the rest, buy and upgrade cards, and push through ever-harder sectors until your base falls. Each deck keeps its own record.", 17, Sabacc.C_DIM)
+	var intro := UIKit.label("Begin with 20 cards from an owned Spotlight deck. Recover the rest as you win battles in Chapter 1. Upgrade and trade cards between missions. Each chapter faces a different faction and ends with a full-deck boss.", 17, Sabacc.C_DIM)
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(intro)
 	var flow := HFlowContainer.new()
@@ -87,9 +87,9 @@ func _open(d: Dictionary) -> void:
 			mp.text("• Sector %d — %d wins, %d bosses, %d cards earned, deck %d" % [int(h.get("sector", 0)), int(h.get("wins", 0)), int(h.get("bosses", 0)), int(h.get("cards", 0)), int(h.get("deck", 0))], 14, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_LEFT)
 	var go := SabaccButton.make("Begin run", SabaccButton.Style.PRIMARY, "play", true)
 	go.pressed.connect(func():
-		mp.close()
-		SpotlightFlow.start(d["id"])
-		Router.go("spotlight_run", {"deck_id": d["id"]}))
+		if not SpotlightFlow.start(d["id"]).is_empty():
+			mp.close()
+			Router.go("spotlight_run", {"deck_id": d["id"]}))
 	mp.add(go)
 	var cancel := SabaccButton.make("Back", SabaccButton.Style.GHOST)
 	cancel.pressed.connect(mp.close)

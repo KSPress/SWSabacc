@@ -21,7 +21,6 @@ func build() -> void:
 	Appearance.set_deck(deck.get("leader", ""), deck.get("base", ""), Save.deck_list(deck))
 	var res: Dictionary = Router.params.get("result", {})
 	set_header("Spotlight · " + CardDB.card(SpotlightFlow.spot(deck_id).get("leader", "")).get("name", ""), "spotlight")
-	bg.backdrop = Art.ui_texture("planets/" + ["kessel", "felucia", "nar_shaddaa", "kamino", "mustafar"][int(run.get("sector", 1)) % 5]) if not run.is_empty() else null
 	bg.backdrop_alpha = 0.3
 	if run.is_empty():
 		_death(res)
@@ -47,7 +46,9 @@ func _refresh() -> void:
 	for c in _hud.get_children():
 		c.queue_free()
 	var hp := int(run["base_max"]) - int(run["base_damage"])
-	_hud.add_child(_chip("Sector %d" % int(run["sector"]), Sabacc.C_ACCENT))
+	var faction := SpotlightRun.chapter_faction(run)
+	bg.backdrop = Art.ui_texture("planets/" + str(faction.get("backdrop", "felucia")))
+	_hud.add_child(_chip("Chapter %d · %s" % [int(run["sector"]), faction.get("name", "Outer Rim")], Sabacc.C_ACCENT))
 	_hud.add_child(_chip("Base %d / %d" % [hp, int(run["base_max"])], Sabacc.C_GOOD if hp > int(run["base_max"]) / 2 else Sabacc.C_EMPIRE))
 	_hud.add_child(UIKit.credit_label("%d run credits" % int(run["credits"])))
 	var locked := 0
@@ -225,12 +226,14 @@ func _event_panel(mp: ModalPanel, id: String, n: Dictionary) -> void:
 		var b := SabaccButton.make(ch.get("label", ""), SabaccButton.Style.PRIMARY, "event")
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.disabled = int(eff.get("credits", 0)) < 0 and int(run["credits"]) < -int(eff["credits"])
+		if eff.has("remove_card") and _removable_cards().is_empty():
+			b.disabled = true
 		b.pressed.connect(func():
 			mp.close()
 			if eff.has("remove_card"):
 				_pick_owned("Choose a card to trade away", func(cid):
-					SpotlightRun.remove_card(run, cid)
-					_finish_effect(id, eff))
+					if SpotlightRun.remove_card(run, cid):
+						_finish_effect(id, eff), _removable_cards())
 				return
 			if eff.has("upgrade_card"):
 				_pick_owned("Choose a card to upgrade (every copy gains it)", func(cid):
@@ -281,6 +284,7 @@ func _shop_panel(mp: ModalPanel, id: String) -> void:
 	var prices: Dictionary = SpotlightRun.cfg().get("prices", {})
 	mp.add(UIKit.credit_label("%d run credits" % int(run["credits"])))
 	var stock := SpotlightRun.shop_stock(run, CardDB.lib, id)
+	_save()
 	var bought: Array = run.get("shop_bought", {}).get(id, [])
 	var grid := GridContainer.new()
 	grid.columns = 4
@@ -321,17 +325,25 @@ func _shop_panel(mp: ModalPanel, id: String) -> void:
 			_open_node(id))
 		col.add_child(b)
 		grid.add_child(col)
+	var trade := SabaccButton.make("Trade one card", SabaccButton.Style.GHOST, "deck")
+	var offers := stock.filter(func(cid): return cid not in bought and int(run["deck"].get(cid, 0)) < 3)
+	var outgoing: Array = run["deck"].keys().filter(func(cid): return offers.any(func(offer): return offer != cid))
+	trade.disabled = id in run.get("shop_traded", []) or outgoing.is_empty()
+	trade.pressed.connect(func():
+		mp.close()
+		_trade_at_market(id, outgoing, offers))
+	mp.add(trade)
 	var rm := SabaccButton.make("Remove a card (%d)" % int(prices.get("remove", 35)), SabaccButton.Style.GHOST, "deck")
-	rm.disabled = int(run["credits"]) < int(prices.get("remove", 35))
+	rm.disabled = int(run["credits"]) < int(prices.get("remove", 35)) or _removable_cards().is_empty()
 	rm.pressed.connect(func():
 		mp.close()
 		_pick_owned("Choose a card to remove", func(cid):
-			if not SpotlightRun.spend_credits(run, int(prices.get("remove", 35))):
+			if not SpotlightRun.can_remove_card(run, cid) or not SpotlightRun.spend_credits(run, int(prices.get("remove", 35))):
 				return
 			SpotlightRun.remove_card(run, cid)
 			_save()
 			_refresh()
-			_open_node(id)))
+			_open_node(id), _removable_cards()))
 	mp.add(rm)
 	var heal := SabaccButton.make("Repairs: heal 6 (%d)" % int(prices.get("heal6", 20)), SabaccButton.Style.GHOST, "heal")
 	heal.disabled = int(run["credits"]) < int(prices.get("heal6", 20)) or int(run["base_damage"]) == 0
@@ -364,6 +376,28 @@ func _shop_panel(mp: ModalPanel, id: String) -> void:
 	mp.add(leave)
 
 
+func _trade_at_market(id: String, outgoing: Array, offers: Array) -> void:
+	_pick_owned("Choose a card to trade away", func(from):
+		var replacements := offers.filter(func(offer): return offer != from)
+		_pick_owned("Choose its replacement", func(to):
+			if SpotlightRun.trade_card(run, from, to):
+				var traded: Array = run.get("shop_traded", [])
+				traded.append(id)
+				run["shop_traded"] = traded
+				var purchases: Dictionary = run.get("shop_bought", {})
+				var sold: Array = purchases.get(id, [])
+				sold.append(to)
+				purchases[id] = sold
+				run["shop_bought"] = purchases
+				_save()
+				_refresh()
+			_open_node(id), replacements), outgoing)
+
+
+func _removable_cards() -> Array:
+	return run["owned"].keys().filter(func(cid): return SpotlightRun.can_remove_card(run, cid))
+
+
 func _treasure_panel(mp: ModalPanel, id: String) -> void:
 	mp.text("Choose one:", 17)
 	var perks := SpotlightRun.random_perks(run, 2, SpotlightRun.rng_for(run, hash(id)))
@@ -394,6 +428,8 @@ func _reward() -> void:
 	mp.add(UIKit.aurebesh("victory", 22))
 	var t := mp.text("VICTORY · +%d CREDITS" % int(rw.get("credits", 0)), 30, Sabacc.C_GOLD)
 	t.add_theme_font_override("font", Sabacc.font_title)
+	if int(rw.get("recovered", 0)) > 0:
+		mp.text("Recovered %d cards from your starting Spotlight deck." % int(rw["recovered"]), 17, Sabacc.C_ACCENT)
 	var picks := int(rw.get("picks", 1))
 	mp.text("Choose %d card%s to add to your deck (tap a card to choose, long-press to inspect)" % [picks, "s" if picks > 1 else ""], 17)
 	var chosen: Array = []
@@ -471,7 +507,7 @@ func _reward() -> void:
 # ---------------------------------------------------------------- deck
 
 ## Pick one owned card (for remove / upgrade).
-func _pick_owned(title: String, cb: Callable) -> void:
+func _pick_owned(title: String, cb: Callable, cards: Array = []) -> void:
 	var mp := ModalPanel.open(self, 2000.0, Sabacc.C_GOLD, true)
 	mp.text(title.to_upper(), 24, Sabacc.C_GOLD)
 	var grid := GridContainer.new()
@@ -482,7 +518,7 @@ func _pick_owned(title: String, cb: Callable) -> void:
 	grid.add_theme_constant_override("v_separation", 8)
 	mp.add(grid)
 	var sc := (vs.x * 0.94 - 60 - cols * 8) / cols / CardView.PORTRAIT.x
-	var ids: Array = run["owned"].keys()
+	var ids: Array = run["owned"].keys() if cards.is_empty() else cards.duplicate()
 	ids.sort_custom(func(a, b): return int(CardDB.card(a).get("cost", 0)) < int(CardDB.card(b).get("cost", 0)))
 	for cid in ids:
 		var slot := Control.new()

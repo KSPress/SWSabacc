@@ -12,6 +12,7 @@ var _elapsed := 0.0
 
 
 func _ready() -> void:
+	Music.set_boot_active(true)
 	theme = UIKit.build_theme()
 	var backdrop := ColorRect.new()
 	backdrop.color = Color("#050c14")
@@ -49,6 +50,10 @@ func _ready() -> void:
 
 	if CardDB.loaded:
 		get_tree().create_timer(INTRO_SECONDS).timeout.connect(_show_menu)
+
+
+func _exit_tree() -> void:
+	Music.set_boot_active(false)
 
 
 func _layout_emblem() -> void:

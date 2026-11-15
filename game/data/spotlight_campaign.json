@@ -1,6 +1,49 @@
 {
   "_comment": "Spotlight Campaign tuning + content (IP-free). Card ids only.",
   "start": {"cards": 20, "base_hp": 30, "credits": 0, "deck_min": 20},
+  "first_rows": [
+    {"fight": 1},
+    {"shop": 1, "rest": 1, "event": 1},
+    {"objective": 3, "fight": 2},
+    {"shop": 1, "rest": 1, "event": 1},
+    {"elite": 1, "objective": 2, "fight": 2},
+    {"rest": 2, "shop": 2, "treasure": 1},
+    {"boss": 1}
+  ],
+  "factions": {
+    "clones": {
+      "name": "Clone Army", "backdrop": "kamino", "traits": ["clone", "republic"],
+      "patrols": [["TWI_007", "TWI_026"], ["TWI_012", "TWI_024"], ["TWI_003", "TWI_024"]],
+      "bosses": ["twi_ahsoka"], "reserve_boss": ["TWI_007", "TWI_026"],
+      "fights": ["Clone Patrol", "Ambush at the Barracks", "Gunship Interception"],
+      "elites": ["Republic Commando Raid", "Veteran Clone Battalion"],
+      "missions": ["Hold the Landing Zone", "Intercept the Republic Courier", "Raid the Clone Supply Depot"]
+    },
+    "separatists": {
+      "name": "Separatist Alliance", "backdrop": "geonosis", "traits": ["separatist"],
+      "patrols": [["TWI_014", "TWI_023"], ["TWI_006", "TWI_026"], ["HMW_008", "TWI_023"]],
+      "bosses": ["twi_grievous"], "reserve_boss": ["TWI_006", "TWI_026"],
+      "fights": ["Droid Patrol", "Foundry Ambush", "Blockade Runner"],
+      "elites": ["Separatist Strike Force", "Droid Factory Guard"],
+      "missions": ["Hold Against the Droid Swarm", "Intercept the Droid Commander", "Raid the Droid Foundry"]
+    },
+    "empire": {
+      "name": "Galactic Empire", "backdrop": "kuat_ring", "traits": ["imperial"],
+      "patrols": [["SOR_007", "SOR_026"], ["SHD_007", "SHD_019"], ["LAW_003", "SOR_023"]],
+      "bosses": ["sor_vader", "ash_palpatine", "hmw_tarkin", "shd_gideon"], "reserve_boss": ["SOR_010", "SOR_023"],
+      "fights": ["Imperial Checkpoint", "Stormtrooper Patrol", "TIE Interception"],
+      "elites": ["Imperial Security Bureau Raid", "Imperial Shock Troopers"],
+      "missions": ["Hold Against the Empire", "Eliminate the Imperial Officer", "Raid the Imperial Depot"]
+    },
+    "scum": {
+      "name": "Scum and Villainy", "backdrop": "nar_shaddaa", "traits": ["underworld", "bounty hunter", "hutt", "pirate", "fringe"],
+      "patrols": [["SHD_014", "SHD_024"], ["LAW_004", "JTL_030"], ["SEC_007", "SHD_025"]],
+      "bosses": ["law_jabba", "jtl_boba"], "reserve_boss": ["LAW_015", "SHD_024"],
+      "fights": ["Cantina Ambush", "Smuggler Intercept", "Syndicate Toll"],
+      "elites": ["Bounty Hunter Posse", "Syndicate Enforcers"],
+      "missions": ["Hold the Smuggler's Hideout", "Collect the Guild Bounty", "Raid the Syndicate Cache"]
+    }
+  },
   "rows": [
     {"fight": 6, "event": 2, "objective": 2},
     {"fight": 4, "elite": 2, "shop": 2, "event": 2},

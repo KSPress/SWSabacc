@@ -93,7 +93,8 @@ func _build() -> void:
 	theme_bg = BoardTheme.new()
 	UIKit.fill_rect(theme_bg)
 	add_child(theme_bg)
-	theme_bg.setup(params.get("theme", "auto"), params.get("mode") == "campaign")
+	var location: String = params.get("theme", "auto")
+	theme_bg.setup(location, params.get("mode") == "campaign" or (params.get("mode") == "spotlight" and location != "auto"))
 	board_layer = Control.new()
 	UIKit.fill_rect(board_layer)
 	board_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE

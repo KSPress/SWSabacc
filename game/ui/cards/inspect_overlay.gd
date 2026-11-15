@@ -49,6 +49,8 @@ var _carousel_previews: Array[TextureRect] = []
 var _carousel_arrows: Array[Button] = []
 var _carousel_origin := Vector2.ZERO
 var _carousel_pointer := -2
+var _carousel_over_card := false
+var _carousel_drag := false
 var _flight: Tween
 var _closing := false
 var _time := 0.0
@@ -244,30 +246,61 @@ func _layout_attachment_previews(view: Vector2, shown: Vector2) -> void:
 func _input(event: InputEvent) -> void:
 	if _stack.size() < 2 or _closing or is_instance_valid(_expanded) or _card == null:
 		return
-	var pointer := -2
-	var pressed := false
-	var at := Vector2.ZERO
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		pointer = -1
-		pressed = event.pressed
-		at = event.position
-	elif event is InputEventScreenTouch:
-		pointer = event.index
-		pressed = event.pressed
-		at = event.position
-	if pointer == -2:
+	if event is InputEventScreenTouch:
+		if event.pressed and _carousel_pointer < 0:
+			_begin_carousel_swipe(event.index, event.position)
+		elif not event.pressed and event.index == _carousel_pointer:
+			_finish_carousel_swipe(event.position, event.canceled)
+	elif event is InputEventScreenDrag and event.index == _carousel_pointer:
+		_track_carousel_swipe(event.position)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if _carousel_pointer >= 0:
+			# Accept the native finger as the gesture owner even when Android also emits a mouse event.
+			if not _carousel_over_card or _carousel_drag:
+				get_viewport().set_input_as_handled()
+		elif event.pressed:
+			_begin_carousel_swipe(-1, event.position)
+		elif _carousel_pointer == -1:
+			_finish_carousel_swipe(event.position)
+	elif event is InputEventMouseMotion and _carousel_pointer == -1:
+		_track_carousel_swipe(event.position)
+
+
+func _begin_carousel_swipe(pointer: int, at: Vector2) -> void:
+	var card_rect := _card.get_global_rect()
+	_carousel_over_card = card_rect.has_point(at)
+	var over_preview := _carousel_previews.any(func(preview):
+		return preview.visible and Rect2(Vector2.ZERO, preview.size).has_point(preview.get_global_transform_with_canvas().affine_inverse() * at))
+	if not _carousel_over_card and not over_preview:
 		return
-	if pressed:
-		if Rect2(_card.home_pos, _card.base_size() * _card.home_scale).grow(38).has_point(at):
-			_carousel_origin = at
-			_carousel_pointer = pointer
-	elif pointer == _carousel_pointer:
-		_carousel_pointer = -2
-		var delta := at - _carousel_origin
-		if absf(delta.x) >= 44.0 and absf(delta.x) > absf(delta.y) * 1.25:
-			_card._press = false
-			get_viewport().set_input_as_handled()
-			_step_attachment.call_deferred(-1 if delta.x > 0 else 1)
+	_carousel_origin = at
+	_carousel_pointer = pointer
+	_carousel_drag = false
+	if not _carousel_over_card:
+		get_viewport().set_input_as_handled()
+
+
+func _horizontal_swipe(at: Vector2) -> bool:
+	var delta := at - _carousel_origin
+	return absf(delta.x) >= 36.0 and absf(delta.x) > absf(delta.y) * 1.25
+
+
+func _track_carousel_swipe(at: Vector2) -> void:
+	_carousel_drag = _carousel_drag or _horizontal_swipe(at)
+	if _carousel_drag:
+		_card._press = false
+		get_viewport().set_input_as_handled()
+
+
+func _finish_carousel_swipe(at: Vector2, canceled := false) -> void:
+	_carousel_pointer = -2
+	var navigate := not canceled and _horizontal_swipe(at)
+	if navigate or canceled or _carousel_drag or not _carousel_over_card:
+		_card._press = false
+		get_viewport().set_input_as_handled()
+	_carousel_drag = false
+	if navigate:
+		_step_attachment.call_deferred(-1 if at.x > _carousel_origin.x else 1)
 
 
 func _add_live_actions() -> void:

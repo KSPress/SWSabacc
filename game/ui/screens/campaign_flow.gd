@@ -109,7 +109,8 @@ static func on_match_end(params: Dictionary, m: Match) -> Dictionary:
 				run["consecutive_clears"] = int(run.get("consecutive_clears", 0)) + 1
 			Save.clear_chapter(chapter["id"])
 			res["unlocked"] = [] if Cosmetics.state()["gm"] else Save.unlock(chapter.get("unlocks_on_clear", []))
-			res["pack"] = Progression.grant("Saga campaign run completed", "saga:%s:%s" % [chapter["id"], run.get("reward_id", run.get("node_seed", 0))])
+			res["pack"] = Progression.grant("Saga campaign run completed",
+				"saga:%s:%s" % [chapter["id"], run.get("reward_id", run.get("node_seed", 0))], CampaignRun.completion_pack_size(run, chapter))
 		else:
 			res["rewards"] = CampaignRun.roll_rewards(run, chapter, node, CardDB.lib)
 			if int(node.get("reward_tier", 1)) >= 3:

@@ -64,6 +64,7 @@ static func match_config(run: Dictionary, chapter: Dictionary, node: Dictionary,
 		if not (t in tokens):
 			tokens.append(t)
 	var enemy := encounter_enemy(run, node)
+	var objective: Dictionary = node.get("objective", {"type": "standard"})
 	var base_id: String = node.get("base", chapter.get("base_sequence", [""])[0])
 	var deck: Array = run["deck"].duplicate()
 	for id in node.get("deploy_from_deck", []):
@@ -72,7 +73,7 @@ static func match_config(run: Dictionary, chapter: Dictionary, node: Dictionary,
 		"seed": int(run.get("node_seed", 0)) + int(run.get("fights", 0)) * 7919,
 		"rules": rules,
 		"tokens": tokens,
-		"objective": node.get("objective", {"type": "standard"}),
+		"objective": objective,
 		"first": node.get("first", -1),
 		"players": [
 			{
@@ -89,7 +90,8 @@ static func match_config(run: Dictionary, chapter: Dictionary, node: Dictionary,
 				"name": enemy.get("name", "Enemy"), "leader": enemy.get("leader", ""),
 				"base": enemy.get("base", base_id), "deck": enemy.get("deck", []), "ai": true,
 				"profile": enemy.get("ai_profile", "tempo"), "hero_skin": enemy.get("hero_skin", ""),
-				"base_hp": int(enemy.get("hp", 12)), "preplaced": enemy.get("preplaced", []),
+				"base_hp": enemy_base_hp(enemy, objective),
+				"preplaced": enemy.get("preplaced", []),
 			},
 		],
 	}
@@ -104,6 +106,16 @@ static func encounter_enemy(run: Dictionary, node: Dictionary) -> Dictionary:
 		rng.seed = int(run.get("node_seed", 0)) + str(node["id"]).hash() * 7919
 		enemy.merge(variants[rng.randi_range(0, variants.size() - 1)], true)
 	return enemy
+
+
+static func enemy_base_hp(enemy: Dictionary, objective: Dictionary) -> int:
+	return int(enemy.get("hp", 12)) + (2 if objective.get("type", "standard") == "standard" else 0)
+
+
+static func completion_pack_size(run: Dictionary, chapter: Dictionary) -> int:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(run.get("node_seed", 0)) * 7919 + str(chapter["id"]).hash()
+	return rng.randi_range(8, 12)
 
 
 ## Offer `n` distinct reward cards; higher tiers bias toward rarer/pricier cards.

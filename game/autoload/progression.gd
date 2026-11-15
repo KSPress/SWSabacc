@@ -193,12 +193,12 @@ func buy_pack(set_code: String) -> String:
 	return id
 
 
-func grant(source: String, identity: String) -> String:
+func grant(source: String, identity: String, card_count := 10) -> String:
 	var s := state()
 	if Cosmetics.state()["gm"] or s["claimed"].has(identity):
 		return ""
 	var set_code: String = CardLibrary.BOOSTER_SETS.pick_random()
-	var id := _queue_pack(source, set_code)
+	var id := _queue_pack(source, set_code, false, card_count)
 	if not id.is_empty():
 		s["claimed"][identity] = true
 		Save.write()
@@ -206,7 +206,7 @@ func grant(source: String, identity: String) -> String:
 	return id
 
 
-func _queue_pack(source: String, set_code: String, account_pack := false) -> String:
+func _queue_pack(source: String, set_code: String, account_pack := false, card_count := 10) -> String:
 	var s := state()
 	var random := RandomNumberGenerator.new()
 	random.randomize()
@@ -214,7 +214,7 @@ func _queue_pack(source: String, set_code: String, account_pack := false) -> Str
 	var pool := _pool(set_code)
 	if pool.is_empty():
 		return ""
-	for index in 10:
+	for index in card_count:
 		cards.append(pool[random.randi_range(0, pool.size() - 1)])
 	s["sequence"] += 1
 	var id := "pack_%d" % s["sequence"]

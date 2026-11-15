@@ -616,6 +616,7 @@ func _spotlight_shots() -> void:
 	Save.data["spotlight_runs"] = {}
 	Save.data["spotlight_records"] = {}
 	var spot: Dictionary = SpotlightFlow.spots()[0]
+	Save.unlock([spot["leader"], spot["base"]] + spot["cards"].keys())
 	# one finished run so a record shows
 	var dead := SpotlightRun.start(spot, CardDB.lib, 77, SpotlightFlow.spots())
 	dead["stats"]["wins"] = 6
@@ -670,6 +671,7 @@ func _spotlight_e2e() -> void:
 	await _size(540, 960)
 	Save.data["spotlight_runs"] = {}
 	var spot: Dictionary = SpotlightFlow.spots()[2]
+	Save.unlock([spot["leader"], spot["base"]] + spot["cards"].keys())
 	var r := SpotlightFlow.start(spot["id"])
 	var nid := ""
 	for id in SpotlightRun.available_nodes(r):
