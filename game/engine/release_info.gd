@@ -2,8 +2,8 @@ class_name ReleaseInfo
 extends RefCounted
 ## Validate the release manifest before trusting an APK URL or allocating disk.
 
-const VERSION_CODE := 26
-const VERSION_NAME := "0.7.16"
+const VERSION_CODE := 27
+const VERSION_NAME := "0.7.17"
 const DOWNLOAD_PREFIX := "https://github.com/KSPress/SWSabacc/releases/download/"
 const MAX_APK_BYTES := 512 * 1024 * 1024
 

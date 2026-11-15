@@ -93,7 +93,7 @@ func _build() -> void:
 	theme_bg = BoardTheme.new()
 	UIKit.fill_rect(theme_bg)
 	add_child(theme_bg)
-	theme_bg.setup(params.get("theme", "auto"))
+	theme_bg.setup(params.get("theme", "auto"), params.get("mode") == "campaign")
 	board_layer = Control.new()
 	UIKit.fill_rect(board_layer)
 	board_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -342,7 +342,8 @@ func _token_scale(arena: String, player: int) -> float:
 		var r: Rect2 = arena_rects[k]
 		var parts: PackedStringArray = k.split("_")
 		var count: int = m.players[int(parts[1])].units_in(parts[0]).size()
-		var columns := _arena_columns(r, maxi(count, 3 if m.rules.arenas.size() == 1 else 4))
+		var reserved_columns := 4 if portrait and m.rules.arenas.size() > 1 else 3
+		var columns := _arena_columns(r, maxi(count, reserved_columns))
 		var rows := maxi(1, ceili(count / float(columns)))
 		best = minf(best, ((r.size.x - 24.0) / columns - 8.0) / UnitToken.SIZE.x)
 		best = minf(best, ((r.size.y - 14.0) / rows - 8.0) / UnitToken.SIZE.y)
@@ -436,6 +437,10 @@ func _drain() -> void:
 				Fx.banner(fx_layer, e["text"], Sabacc.C_GOLD, "", 22)
 			"control":
 				_position_tokens()
+			"move_arena":
+				if portrait:
+					_layout_arenas()
+				_position_tokens()
 			"reveal_top":
 				var revealed := m.card(e["uid"])
 				if revealed:
@@ -450,6 +455,10 @@ func _drain() -> void:
 				await _wait(0.18)
 			"play":
 				await _anim_play(e)
+			"upgrade":
+				var host: UnitToken = tokens.get(e["on"])
+				if host:
+					await host.animate_attachment(m.card(e["uid"]))
 			"attack", "overwhelm":
 				await _anim_attack(m.card(e["a"]), m.card(e["target"]), e["t"] == "attack")
 			"damage":
@@ -611,18 +620,20 @@ func _anim_attack(a: CardInst, t: CardInst, announce_action := true) -> void:
 	if attacker == null:
 		return
 	var target := _card_center(t)
+	var defender: UnitToken = tokens.get(t.uid)
+	var impact_scale := defender.scale.x if defender else attacker.scale.x
 	var attack_style := AttackStyle.of(a)
 	var style: String = attack_style["style"]
 	var palette: String = attack_style["palette"]
 	attacker.z_index = 20
 	if style in ["saber", "claw", "melee"]:
-		await _anim_close_attack(attacker, target, style, palette)
+		await _anim_close_attack(attacker, target, style, palette, impact_scale)
 	else:
-		await _anim_burst(attacker, target, style, palette)
+		await _anim_burst(attacker, target, style, palette, impact_scale)
 	attacker.z_index = 0
 
 
-func _anim_close_attack(attacker: UnitToken, target: Vector2, style: String, palette: String) -> void:
+func _anim_close_attack(attacker: UnitToken, target: Vector2, style: String, palette: String, impact_scale: float) -> void:
 	var start := attacker.position
 	var direction := attacker.center_global().direction_to(target)
 	var target_position := start + target - attacker.center_global() - direction * 62.0 * attacker.scale.x
@@ -633,14 +644,14 @@ func _anim_close_attack(attacker: UnitToken, target: Vector2, style: String, pal
 	if style == "saber":
 		Sfx.play("swing")
 		var slash := CombatSprite.spawn(fx_layer, CombatSprite.slash_sheet(palette), target,
-			140.8 * attacker.scale.x, Sabacc.anim(0.40))
+			UnitToken.FACE.size.x * 1.1 * impact_scale, Sabacc.anim(0.40))
 		if direction.x < -0.1:
 			slash.scale.x = -1.0
 		await _wait(0.12)
 		Sfx.play("saber_hit")
 	elif style == "claw":
 		Sfx.play("melee")
-		CombatSprite.spawn(fx_layer, "Claw Slash", target, 112.0 * attacker.scale.x, Sabacc.anim(0.42))
+		CombatSprite.spawn(fx_layer, "Claw Slash", target, UnitToken.FACE.size.x * 0.82 * impact_scale, Sabacc.anim(0.42))
 	else:
 		Sfx.play("melee")
 		Sfx.play("hit")
@@ -650,7 +661,7 @@ func _anim_close_attack(attacker: UnitToken, target: Vector2, style: String, pal
 	await retreat.finished
 
 
-func _anim_burst(attacker: UnitToken, target: Vector2, style: String, palette: String) -> void:
+func _anim_burst(attacker: UnitToken, target: Vector2, style: String, palette: String, impact_scale: float) -> void:
 	var start := attacker.position
 	var direction := attacker.center_global().direction_to(target)
 	var side := Vector2(-direction.y, direction.x)
@@ -670,7 +681,8 @@ func _anim_burst(attacker: UnitToken, target: Vector2, style: String, palette: S
 	for burst in bursts:
 		for lane in lanes.size():
 			var offset := side * float(lanes[lane]) * scale_factor
-			_launch_bolt(muzzle + offset, target + offset, sheet, cue, travel, scale_factor)
+			var impact_offset := side * float(lanes[lane]) * impact_scale
+			_launch_bolt(muzzle + offset, target + impact_offset, sheet, cue, travel, scale_factor, impact_scale)
 			if lane + 1 < lanes.size():
 				await _wait(0.022)
 		if burst + 1 < bursts:
@@ -681,7 +693,7 @@ func _anim_burst(attacker: UnitToken, target: Vector2, style: String, palette: S
 	await retreat.finished
 
 
-func _launch_bolt(origin: Vector2, target: Vector2, sheet: String, cue: String, travel: float, scale_factor: float) -> void:
+func _launch_bolt(origin: Vector2, target: Vector2, sheet: String, cue: String, travel: float, scale_factor: float, impact_scale: float) -> void:
 	Sfx.play(cue)
 	var duration := Sabacc.anim(travel)
 	var bolt := CombatSprite.spawn(fx_layer, sheet, origin, maxf(62.0, 94.0 * scale_factor),
@@ -693,7 +705,7 @@ func _launch_bolt(origin: Vector2, target: Vector2, sheet: String, cue: String, 
 	flight.tween_property(bolt, "global_position", target, duration)
 	await flight.finished
 	bolt.queue_free()
-	CombatSprite.spawn(fx_layer, sheet + " HIT", target, maxf(64.0, 100.0 * scale_factor), Sabacc.anim(0.38))
+	CombatSprite.spawn(fx_layer, sheet + " HIT", target, maxf(25.0, UnitToken.FACE.size.x * 0.7 * impact_scale), Sabacc.anim(0.38))
 	Sfx.play("hit")
 
 
@@ -719,7 +731,7 @@ func _ensure_token(c: CardInst, animate: bool) -> UnitToken:
 		return null
 	if tokens.has(c.uid):
 		return tokens[c.uid]
-	var tok := UnitToken.create(c, c.controller == HUMAN)
+	var tok := UnitToken.create(c)
 	board_layer.add_child(tok)
 	tokens[c.uid] = tok
 	Fx.light_targets.append(tok)
@@ -751,7 +763,6 @@ func _sync() -> void:
 		alive[u.uid] = true
 		var tok := _ensure_token(u, false)
 		if tok:
-			tok.friendly = u.controller == HUMAN
 			tok.refresh()
 	for uid in tokens.keys():
 		if not alive.has(uid):
@@ -899,7 +910,7 @@ func _clear_pilot_targets() -> void:
 
 func _unit_at_drop(at: Vector2) -> CardInst:
 	for token: UnitToken in tokens.values():
-		if Rect2(token.global_position, UnitToken.SIZE * token.scale).has_point(at):
+		if Rect2(Vector2.ZERO, UnitToken.SIZE).has_point(token.get_global_transform().affine_inverse() * at):
 			return token.inst
 	return null
 

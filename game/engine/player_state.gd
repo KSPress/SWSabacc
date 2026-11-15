@@ -18,6 +18,7 @@ var force_token := false
 var credits := 0
 var played_for_cost: Array[Dictionary] = []
 var next_play_discounts: Array[Dictionary] = []
+var next_unit_modifiers: Array[Dictionary] = []
 var base_hp_bonus := 0
 var first_unit_experience := 0  # campaign treasure
 var first_unit_shield := 0

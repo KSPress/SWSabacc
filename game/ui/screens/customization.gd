@@ -88,6 +88,12 @@ func _populate() -> void:
 			image.custom_minimum_size = Vector2(190, 220)
 			image.modulate.a = 1.0
 			box.add_child(image)
+		elif item.get("starter", false):
+			var preview := Starfield.new()
+			preview.preset_override = Appearance.PRESETS[item["id"]]
+			preview.custom_minimum_size = Vector2(190, 130)
+			preview.clip_contents = true
+			box.add_child(preview)
 		else:
 			if item["id"] == "datapad":
 				var preview := UIKit.label("DATAPAD", 24, Appearance.color_at(), HORIZONTAL_ALIGNMENT_CENTER)

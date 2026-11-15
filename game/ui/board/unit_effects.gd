@@ -13,8 +13,8 @@ const FRAME_COUNT := 16
 const FPS := 20.0
 const PLAY_TIME := FRAME_COUNT / FPS
 const FADE_TIME := 0.18
-const SHIELD_RECT := Rect2(-21, -17, 174, 150)
-const COORDINATE_RECT := Rect2(-38, -11, 208, 139)
+const SHIELD_RECT := Rect2(-9, 5, 176, 128)
+const COORDINATE_RECT := Rect2(-31, 13, 220, 112)
 const EDGE_SHADER := """
 shader_type canvas_item;
 render_mode blend_add, unshaded;
@@ -101,9 +101,9 @@ func _draw() -> void:
 	var loop_frame := 7 if Sabacc.perf() else int(_time * 12.0) % FRAME_COUNT
 	_draw_frame("shield", loop_frame, SHIELD_RECT, _opacity["shield"] * 0.84)
 	_draw_frame("coordinate", loop_frame, COORDINATE_RECT, _opacity["coordinate"] * 0.9)
-	_draw_frame("sentinel", loop_frame, Rect2(12, -32, 108, 35), _opacity["sentinel"])
+	_draw_frame("sentinel", loop_frame, Rect2(23, -26, 112, 31), _opacity["sentinel"])
 	_draw_one_shot("shield_break", _break_age, SHIELD_RECT)
-	_draw_one_shot("heal", _heal_age, Rect2(-12, 18, 156, 103))
+	_draw_one_shot("heal", _heal_age, Rect2(0, 29, 158, 91))
 
 
 func _draw_one_shot(key: String, age: float, area: Rect2) -> void:

@@ -37,13 +37,14 @@ func _run() -> void:
 	check(not Cosmetics.unlocked("cardback:vader") or "cardback:vader" in earned, "GM access removed")
 	# Exhaust the real random pool: no duplicate unlocks and no empty rewards
 	# until every known item has been earned.
-	while Cosmetics.state()["earned"].size() < Cosmetics.all_items().size():
+	var earnable := Cosmetics.all_items().filter(func(item): return not item.get("starter", false)).size()
+	for _index in range(Cosmetics.state()["earned"].size(), earnable):
 		var before: int = Cosmetics.state()["earned"].size()
 		var item := Cosmetics.record_match(true, "earn_%d" % before)
 		check(not item.is_empty() and Cosmetics.state()["earned"].size() == before + 1, "unique random reward")
 	check(Cosmetics.record_match(true, "complete_collection").is_empty(), "completed pool does not duplicate rewards")
 	Save.load_save()
-	check(Cosmetics.state()["earned"].size() == Cosmetics.all_items().size(), "collection persisted")
+	check(Cosmetics.state()["earned"].size() == earnable, "collection persisted")
 	Cosmetics.equip("emblem", "fett_crest")
 	Cosmetics.equip("background", "emblem")
 	Cosmetics.equip("cardback", "mando")

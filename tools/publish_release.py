@@ -56,6 +56,13 @@ def main():
     if git("status", "--porcelain", "--untracked-files=no"):
         sys.exit("Commit the tested source changes before releasing.")
     revision = git("rev-parse", "HEAD")
+    major = int(manifest["version_name"].split(".", 1)[0])
+    if args.publish and major >= 1:
+        result = subprocess.run([sys.executable, "-I", str(ROOT / "tools/verify_rules_release.py")])
+        if result.returncode:
+            sys.exit("Stable release blocked by card rules verification.")
+        if git("rev-parse", "HEAD") != revision or git("status", "--porcelain", "--untracked-files=no"):
+            sys.exit("Source changed during card rules verification; run publishing again.")
     env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="Never")
     credential = subprocess.run(["git", "credential", "fill"], input="protocol=https\nhost=github.com\n\n",
                                 capture_output=True, text=True, env=env, timeout=30)

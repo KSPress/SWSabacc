@@ -29,7 +29,7 @@ var flags: Dictionary = {}  # campaign/scenario flags: protected, cannot_attack,
 var ability_uses: Dictionary = {}
 var is_token := false
 var battle: WeakRef
-var _calculating_aura := false
+var _calculating_auras := {}
 
 
 func _init(p_uid := 0, p_id := "", p_data := {}, p_owner := 0) -> void:
@@ -103,11 +103,55 @@ func unique() -> bool:
 
 
 func traits() -> Array:
-	return data.get("traits", [])
+	var printed: Array = data.get("traits", [])
+	if upgrades.is_empty():
+		return printed
+	var result := printed.duplicate()
+	var removed: Array = []
+	for upgrade in upgrades:
+		for ability in upgrade.upgrade_abilities():
+			if ability.get("trigger") != "attached_traits" or upgrades.size() < int(ability.get("host_requires", {}).get("upgrades_min", 0)):
+				continue
+			if ability.has("add_trait") and not ability["add_trait"] in result:
+				result.append(ability["add_trait"])
+			if ability.has("remove_trait"):
+				removed.append(ability["remove_trait"])
+	return result.filter(func(name_of_trait): return not name_of_trait in removed) if not removed.is_empty() else result
 
 
 func has_trait(t: String) -> bool:
 	return t.to_lower() in traits()
+
+
+func meets_host_requirement(requirement: Dictionary) -> bool:
+	if requirement.has("any"):
+		return requirement["any"].any(meets_host_requirement)
+	if requirement.has("name") and name().to_lower() != requirement["name"]:
+		return false
+	if requirement.has("trait") and not has_trait(requirement["trait"]):
+		return false
+	if requirement.has("aspect") and not requirement["aspect"] in aspects():
+		return false
+	if requirement.get("exclude_aspects", []).any(func(aspect): return aspect in aspects()):
+		return false
+	return (not requirement.get("exhausted", false) or exhausted) and upgrades.size() >= int(requirement.get("upgrades_min", 0))
+
+
+func _meets_attachment_conditions(ability: Dictionary) -> bool:
+	if ability.has("host_trait") and not has_trait(ability["host_trait"]):
+		return false
+	if ability.has("host_name") and name().to_lower() != ability["host_name"]:
+		return false
+	return not ability.has("host_requires") or meets_host_requirement(ability["host_requires"])
+
+
+func has_constant(flag: String) -> bool:
+	return abilities_with("constant").any(func(rule): return rule.get("flag") == flag or flag in rule.get("flags", []))
+
+
+func can_ready() -> bool:
+	return not flags.get("cannot_ready", false) and not has_constant("cannot_ready") \
+		and not mods.any(func(modifier): return modifier.get("cannot_ready", false) and modifier_active(modifier))
 
 
 func aspects() -> Array:
@@ -115,6 +159,10 @@ func aspects() -> Array:
 
 
 func printed_power() -> int:
+	for upgrade in upgrades:
+		for ability in upgrade.upgrade_abilities():
+			if ability.get("trigger") == "printed_stats" and ability.has("power"):
+				return int(ability["power"])
 	if is_pilot_upgrade():
 		return int(data["pilot"]["power"])
 	if deployed:
@@ -123,6 +171,10 @@ func printed_power() -> int:
 
 
 func printed_hp() -> int:
+	for upgrade in upgrades:
+		for ability in upgrade.upgrade_abilities():
+			if ability.get("trigger") == "printed_stats" and ability.has("hp"):
+				return int(ability["hp"])
 	if is_pilot_upgrade():
 		return int(data["pilot"]["hp"])
 	if deployed:
@@ -146,7 +198,7 @@ func abilities() -> Array:
 	for u in upgrades:
 		for a in u.upgrade_abilities():
 			if a.get("granted", false):
-				if a.has("host_trait") and not has_trait(a["host_trait"]):
+				if not _meets_attachment_conditions(a):
 					continue
 				var granted: Dictionary = a.duplicate()
 				granted["grant_source"] = u.uid
@@ -194,9 +246,7 @@ func kw(k: String) -> int:
 		for a in u.upgrade_abilities():
 			if a.get("trigger", "") != "attached_kw" or a.get("kw", "") != k:
 				continue
-			if a.has("host_trait") and not has_trait(a["host_trait"]):
-				continue
-			if a.has("host_name") and name().to_lower() != a["host_name"]:
+			if not _meets_attachment_conditions(a):
 				continue
 			found = true
 			total += maxi(1, int(a.get("v", 1)))
@@ -246,7 +296,28 @@ func power(attacking := false) -> int:
 		p += damage
 	if attacking:
 		p += kw("raid")
+		var game: Match = battle.get_ref() if battle else null
+		if game and game.attack.get("a") == uid:
+			var defender := game.card(game.attack.get("t", 0))
+			if defender:
+				p += _attack_power_modifier(defender)
 	return maxi(p, 0)
+
+
+func _attack_power_modifier(defender: CardInst) -> int:
+	var total := 0
+	for rule in defender.abilities_with("constant"):
+		if rule.get("flag") == "enemy_attack_power":
+			total += int(rule["p"])
+	for rule in abilities_with("constant"):
+		match rule.get("flag"):
+			"attack_base_bonus":
+				if defender.zone == "base":
+					total += int(rule["p"])
+			"attack_force_bonus":
+				if defender.has_trait("force"):
+					total += int(rule["p"])
+	return total
 
 
 func max_hp() -> int:
@@ -269,14 +340,15 @@ func modifier_active(modifier: Dictionary) -> bool:
 
 
 func _continuous(field: String, keyword := "") -> int:
-	if battle == null or _calculating_aura:
+	var key := keyword if field == "kw" else field
+	if battle == null or _calculating_auras.has(key):
 		return 0
 	var m: Match = battle.get_ref()
 	if m == null or not in_play():
 		return 0
-	_calculating_aura = true
+	_calculating_auras[key] = true
 	var result := m.continuous_bonus(self, field, keyword)
-	_calculating_aura = false
+	_calculating_auras.erase(key)
 	return result
 
 

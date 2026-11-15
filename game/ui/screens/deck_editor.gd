@@ -183,8 +183,9 @@ func _add(id: String, cv: CardView) -> void:
 		Fx.float_text(self, cv.get_global_rect().get_center(), "Unlock in card packs", Sabacc.C_GOLD, 23)
 		return
 	var n := int(deck["cards"].get(id, 0))
-	if n >= 3:
-		Fx.float_text(self, cv.get_global_rect().get_center(), "Max 3", Sabacc.C_EMPIRE, 26)
+	var limit := DeckBuilder.copy_limit(CardDB.card(id))
+	if n >= limit:
+		Fx.float_text(self, cv.get_global_rect().get_center(), "Max %d" % limit, Sabacc.C_EMPIRE, 26)
 		return
 	deck["cards"][id] = n + 1
 	dirty = true
@@ -305,7 +306,7 @@ func _row(id: String, c: Dictionary, n: int) -> Control:
 	var plus := SabaccButton.make("+", SabaccButton.Style.GHOST)
 	plus.custom_minimum_size = Vector2(44, 40)
 	plus.pressed.connect(func():
-		if int(deck["cards"].get(id, 0)) < 3:
+		if int(deck["cards"].get(id, 0)) < DeckBuilder.copy_limit(CardDB.card(id)):
 			deck["cards"][id] = int(deck["cards"].get(id, 0)) + 1
 			dirty = true
 			Sfx.play("draw", 1.2)

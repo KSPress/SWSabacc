@@ -40,6 +40,13 @@ func _run() -> void:
 	Save.data = Save.default_data()
 	Sabacc.settings["anim_speed"] = 1.0
 	Sabacc.settings["perf_mode"] = false
+	if only == "trigger_picker":
+		await _test_trigger_picker()
+		print("TRIGGER PICKER INPUT: %d checks, %d failed" % [checks, failures])
+		if failures:
+			get_tree().quit(1)
+			await get_tree().process_frame
+		return
 	if only == "tie_advanced":
 		await _test_tie_advanced_target_picker()
 		print("TIE ADVANCED INPUT: %d checks, %d failed" % [checks, failures])
@@ -153,6 +160,25 @@ func _run() -> void:
 	if failures:
 		get_tree().quit(1)
 		await get_tree().process_frame
+
+
+func _test_trigger_picker() -> void:
+	await _size(570, 1280)
+	var options := range(18)
+	var labels := options.map(func(i): return "Ability %02d · Choose a friendly unit and give it an Experience token" % i)
+	var choice := ChoicePanel.open(self, Match.new(), {"kind": "option", "op": "_ordered_triggers", "min": 1,
+		"prompt": "Choose the next attack ability to resolve", "options": options, "labels": labels})
+	var submitted: Array = []
+	choice.submitted.connect(func(selection): submitted.assign(selection))
+	await _wait(0.3)
+	var scroll: ScrollContainer = choice.find_children("*", "ScrollContainer", true, false).front()
+	var final_button := _button(choice, "Ability 17")
+	check(scroll.get_v_scroll_bar().visible and final_button != null, "Long trigger lists can scroll on portrait layouts")
+	if final_button:
+		scroll.ensure_control_visible(final_button)
+		await _wait(0.3)
+		await _click(final_button)
+	check(submitted == [17], "A player can scroll and select the last trigger")
 
 
 func _test_tie_advanced_target_picker() -> void:

@@ -7,6 +7,13 @@ static func minimum_size(lib: CardLibrary, rules: RuleSet, base: String) -> int:
 	return maxi(0, rules.deck_min + int(lib.get_card(base).get("deck_size_delta", 0)))
 
 
+static func copy_limit(data: Dictionary, default_limit := 3) -> int:
+	for ability in data.get("abilities", []):
+		if ability.get("trigger") == "deck_copy_limit":
+			return int(ability["count"])
+	return default_limit
+
+
 ## Returns a list of human-readable problems (empty = legal).
 static func validate(lib: CardLibrary, rules: RuleSet, leader: String, base: String, deck: Array) -> Array:
 	var errs: Array = []
@@ -23,8 +30,10 @@ static func validate(lib: CardLibrary, rules: RuleSet, leader: String, base: Str
 		if c.get("type", "") in ["leader", "base"] or str(c.get("type", "")).begins_with("token"):
 			errs.append("%s cannot be in a deck." % c.get("name", id))
 	for id in counts:
-		if counts[id] > rules.max_copies:
-			errs.append("%s: %d copies (max %d)." % [lib.get_card(id).get("name", id), counts[id], rules.max_copies])
+		var data := lib.get_card(id)
+		var limit := copy_limit(data, rules.max_copies)
+		if counts[id] > limit:
+			errs.append("%s: %d copies (max %d)." % [data.get("name", id), counts[id], limit])
 	if rules.hero_villain_gate:
 		var la: Array = lib.get_card(leader).get("aspects", [])
 		var side := "heroism" if "heroism" in la else ("villainy" if "villainy" in la else "")
@@ -90,7 +99,10 @@ static func auto_deck(lib: CardLibrary, leader: String, base: String, size: int,
 		return deck
 	# Weighted toward a low curve with mostly units.
 	var guard := 0
-	var target_size := mini(size, cands.size() * 3)
+	var capacity := 0
+	for id in cands:
+		capacity += copy_limit(lib.get_card(id))
+	var target_size := mini(size, capacity)
 	while deck.size() < target_size and guard < 10000:
 		guard += 1
 		var id: String = cands[rng.randi_range(0, cands.size() - 1)]
@@ -100,7 +112,7 @@ static func auto_deck(lib: CardLibrary, leader: String, base: String, size: int,
 			continue
 		if cost >= 5 and rng.randf() < 0.5:
 			continue
-		if deck.count(id) >= 3:
+		if deck.count(id) >= copy_limit(c):
 			continue
 		deck.append(id)
 	return deck

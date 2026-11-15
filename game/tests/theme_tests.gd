@@ -21,27 +21,43 @@ func _run() -> void:
 	Appearance.set_deck("SOR_017", "HMW_019", ["SOR_095"])
 	check(Appearance.deck_aspects.size() <= 3, "at most three deck accents")
 	await _go("menu")
-	var primary_button: SabaccButton = get_tree().current_scene._buttons.get_child(0)
-	var before: Color = primary_button.get_theme_stylebox("normal").border_color
+	var primary_button: Button = get_tree().current_scene._buttons.get_child(0)
+	var before: Color = primary_button.get("accent")
+	Cosmetics.equip("background", "space_nebula")
+	check(primary_button.get("accent") != before, "existing button retints when a background is equipped")
 	Appearance.set_deck("SOR_010", "HMW_019")
 	check(Appearance.deck_aspects == ["aggression", "vigilance", "villainy"], "match palette comes from selected leader and base")
-	check(primary_button.get_theme_stylebox("normal").border_color != before, "existing button retints on deck change")
 	Appearance.set_deck("SOR_017", "HMW_019")
 	Cosmetics.set_gm(true)
-	for id in ["datapad", "emblem", "tatooine", "dathomir", "coruscant", "deathstar"]:
+	await _size(1280, 720)
+	await _go("menu")
+	var backgrounds: Array = Cosmetics.all_items().filter(func(item): return item["kind"] == "background").map(func(item): return item["id"])
+	backgrounds.append("emblem")
+	var match_preview := BoardTheme.new()
+	get_tree().current_scene.add_child(match_preview)
+	match_preview.setup("auto")
+	match_preview.hide()
+	for id in backgrounds:
 		Cosmetics.equip("background", id)
-		await _size(1280, 720)
-		await _go("menu")
 		var menu := get_tree().current_scene
+		await _wait(0.08)
 		check(menu._buttons.position.y >= menu._title_box.position.y + menu._title_box.get_combined_minimum_size().y, "menu title avoids buttons " + id)
-		await _shot("theme_" + id)
+		check(menu.bg._spec == match_preview._spec, "Menu and battle use the same background " + id)
+		var scene: Texture2D = Cosmetics.background_texture(id)
+		if menu.bg._spec["kind"] == "planet":
+			check(scene != null and menu.bg._photo == scene and match_preview._photo == scene, "Scene art loads in both views " + id)
+		else:
+			check(menu.bg._datapad.visible == (menu.bg._spec["kind"] == "datapad"), "Menu activates its matching renderer " + id)
 		check(Cosmetics.equipped("background") == id, "selected background " + id)
+		await _shot("theme_" + id)
+	Cosmetics.equip("background", "deathstar")
+	match_preview.queue_free()
 	Save.load_save()
 	check(Cosmetics.equipped("background") == "deathstar", "background persists to save")
 	await _size(540, 960)
 	await _go("settings")
 	await _shot("theme_settings_portrait")
-	check(get_tree().current_scene.find_child("GMButton", true, false) != null, "GM access exposed in Options")
+	check(get_tree().current_scene.find_child("GMSlider", true, false) != null, "GM access exposed in Options")
 	Cosmetics.equip("background", "datapad")
 	# A complete legacy save should migrate, including decks and settings.
 	var original := Save.data.duplicate(true)
@@ -111,6 +127,18 @@ func _run() -> void:
 	await _wait(2)
 	await _shot("theme_match_datapad")
 	check(Appearance.deck_aspects.size() >= 1, "match installs human deck palette")
+	for chapter in CardDB.episodes[4]["chapters"]:
+		var location: String = chapter["board_theme"]
+		await _go("chapter", {"chapter_id": chapter["id"]})
+		var map_bg: Starfield = get_tree().current_scene.bg
+		var map_spec := map_bg._spec
+		var map_art := map_bg._photo
+		await _go("match", {"mode": "campaign", "theme": location, "cfg": QuickMatch.make_config("SOR_010", "HMW_019", 0, "tempo", random)})
+		var battle_bg: BoardTheme = get_tree().current_scene.theme_bg
+		Cosmetics.equip("background", "emblem")
+		check(battle_bg._spec == map_spec and battle_bg._photo == map_art and not battle_bg._datapad.visible,
+			"Saga battle preserves the map background " + location)
+		await _shot("saga_" + location)
 	print("THEMES: %d passed, %d failed" % [passes, failures])
 	if failures:
 		get_tree().quit(1)

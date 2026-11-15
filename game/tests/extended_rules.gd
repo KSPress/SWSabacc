@@ -5,19 +5,36 @@ func _init() -> void:
 	lib.load_file("res://ip/data/cards.json")
 	lib.load_file("res://data/custom_cards.json", true)
 	test_upgrade_targets()
+	test_disclosure()
+	test_continuous_printed_rules()
+	test_next_unit_and_copy_limit()
+	test_commanded_attacks()
+	run_card_case(test_cross_arena_attacks, ["SOR_212", "JTL_259", "ASH_037"])
+	run_card_case(test_red_leader_pilots, ["JTL_101"])
+	run_card_case(test_relentless, ["SOR_089"])
+	run_card_case(test_all_unit_selectors, ["SOR_039", "SEC_078", "TS26_016", "ASH_083"])
+	run_card_case(test_fetts_firespray, ["SOR_184"])
+	run_card_case(test_occupation_officer, ["HMW_242"])
+	run_card_case(test_boba_disintegrator, ["SOR_179"])
+	test_scaled_printed_effects()
+	test_ambush_combat_auras()
+	run_card_case(test_unit_departure, ["JTL_096"])
+	test_attached_printed_rules()
 	test_continuous_rules()
 	test_capture_and_bounty()
 	test_plot_and_fortify()
 	test_fortifications()
-	test_reported_card_abilities()
-	test_tie_advanced()
+	run_card_case(test_reported_card_abilities, ["ASH_172", "LOF_191", "LOF_016"])
+	run_card_case(test_tie_advanced, ["SOR_231"])
 	test_early_combat_and_tokens()
+	test_shared_unit_triggers()
+	test_attack_end_results()
 	test_multiword_traits()
 	test_support_and_recovery()
 	test_coordinate_triggers()
 	test_card_play_triggers()
-	test_defeat_and_deploy_triggers()
-	test_base_epic_actions()
+	run_card_case(test_defeat_and_deploy_triggers, ["LOF_130", "TWI_025"])
+	run_card_case(test_base_epic_actions, ["SOR_019"])
 	test_attack_timing()
 	test_play_sequence_choices()
 	test_resource_and_return_costs()
@@ -29,14 +46,30 @@ func _init() -> void:
 	test_campaign_attack_pressure()
 	test_piloting()
 	test_pilot_catalog()
-	test_special_bases()
+	run_card_case(test_special_bases, ["JTL_024", "JTL_025", "JTL_028", "LOF_025", "LAW_029", "LAW_026", "LAW_019"])
 	test_pilot_replacements()
 	test_base_and_fortify_catalog()
 	test_indirect_damage()
 	test_multi_mode_events()
+	test_printed_event_rules()
 	test_play_discounts()
 	test_advantage_and_weakness()
 	test_ability_usage_limits()
+	test_optional_trigger_limit()
+	test_hands_and_force_events()
+	test_next_regroup_effects()
+	test_deck_search_filters()
+	test_play_units_from_deck()
+	test_play_from_discard()
+	run_card_case(test_delayed_search_play, ["SHD_194", "LAW_074"])
+	test_discard_selection_followups()
+	test_immediate_replays()
+	test_resources_and_action_start()
+	test_combat_order_and_modifiers()
+	test_phase_damage_history()
+	test_search_and_bounty_payoffs()
+	test_attack_trigger_order()
+	test_entry_trigger_order()
 	test_damage_and_heal_triggers()
 	test_jabba_action_play_requirements()
 	test_rebel_attack_sequences()
@@ -46,6 +79,1128 @@ func _init() -> void:
 	test_spotlight_rules()
 	print("EXTENDED RULES: %d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
+
+
+func run_card_case(test: Callable, ids: Array[String]) -> void:
+	var passed_before := passes
+	var failed_before := failures
+	test.call()
+	if failures == failed_before and passes > passed_before:
+		for id in ids:
+			print("CARD_RULE_CASE ", id)
+
+
+func test_attack_trigger_order() -> void:
+	var m := funded_match()
+	var attacker := add_unit(m, 0, "SOR_095")
+	var defender := add_unit(m, 1, "SOR_088")
+	var attack_rule := {"trigger": "on_attack", "text": "Draw a card", "effects": [{"op": "draw"}]}
+	var defense_rule := {"trigger": "when_attacked", "text": "Defeat the attacker", "effects": [{"op": "defeat", "t": {"s": "it"}}]}
+	attacker.mods.append({"kw": "restore", "v": 1, "abilities": [attack_rule]})
+	defender.mods.append({"abilities": [defense_rule]})
+	m.players[0].base.damage = 3
+	check(m.do_action({"a": "attack", "uid": attacker.uid, "target": defender.uid}) and m.pending.get("player") == 0
+		and m.pending.get("options", []).size() == 2, "The active player chooses the first controller when both have triggers")
+	check(m.submit_choice([1]) and attacker.zone == "discard" and m.pending.get("player") == 0,
+		"The defender's trigger defeats the attacker before the attacker's abilities resolve")
+	var restore_index: int = m.pending.get("labels", []).find_custom(func(label): return "Restore 1" in label)
+	check(restore_index >= 0 and m.submit_choice([m.pending["options"][restore_index]]) and m.players[0].base.damage == 2
+		and m.cards_drawn_this_phase[0] == 1 and defender.damage == 0,
+		"The attacker controller orders the captured triggers even after the attacker leaves play")
+
+
+func test_entry_trigger_order() -> void:
+	for shield_first in [false, true]:
+		var m := funded_match()
+		var entering := add_unit(m, 0, "SOR_095", false)
+		var defender := add_unit(m, 1, "SOR_095")
+		entering.mods.append_array([{"kw": "shielded"}, {"kw": "ambush"}])
+		m._on_unit_enters(entering, "when_played")
+		m.pump()
+		check(m.pending.get("op") == "_ordered_triggers" and m.submit_choice([0 if shield_first else 1]),
+			"Shielded and Ambush can be ordered by their controller")
+		check(defender.uid in m.pending.get("options", []) and m.submit_choice([defender.uid])
+			and entering.in_play() == shield_first, "Resolving Shielded before Ambush prevents the retaliation from defeating the unit")
+
+
+func test_cross_arena_attacks() -> void:
+	var m := funded_match()
+	var gunship := add_unit(m, 0, "SOR_212")
+	var ground := add_unit(m, 1, "SOR_095")
+	var space := add_unit(m, 1, "SOR_225")
+	var ground_guard := add_unit(m, 1, "SOR_229")
+	check(ground.uid in m.attack_targets(gunship) and space.uid in m.attack_targets(gunship),
+		"Strafing Gunship can attack both arenas, even with a Sentinel in the other arena")
+	var space_guard := add_unit(m, 1, "SOR_066")
+	var screened := m.attack_targets(gunship)
+	check(screened.size() == 2 and space_guard.uid in screened and ground_guard.uid in screened,
+		"Space Sentinel protects the base and non-Sentinels, including ground units")
+	gunship.mods.append({"kw": "saboteur"})
+	check(m.do_action({"a": "attack", "uid": gunship.uid, "target": ground.uid}) and gunship.damage == 1,
+		"Strafing Gunship with Saboteur attacks a ground unit and reduces its return damage by two")
+
+	var ambush := funded_match()
+	var airspeeder := put_in_hand(ambush, "JTL_259")
+	var defender := add_unit(ambush, 1, "SOR_066")
+	check(ambush.do_action({"a": "play", "uid": airspeeder.uid}) and defender.uid in ambush.pending.get("options", []),
+		"Retrofitted Airspeeder can Ambush a space unit")
+	check(ambush.submit_choice([defender.uid]) and defender.damage == airspeeder.data["power"] - 1,
+		"Retrofitted Airspeeder deals one less combat damage to a space defender")
+
+	var support := funded_match()
+	var attacker := add_unit(support, 0, "SOR_095")
+	var ship := add_unit(support, 1, "SOR_225")
+	var red_leader := put_in_hand(support, "ASH_037")
+	check(support.do_action({"a": "play", "uid": red_leader.uid}) and support.submit_choice([attacker.uid]),
+		"Red Leader's Support can choose a ground unit")
+	check(ship.uid in support.pending.get("options", []) and support.submit_choice([ship.uid]) and ship.zone == "discard",
+		"Red Leader grants the ability to attack in either arena before a target is chosen")
+	check(attacker.abilities_with("constant").all(func(ability): return ability.get("flag") != "attack_other_arena"),
+		"The borrowed cross-arena ability expires after the attack")
+
+
+func test_red_leader_pilots() -> void:
+	var m := funded_match()
+	var leader := put_in_hand(m, "JTL_101")
+	var friendly_ship := add_unit(m, 0, "SOR_225")
+	add_unit(m, 0, "JTL_034")
+	add_unit(m, 1, "JTL_034")
+	var pilot := m._new_inst("JTL_058", 0)
+	m.attach_upgrade(pilot, friendly_ship)
+	check(m.play_cost(0, leader) == 2, "Jump to Lightspeed Red Leader counts friendly Pilot units and upgrades only")
+	check(m.do_action({"a": "play", "uid": leader.uid}), "Jump to Lightspeed Red Leader can be played at the discounted cost")
+	var count: int = m.players[0].units.size()
+	m.attach_upgrade(m._new_inst("JTL_058", 0), leader)
+	m.pump()
+	check(m.players[0].units.size() == count + 1 and m.players[0].units.back().name() == "X-Wing",
+		"Attaching a Pilot to Jump to Lightspeed Red Leader creates an X-Wing")
+
+
+func test_relentless() -> void:
+	var m := funded_match()
+	add_unit(m, 1, "SOR_089")
+	var base: CardInst = m.players[0].base
+	base.damage = 5
+	var first := put_in_hand(m, "SOR_074")
+	var ready: int = m.players[0].available()
+	check(m.do_action({"a": "play", "uid": first.uid}) and first.zone == "discard"
+		and m.pending.is_empty() and base.damage == 5 and m.players[0].available() == ready - 1
+		and first in m.played_this_phase[0], "Relentless suppresses the first event after payment and still counts it as played")
+	m.active = 0
+	var second := put_in_hand(m, "SOR_074")
+	check(m.do_action({"a": "play", "uid": second.uid}) and m.submit_choice([base.uid]) and base.damage == 2,
+		"A later event resolves normally against Relentless")
+	m.start_action_phase()
+	m.active = 0
+	var smuggled := m._new_inst("SHD_129", 0)
+	m.move_to_resources(0, smuggled)
+	var next_resource: CardInst = m.players[0].deck[0]
+	ready = m.players[0].available()
+	check(m.do_action({"a": "smuggle", "uid": smuggled.uid}) and smuggled.zone == "discard"
+		and next_resource.zone == "resource" and next_resource.exhausted
+		and m.players[0].available() == ready - 2 and m.pending.is_empty(),
+		"The next round's first event is blanked even when smuggled and still pays its full Smuggle cost")
+
+	var late := funded_match()
+	base = late.players[0].base
+	base.damage = 8
+	first = put_in_hand(late, "SOR_074")
+	check(late.do_action({"a": "play", "uid": first.uid}) and late.submit_choice([base.uid]) and base.damage == 5,
+		"The first event resolves if Relentless has yet to enter play")
+	add_unit(late, 0, "SOR_089")
+	add_unit(late, 1, "SOR_089")
+	late.active = 0
+	second = put_in_hand(late, "SOR_074")
+	check(late.do_action({"a": "play", "uid": second.uid}) and late.submit_choice([base.uid]) and base.damage == 2,
+		"Relentless respects events already played and leaves its controller's events alone")
+	late.start_action_phase()
+	late.active = 0
+	late.defeat(late.players[1].units[0])
+	late.pump()
+	first = put_in_hand(late, "SOR_074")
+	check(late.do_action({"a": "play", "uid": first.uid}) and late.submit_choice([base.uid]) and base.damage == 0,
+		"Only a live opposing Relentless blanks the first event")
+
+
+func test_all_unit_selectors() -> void:
+	var m := funded_match()
+	var friendly_ground := add_unit(m, 0, "SOR_095")
+	var enemy_ground := add_unit(m, 1, "SOR_095")
+	var friendly_space := add_unit(m, 0, "SOR_225")
+	var enemy_space := add_unit(m, 1, "SOR_225")
+	var suppressor := put_in_hand(m, "SOR_039")
+	check(m.do_action({"a": "play", "uid": suppressor.uid}) and m.pending.is_empty()
+		and friendly_ground.exhausted and enemy_ground.exhausted and not friendly_space.exhausted
+		and not enemy_space.exhausted, "AT-AT Suppressor exhausts all ground units on both sides and leaves space ready")
+	m = funded_match()
+	friendly_ground = add_unit(m, 0, "SOR_095")
+	enemy_ground = add_unit(m, 1, "SOR_095")
+	friendly_space = add_unit(m, 0, "SOR_225")
+	enemy_space = add_unit(m, 1, "SOR_225")
+	var disaster := put_in_hand(m, "SEC_078")
+	check(m.do_action({"a": "play", "uid": disaster.uid}) and m.pending.is_empty()
+		and friendly_space.zone == "discard" and enemy_space.zone == "discard"
+		and friendly_ground.in_play() and enemy_ground.in_play(),
+		"Hyperspace Disaster defeats allied and enemy space units while leaving ground intact")
+
+	m = funded_match()
+	friendly_ground = add_unit(m, 0, "SOR_095")
+	enemy_space = add_unit(m, 1, "SOR_225")
+	var king := put_in_hand(m, "TS26_016")
+	check(m.do_action({"a": "play", "uid": king.uid}) and m.pending.is_empty()
+		and friendly_ground.kw("restore") == 1 and enemy_space.kw("restore") == 1
+		and king.kw("restore") == 1, "King Katuunko gives Restore to itself and both sides across arenas")
+	m._expire("phase")
+	check(friendly_ground.kw("restore") == 0 and enemy_space.kw("restore") == 0 and king.kw("restore") == 0,
+		"King Katuunko's granted Restore expires with the phase")
+
+	m = funded_match()
+	var summa := add_unit(m, 0, "ASH_083")
+	friendly_space = add_unit(m, 0, "SOR_225")
+	enemy_space = add_unit(m, 1, "SOR_225")
+	enemy_ground = add_unit(m, 1, "SOR_095")
+	var enemy_base: CardInst = m.players[1].base
+	check(m.do_action({"a": "attack", "uid": summa.uid, "target": enemy_base.uid})
+		and friendly_space.zone == "discard" and enemy_space.zone == "discard"
+		and summa.in_play() and enemy_ground.in_play() and enemy_base.damage == summa.power(),
+		"Summa-verminoth defeats every other space unit on attack and still hits the base")
+
+
+func test_fetts_firespray() -> void:
+	for scenario in ["enemy", "hand", "boba_leader", "deployed_leader", "jango_unit", "boba_pilot"]:
+		var m := funded_match()
+		match scenario:
+			"enemy":
+				add_unit(m, 1, "SHD_138")
+			"hand":
+				put_in_hand(m, "SOR_179")
+			"boba_leader", "deployed_leader":
+				var boba := m._new_inst("SHD_008", 0)
+				boba.zone = "leader"
+				m.players[0].leader = boba
+				if scenario == "deployed_leader":
+					boba.deployed = true
+					m._put_in_play(boba, "ground")
+			"jango_unit":
+				add_unit(m, 0, "SHD_138")
+			"boba_pilot":
+				var ship := add_unit(m, 0, "SOR_225")
+				m.attach_upgrade(m._new_inst("JTL_189", 0), ship)
+		var firespray := put_in_hand(m, "SOR_184")
+		check(m.do_action({"a": "play", "uid": firespray.uid}) and firespray.in_play()
+			and firespray.exhausted == (scenario in ["enemy", "hand"]), "Fett's Firespray checks title and control (%s)" % scenario)
+	var action_match := funded_match()
+	var firespray := add_unit(action_match, 0, "SOR_184", false)
+	var unique := add_unit(action_match, 1, "SHD_138")
+	var target := add_unit(action_match, 1, "SOR_095")
+	var ready: int = action_match.players[0].available()
+	check(action_match.do_action({"a": "ability", "uid": firespray.uid, "idx": 0})
+		and unique.uid not in action_match.pending.get("options", []) and action_match.submit_choice([target.uid])
+		and target.exhausted and action_match.players[0].available() == ready - 2,
+		"Fett's Firespray can pay two resources to exhaust a non-unique unit while already exhausted")
+
+
+func test_occupation_officer() -> void:
+	for count in [5, 6, 7]:
+		var rules := RuleSet.premier()
+		rules.aspect_penalties = false
+		var m := blank_match(rules)
+		while m.players[0].resources.size() < count:
+			m.move_to_resources(0, m.players[0].deck[0], true)
+		while m.players[1].resources.size() < 7:
+			m.move_to_resources(1, m.players[1].deck[0])
+		var ally := add_unit(m, 0, "SOR_095")
+		var foe := add_unit(m, 1, "SOR_066")
+		var officer := put_in_hand(m, "HMW_242")
+		check(m.do_action({"a": "play", "uid": officer.uid}), "Occupation Officer can be played with %d total resources" % count)
+		if count == 5:
+			check(m.pending.is_empty() and foe.upgrades.is_empty(), "The opponent's seven resources do not meet Occupation Officer's threshold")
+			continue
+		var targets: Array = m.pending.get("options", [])
+		check(targets.size() == 3 and officer.uid in targets and ally.uid in targets and foe.uid in targets
+			and m.pending.get("min") == 0, "Occupation Officer can target any unit or pass with %d total resources" % count)
+		if count == 6:
+			check(m.submit_choice([foe.uid]) and foe.upgrades.size() == 1 and foe.upgrades[0].name() == "Weakness"
+				and foe.power() == foe.printed_power() - 1 and m.pending.is_empty(), "Occupation Officer attaches one Weakness at exactly six resources")
+		else:
+			check(m.submit_choice([]) and m.pending.is_empty() and foe.upgrades.is_empty()
+				and ally.upgrades.is_empty() and officer.upgrades.is_empty(), "Passing Occupation Officer adds no token and completes the action")
+
+
+func test_boba_disintegrator() -> void:
+	for scenario in ["ready", "new", "old_exhausted", "base", "boba_first", "vambrace_first"]:
+		var m := funded_match()
+		var boba := add_unit(m, 0, "SOR_179")
+		var target: CardInst = m.players[1].base if scenario == "base" else add_unit(m, 1, "SOR_046")
+		if target.in_play():
+			target.mods.append({"h": 2})
+		if scenario != "new":
+			m.end_round()
+		m.active = 0
+		if scenario in ["new", "old_exhausted"]:
+			m.exhaust(target)
+		if scenario in ["boba_first", "vambrace_first"]:
+			m.attach_upgrade(m._new_inst("SHD_074", 0), boba)
+		check(m.do_action({"a": "attack", "uid": boba.uid, "target": target.uid}), "Boba Fett attacks (%s)" % scenario)
+		if scenario in ["boba_first", "vambrace_first"]:
+			var labels: Array = m.pending.get("labels", [])
+			var exhaust_option := labels.find_custom(func(label): return "Exhaust the defender" in label)
+			check(exhaust_option >= 0 and m.submit_choice([exhaust_option if scenario == "vambrace_first" else 1 - exhaust_option]),
+				"Boba Fett and the Vambrace can resolve in either order")
+		var bonus := 3 if scenario in ["old_exhausted", "vambrace_first"] else 0
+		check(target.damage == boba.power() + bonus and m.pending.is_empty(), "Boba Fett's conditional attack damage (%s)" % scenario)
+
+
+func test_scaled_printed_effects() -> void:
+	var m := funded_match()
+	add_unit(m, 0, "SOR_095")
+	add_unit(m, 0, "SOR_244")
+	add_unit(m, 0, "SOR_225")
+	var target := add_unit(m, 1, "SOR_088")
+	var ackbar := put_in_hand(m, "SOR_097")
+	check(m.do_action({"a": "play", "uid": ackbar.uid}) and m.submit_choice([target.uid]) and target.damage == 3,
+		"Admiral Ackbar counts himself and the other units in the selected target's arena")
+
+	var valance_match := funded_match()
+	var valance := add_unit(valance_match, 0, "LAW_051")
+	var ground := add_unit(valance_match, 1, "SOR_088")
+	var extra_draw := valance_match._new_inst("SOR_095", 0)
+	extra_draw.zone = "deck"
+	valance_match.players[0].deck.append(extra_draw)
+	valance_match.draw(0, 2)
+	check(valance_match.do_action({"a": "attack", "uid": valance.uid, "target": valance_match.players[1].base.uid})
+		and valance_match.submit_choice([ground.uid]) and ground.damage == 3,
+		"Beilert Valance includes the draw from his On Attack together with earlier draws this phase")
+
+	var purrgil_match := funded_match()
+	var damaged := add_unit(purrgil_match, 0, "SOR_088")
+	damaged.damage = damaged.max_hp() - 6
+	add_unit(purrgil_match, 0, "HMW_067")
+	var purrgil := put_in_hand(purrgil_match, "LOF_121")
+	var original: int = purrgil_match.players[0].hand.size()
+	check(purrgil_match.do_action({"a": "play", "uid": purrgil.uid}) and purrgil_match.players[0].hand.size() == original + 1,
+		"Purrgil King draws for each friendly unit with seven remaining HP, excluding one with six")
+
+	var sion_match := funded_match()
+	var sion := put_in_hand(sion_match, "SEC_035")
+	for _i in 2:
+		sion_match.defeat(add_unit(sion_match, 1, "SOR_095"))
+	sion_match.pump()
+	check(sion_match.do_action({"a": "play", "uid": sion.uid}) and sion.power() == 7,
+		"Darth Sion gains two Experience for the two enemy defeats this phase")
+	sion_match.defeat(sion)
+	sion_match.pump()
+	check(sion.zone == "hand" and sion.power() == 5, "Darth Sion returns to hand using the power he had before losing upgrades")
+	var untrained := add_unit(sion_match, 0, "SEC_035")
+	sion_match.defeat(untrained)
+	sion_match.pump()
+	check(untrained.zone == "discard", "Darth Sion stays defeated below his power threshold")
+
+	var raddus_match := funded_match()
+	var raddus := add_unit(raddus_match, 0, "JTL_104")
+	check(not raddus.has_kw("sentinel"), "Raddus does not count himself toward Sentinel")
+	add_unit(raddus_match, 0, "JTL_102")
+	check(raddus.has_kw("sentinel"), "Raddus gains Sentinel with another Resistance card")
+	var enemy := add_unit(raddus_match, 1, "SOR_088")
+	raddus_match.attach_token(raddus, "experience")
+	raddus_match.defeat(raddus)
+	raddus_match.pump()
+	check(raddus_match.submit_choice([enemy.uid]) and enemy.zone == "discard",
+		"Raddus deals nine When Defeated damage from his power with the upgrade")
+
+	var wookiees := funded_match()
+	add_unit(wookiees, 0, "SOR_196")
+	add_unit(wookiees, 0, "HMW_046")
+	var king := put_in_hand(wookiees, "HMW_123")
+	var resources: int = wookiees.players[0].resources.size()
+	var ready: int = wookiees.players[0].available()
+	check(wookiees.do_action({"a": "play", "uid": king.uid}) and wookiees.players[0].resources.size() == resources + 2
+		and wookiees.players[0].available() == ready - king.cost() + 2,
+		"King Grakchawwaa resources and readies two cards for two other Wookiees")
+
+	var pykes := funded_match()
+	var ally := add_unit(pykes, 0, "SOR_095")
+	var victim := add_unit(pykes, 1, "SOR_088")
+	pykes.attach_token(ally, "experience")
+	var backed := put_in_hand(pykes, "TS26_058")
+	check(pykes.do_action({"a": "play", "uid": backed.uid}) and pykes.submit_choice([ally.uid])
+		and pykes.submit_choice([victim.uid]) and victim.damage == 2,
+		"Backed by the Pykes gives Experience before counting the tokens for its damage")
+
+
+func test_ambush_combat_auras() -> void:
+	var m := funded_match()
+	add_unit(m, 0, "SHD_219")
+	var purrgil := put_in_hand(m, "ASH_207")
+	var defender := add_unit(m, 1, "LOF_121")
+	check(m.do_action({"a": "play", "uid": purrgil.uid}) and m.submit_choice([defender.uid])
+		and defender.damage == 5 and purrgil.damage == 1,
+		"Heroic Purrgil gains two power and Enfys Nest weakens the defender during Ambush")
+	m.exhaust(purrgil, false)
+	m.begin_attack(purrgil, defender)
+	m.pump()
+	check(defender.damage == 8 and purrgil.damage == 5, "Both Ambush modifiers are absent from a regular attack")
+
+
+func test_optional_trigger_limit() -> void:
+	var m := funded_match()
+	var gar := add_unit(m, 0, "ASH_047")
+	var first := put_in_hand(m, "SOR_057")
+	var second := put_in_hand(m, "SOR_057")
+	var third := put_in_hand(m, "SOR_057")
+	check(m.do_action({"a": "play", "uid": first.uid}) and m.submit_choice([gar.uid]) and m.pending.get("kind") == "yesno"
+		and m.submit_choice([0]) and m.players[0].units.size() == 1,
+		"Declining Gar Saxon's Mandalorian token leaves his once-per-round trigger available")
+	m.active = 0
+	check(m.do_action({"a": "play", "uid": second.uid}) and m.submit_choice([gar.uid]) and m.submit_choice([1])
+		and m.players[0].units.size() == 2 and m.players[0].units.back().is_token,
+		"Gar Saxon still creates a token after declining earlier in the round")
+	m.active = 0
+	check(m.do_action({"a": "play", "uid": third.uid}) and m.submit_choice([gar.uid]) and m.pending.is_empty()
+		and m.players[0].units.size() == 2, "Gar Saxon's trigger is spent once he creates the token")
+
+
+func test_hands_and_force_events() -> void:
+	for use_force in [false, true]:
+		var m := funded_match()
+		var event := put_in_hand(m, "LOF_175")
+		m.players[0].force_token = true
+		check(m.do_action({"a": "play", "uid": event.uid}) and m.submit_choice([int(use_force)]),
+			"Do or Do Not lets the player decline or spend their Force token")
+		check(m.cards_drawn_this_phase[0] == 1 + int(use_force) and m.players[0].force_token != use_force,
+			"Do or Do Not draws one when declined and two when the token is spent")
+
+	var m := funded_match()
+	var exhausted := add_unit(m, 0, "SOR_095", false)
+	var ready := add_unit(m, 0, "SOR_095")
+	var calm := put_in_hand(m, "LOF_054")
+	check(m.do_action({"a": "play", "uid": calm.uid}) and m.submit_choice([ready.uid])
+		and ready.exhausted and ready.shield_count() == 1 and ready.power() == 5,
+		"Calm in the Storm exhausts a friendly unit and grants a Shield and two Experience")
+	var second := put_in_hand(m, "LOF_054")
+	m.active = 0
+	check(m.do_action({"a": "play", "uid": second.uid}) and m.submit_choice([exhausted.uid]) and exhausted.upgrades.is_empty(),
+		"Calm in the Storm gives nothing if the target was already exhausted")
+
+	var saber_match := funded_match()
+	var saber := put_in_hand(saber_match, "SOR_053")
+	var throwing := put_in_hand(saber_match, "LOF_176")
+	check(saber_match.do_action({"a": "play", "uid": throwing.uid}) and saber_match.pending.get("options", []) == [saber.uid],
+		"Lightsaber Throw only offers Lightsaber cards to discard")
+	check(saber_match.submit_choice([saber.uid]) and saber.zone == "discard" and saber_match.cards_drawn_this_phase[0] == 1,
+		"Lightsaber Throw still draws if no ground unit can be damaged")
+
+	var discarding := funded_match()
+	var smoke := put_in_hand(discarding, "SOR_174")
+	check(discarding.do_action({"a": "play", "uid": smoke.uid}) and discarding.pending.get("player") == 0,
+		"Smoke and Cinders prompts the active player first")
+	check(discarding.submit_choice(discarding.pending["options"].slice(0, discarding.pending["min"])) and discarding.pending.get("player") == 1,
+		"Smoke and Cinders gives the second player their own discard choice")
+	check(discarding.submit_choice(discarding.pending["options"].slice(0, discarding.pending["min"]))
+		and discarding.players[0].hand.size() == 2 and discarding.players[1].hand.size() == 2,
+		"Smoke and Cinders leaves both players with two cards")
+
+	var recovery := funded_match()
+	var defeated := add_unit(recovery, 0, "SOR_095")
+	var kept := add_unit(recovery, 0, "SOR_225")
+	var discarded := put_in_hand(recovery, "SOR_095")
+	recovery.players[0].hand.erase(discarded)
+	discarded.zone = "discard"
+	recovery.players[0].discard.append(discarded)
+	recovery.defeat(defeated)
+	recovery.defeat(kept)
+	var legion := put_in_hand(recovery, "SOR_091")
+	check(recovery.do_action({"a": "play", "uid": legion.uid}) and defeated.zone == "hand" and kept.zone == "hand"
+		and discarded.zone == "discard", "The Emperor's Legion only recovers units defeated this phase")
+
+	var whispers_match := funded_match()
+	var top := put_in_hand(whispers_match, "SOR_095")
+	var bottom := put_in_hand(whispers_match, "SOR_225")
+	var whispers := put_in_hand(whispers_match, "SEC_232")
+	check(whispers_match.do_action({"a": "play", "uid": whispers.uid}) and whispers_match.submit_choice([top.uid])
+		and not top.uid in whispers_match.pending.get("options", []) and whispers_match.submit_choice([bottom.uid])
+		and whispers_match.players[0].deck.front() == top and whispers_match.players[0].deck.back() == bottom,
+		"Kreia's Whispers places distinct cards on opposite ends of the deck")
+
+	var black_sun := funded_match()
+	var first := add_unit(black_sun, 1, "SOR_095")
+	first.damage = 2
+	var target := add_unit(black_sun, 1, "SOR_088")
+	target.damage = 1
+	var backed := put_in_hand(black_sun, "TS26_070")
+	check(black_sun.do_action({"a": "play", "uid": backed.uid}) and black_sun.submit_choice([first.uid])
+		and not first.uid in black_sun.pending.get("options", []) and black_sun.submit_choice([target.uid])
+		and target.damage == 2 and first.zone == "discard",
+		"Backed by Black Sun excludes the unit defeated by its first damage from its second effect")
+
+
+func test_next_regroup_effects() -> void:
+	var m := funded_match()
+	var friendly := add_unit(m, 0, "SOR_095", false)
+	var showdown := put_in_hand(m, "SHD_208")
+	check(m.do_action({"a": "play", "uid": showdown.uid}) and not friendly.exhausted and m.winner < 0,
+		"Final Showdown readies friendly units without ending the current action phase")
+	m._end_action_phase()
+	m.pump()
+	check(m.winner == 1, "Final Showdown causes loss at the start of regroup")
+
+	var seismic := funded_match()
+	var own := add_unit(seismic, 0, "SOR_095")
+	var enemy_ground := add_unit(seismic, 1, "SOR_095")
+	var enemy_ship := add_unit(seismic, 1, "SOR_066")
+	var bomb := put_in_hand(seismic, "HMW_054")
+	check(seismic.do_action({"a": "play", "uid": bomb.uid}) and seismic.submit_choice([0]) and enemy_ground.damage == 0,
+		"Seismic Detonation records the selected arena for regroup")
+	seismic._end_action_phase()
+	seismic.pump()
+	check(enemy_ground.zone == "discard" and enemy_ship.damage == 0 and own.damage == 0 and seismic.next_regroup_effects.is_empty(),
+		"Seismic Detonation hits the enemies in the chosen arena once")
+
+	for contested in [false, true]:
+		var confidence := funded_match()
+		add_unit(confidence, 0, "SOR_225")
+		var winning := put_in_hand(confidence, "SEC_145")
+		check(confidence.do_action({"a": "play", "uid": winning.uid}) and confidence.submit_choice([1]) and confidence.winner < 0,
+			"Confidence in Victory records the space arena without granting an immediate victory")
+		if contested:
+			add_unit(confidence, 1, "SOR_225")
+		confidence._end_action_phase()
+		confidence.pump()
+		check(confidence.winner == (-1 if contested else 0), "Confidence in Victory rechecks arena control at regroup")
+	var late := funded_match()
+	var event := put_in_hand(late, "SEC_145")
+	check(not Effects.has_hand_play(late, 0, {"kind": "event", "free": true}),
+		"Confidence in Victory cannot be played by another card even on the opening action")
+	check(late.do_action({"a": "pass"}), "Passing consumes the opening action")
+	late.active = 0
+	check(not late.legal_actions(0).any(func(a): return a.get("uid", 0) == event.uid),
+		"Confidence in Victory is unavailable after the opening action")
+
+	var delayed_discard := funded_match()
+	var zorii := add_unit(delayed_discard, 0, "SHD_203")
+	check(delayed_discard.do_action({"a": "attack", "uid": zorii.uid, "target": delayed_discard.players[1].base.uid})
+		and delayed_discard.cards_drawn_this_phase[0] == 1 and delayed_discard.pending.is_empty(),
+		"Zorii Bliss draws immediately on attack")
+	delayed_discard.defeat(zorii)
+	delayed_discard._end_action_phase()
+	delayed_discard.pump()
+	check(delayed_discard.pending.get("kind") == "hand" and delayed_discard.pending.get("player") == 0
+		and delayed_discard.submit_choice([delayed_discard.pending["options"][0]]),
+		"Zorii Bliss's regroup discard persists if Zorii is defeated")
+
+
+func test_deck_search_filters() -> void:
+	var m := funded_match()
+	var deck := stage_search_deck(m, ["SOR_049", "SOR_095", "SOR_053", "SOR_225", "SOR_095", "SOR_095", "SOR_095", "SOR_095", "SOR_049"])
+	var team := put_in_hand(m, "LAW_166")
+	check(m.do_action({"a": "play", "uid": team.uid}) and m.pending.get("options", []) == [deck[0].uid],
+		"Putting a Team Together offers only eligible units among the first eight cards")
+	check(m.submit_choice([deck[0].uid]) and deck[0].zone == "hand" and m.players[0].deck.front() == deck[8],
+		"Putting a Team Together draws the chosen card and puts the rest below the unsearched cards")
+
+	var commission_match := funded_match()
+	var supply := stage_search_deck(commission_match, ["SOR_053", "SOR_095", "SOR_250"])
+	var commission := put_in_hand(commission_match, "SHD_127")
+	check(commission_match.do_action({"a": "play", "uid": commission.uid})
+		and commission_match.pending.get("options", []) == [supply[0].uid, supply[2].uid],
+		"Commission offers Item and Transport cards of different types while excluding unrelated units")
+	check(commission_match.submit_choice([supply[2].uid]) and supply[2].zone == "hand", "Commission draws the selected Transport")
+
+	var mandalorians := funded_match()
+	var found := stage_search_deck(mandalorians, ["ASH_047", "SOR_053", "SOR_095"])
+	var event := put_in_hand(mandalorians, "SHD_253")
+	check(mandalorians.do_action({"a": "play", "uid": event.uid})
+		and mandalorians.pending.get("options", []) == [found[0].uid, found[1].uid],
+		"This Is The Way offers a Mandalorian unit and a non-Mandalorian upgrade")
+	check(mandalorians.submit_choice([found[0].uid, found[1].uid]) and found[0].zone == "hand" and found[1].zone == "hand"
+		and mandalorians.cards_drawn_this_phase[0] == 2, "This Is The Way accepts both eligible types in one search")
+
+	var matching := funded_match()
+	var matching_deck := stage_search_deck(matching, ["SOR_053", "SOR_225", "SOR_095"])
+	var droid := put_in_hand(matching, "LAW_145")
+	check(matching.do_action({"a": "play", "uid": droid.uid}) and matching.pending.get("options", []) == [matching_deck[2].uid],
+		"R2-D2 can count his own aspects and offers only units sharing a friendly aspect")
+	check(matching.submit_choice([matching_deck[2].uid]) and matching_deck[2].zone == "hand", "R2-D2 draws the matching unit")
+
+
+func test_play_units_from_deck() -> void:
+	var m := funded_match()
+	var deck := stage_search_deck(m, ["SOR_049", "SOR_095", "SOR_128", "SOR_225"])
+	var u_wing := put_in_hand(m, "SOR_104")
+	var ready: int = m.players[0].available()
+	check(m.do_action({"a": "play", "uid": u_wing.uid}) and m.pending.get("effect", {}).get("combined_cost") == 7,
+		"U-Wing Reinforcement opens a search constrained by the combined printed cost")
+	check(not m.submit_choice([deck[0].uid, deck[1].uid]) and m.pending.get("kind") == "search",
+		"U-Wing Reinforcement rejects eight combined cost without closing the search")
+	check(m.submit_choice([deck[1].uid, deck[2].uid, deck[3].uid])
+		and m.players[0].units == deck.slice(1) and deck[0].zone == "deck"
+		and m.players[0].available() == ready - u_wing.cost() and m.cards_drawn_this_phase[0] == 0,
+		"U-Wing Reinforcement plays the three chosen units in order for free and leaves the other card in the deck")
+
+	var vader_match := funded_match()
+	var enemies := stage_search_deck(vader_match, ["SOR_225", "SOR_128", "SOR_231", "SOR_095"])
+	var vader := put_in_hand(vader_match, "SOR_087")
+	check(vader_match.do_action({"a": "play", "uid": vader.uid})
+		and vader_match.pending.get("op") == "_ordered_triggers" and vader_match.submit_choice([0])
+		and vader_match.pending.get("options", []) == [enemies[0].uid, enemies[1].uid],
+		"Darth Vader's Spark of Rebellion search filters by Villainy and printed cost")
+	check(not AiBot.choose(vader_match).is_empty() and enemies[0].in_play() and enemies[1].in_play() and vader_match.pending.is_empty(),
+		"The bot picks a legal group for Darth Vader and resolves the search")
+
+	var beq_match := funded_match()
+	var candidates := stage_search_deck(beq_match, ["SOR_244", "SOR_172"])
+	var beq := put_in_hand(beq_match, "LOF_100")
+	var before: int = beq_match.players[0].available()
+	check(beq_match.do_action({"a": "play", "uid": beq.uid}) and beq_match.pending.get("options", []) == [candidates[0].uid]
+		and beq_match.submit_choice([candidates[0].uid]) and candidates[0].in_play()
+		and beq_match.players[0].available() == before - beq.cost() - candidates[0].cost() + 3,
+		"Kelleran Beq plays the selected unit from the deck and pays its discounted cost")
+
+	var sion_match := funded_match()
+	var ships := stage_search_deck(sion_match, ["SOR_049", "SOR_066"])
+	var eye := add_unit(sion_match, 0, "ASH_245")
+	check(sion_match.do_action({"a": "ability", "uid": eye.uid, "idx": 0}) and sion_match.pending.get("options", []) == [ships[1].uid]
+		and sion_match.submit_choice([ships[1].uid]) and eye.exhausted and ships[1].in_play() and not ships[1].exhausted,
+		"Eye of Sion filters against its live power and the selected unit enters ready")
+
+	var homeworlds := funded_match()
+	var units := stage_search_deck(homeworlds, ["SOR_231", "JTL_063", "SOR_244"])
+	var leader := put_in_hand(homeworlds, "HMW_043")
+	check(homeworlds.do_action({"a": "play", "uid": leader.uid}) and homeworlds.pending.get("options", []) == [units[0].uid, units[1].uid]
+		and homeworlds.submit_choice([units[1].uid, units[0].uid]) and homeworlds.submit_choice([units[1].uid])
+		and units[0].zone == "discard" and units[1].damage == 2 and units[1].upgrades.size() == 2,
+		"Homeworlds Vader plays two eligible units, resolves a When Played target, then damages both selections")
+
+	var kalikori_match := funded_match()
+	var keepers := stage_search_deck(kalikori_match, ["TWI_108", "SOR_095"])
+	var host := add_unit(kalikori_match, 0, "SOR_177")
+	var heirloom := put_in_hand(kalikori_match, "HMW_265")
+	check(kalikori_match.do_action({"a": "play", "uid": heirloom.uid}) and kalikori_match.submit_choice([host.uid])
+		and kalikori_match.pending.get("options", []) == [keepers[0].uid] and kalikori_match.submit_choice([keepers[0].uid])
+		and keepers[0].in_play(), "Twi'lek Kalikori reacts to its host and searches for the matching trait")
+
+
+func test_play_from_discard() -> void:
+	var m := funded_match()
+	var defeated := add_unit(m, 0, "SOR_095")
+	m.defeat(defeated)
+	var discarded := stage_discard(m, "SOR_128")
+	var event := put_in_hand(m, "TWI_189")
+	check(m.do_action({"a": "play", "uid": event.uid}) and m.pending.get("options", []) == [defeated.uid]
+		and m.submit_choice([defeated.uid]) and defeated.in_play() and not defeated.exhausted
+		and not defeated in m.players[0].discard and discarded.zone == "discard",
+		"Unnatural Life plays only a unit defeated this phase and it enters ready")
+	m._end_action_phase()
+	m.pump()
+	check(defeated.zone == "discard", "Unnatural Life defeats that unit at the beginning of regroup")
+
+	var sneaking := funded_match()
+	var returned := put_in_hand(sneaking, "SOR_095")
+	var sneak := put_in_hand(sneaking, "SOR_219")
+	check(sneaking.do_action({"a": "play", "uid": sneak.uid}) and sneaking.submit_choice([returned.uid])
+		and returned.in_play() and not returned.exhausted, "Sneak Attack plays the unit ready")
+	sneaking.return_to_hand(returned)
+	sneaking.active = 0
+	check(sneaking.do_action({"a": "play", "uid": returned.uid}), "The returned unit can be played again")
+	sneaking._end_action_phase()
+	sneaking.pump()
+	check(returned.in_play(), "Sneak Attack's earlier regroup defeat leaves the replayed instance in play")
+
+	for example in [["SOR_087", 0], ["SOR_088", 2]]:
+		var palpatine := funded_match()
+		var target := stage_discard(palpatine, example[0])
+		var resurrection := put_in_hand(palpatine, "SHD_094")
+		var affordable: int = palpatine.players[0].available()
+		check(palpatine.do_action({"a": "play", "uid": resurrection.uid}) and palpatine.submit_choice([target.uid])
+			and target.in_play() and palpatine.players[0].available() == affordable - resurrection.cost() - int(example[1]),
+			"Palpatine's Return applies the correct discount for each unit's Force trait")
+
+	var materials := funded_match()
+	var saber := stage_discard(materials, "SOR_053")
+	var guard := add_unit(materials, 0, "SOR_049")
+	var repair := put_in_hand(materials, "LAW_245")
+	check(materials.do_action({"a": "play", "uid": repair.uid}) and materials.submit_choice([saber.uid])
+		and materials.submit_choice([guard.uid]) and saber.attached_to == guard,
+		"Salvaged Materials plays a discounted Item from discard and attaches it normally")
+	materials._end_action_phase()
+	materials.pump()
+	check(saber.zone == "discard" and saber.attached_to == null and guard.upgrades.is_empty(),
+		"Salvaged Materials removes the temporary attachment at regroup")
+
+	var fixing := funded_match()
+	var eligible := stage_discard(fixing, "SOR_095")
+	eligible.controller = 1  # The opponent controlled this unit before it went to its owner's discard pile.
+	stage_discard(fixing, "SOR_225")
+	stage_discard(fixing, "SOR_053")
+	var mechanize := put_in_hand(fixing, "TS26_057")
+	check(fixing.do_action({"a": "play", "uid": mechanize.uid}) and fixing.pending.get("options", []) == [eligible.uid]
+		and fixing.submit_choice([eligible.uid]) and eligible in fixing.players[0].units and eligible.upgrades.size() == 1,
+		"Mechanize replays a non-Vehicle unit and gives it Experience")
+
+
+func test_delayed_search_play() -> void:
+	var raid := funded_match()
+	var finds := stage_search_deck(raid, ["SOR_095", "SOR_225"])
+	var event := put_in_hand(raid, "SHD_194")
+	check(raid.do_action({"a": "play", "uid": event.uid}) and raid.pending.get("options", []) == [finds[1].uid]
+		and raid.submit_choice([finds[1].uid]) and finds[1].in_play() and not finds[1].exhausted,
+		"Triple Dark Raid filters Vehicles and plays the selected unit ready")
+	raid.events.clear()
+	raid._end_action_phase()
+	raid.pump()
+	var bounce := raid.events.find_custom(func(e): return e.get("t") == "bounce" and e.get("uid") == finds[1].uid)
+	var regroup := raid.events.find_custom(func(e): return e.get("t") == "phase" and e.get("phase") == "regroup")
+	check(bounce >= 0 and regroup > bounce and finds[1].zone == "hand", "Triple Dark Raid returns the unit before regroup")
+
+	var bike_match := funded_match()
+	var wheel := stage_search_deck(bike_match, ["TWI_236"])[0] as CardInst
+	var host := add_unit(bike_match, 0, "SOR_095")
+	var raid_for_upgrade := put_in_hand(bike_match, "SHD_194")
+	check(bike_match.do_action({"a": "play", "uid": raid_for_upgrade.uid}) and bike_match.submit_choice([wheel.uid])
+		and bike_match.submit_choice([host.uid]) and wheel.attached_to == host, "Triple Dark Raid can play a Vehicle upgrade")
+	bike_match._end_action_phase()
+	bike_match.pump()
+	check(wheel.zone == "hand" and host.upgrades.is_empty(), "Triple Dark Raid detaches and returns the Vehicle upgrade")
+
+	var maz_match := funded_match()
+	var maz := add_unit(maz_match, 0, "LAW_074")
+	var choice := stage_search_deck(maz_match, ["SOR_177", "SOR_095"])[0] as CardInst
+	check(maz_match.do_action({"a": "attack", "uid": maz.uid, "target": maz_match.players[1].base.uid})
+		and maz_match.submit_choice([choice.uid]) and choice.in_play() and not choice.exhausted,
+		"Maz Kanata searches on a survived attack and the Underworld unit enters ready")
+	maz_match.attach_token(choice, "experience")
+	maz_match.rules.regroup_draw = 0
+	maz_match._end_action_phase()
+	maz_match.pump()
+	check(choice.zone == "deck" and maz_match.players[0].deck.back() == choice and choice.upgrades.is_empty(),
+		"Maz Kanata puts the chosen entry on the bottom at regroup and removes its upgrades")
+
+	var recycled := funded_match()
+	var flight := put_in_hand(recycled, "SHD_194")
+	var ship := stage_search_deck(recycled, ["SOR_225"])[0] as CardInst
+	check(recycled.do_action({"a": "play", "uid": flight.uid}) and recycled.submit_choice([ship.uid]), "Triple Dark Raid stages a return")
+	recycled.return_to_hand(ship)
+	recycled.active = 0
+	check(recycled.do_action({"a": "play", "uid": ship.uid}), "The same physical card can be played again")
+	recycled._end_action_phase()
+	recycled.pump()
+	check(ship.in_play(), "The delayed effect leaves the new entry in play")
+
+
+func test_discard_selection_followups() -> void:
+	var m := funded_match()
+	var reference := stage_discard(m, "SOR_095")
+	var cards := stage_search_deck(m, ["SOR_128", "SOR_095", "SOR_225"])
+	var event := put_in_hand(m, "LOF_219")
+	check(m.do_action({"a": "play", "uid": event.uid}) and event.uid not in m.pending["options"]
+		and m.submit_choice([reference.uid]) and m.pending.get("options", []) == [cards[0].uid, cards[1].uid],
+		"Psychometry uses a different discard card and searches for any shared trait")
+	check(m.submit_choice([cards[1].uid]) and cards[1].zone == "hand" and reference.zone == "discard",
+		"Psychometry leaves the reference card in discard")
+
+	var luminous := funded_match()
+	var recovered_first := stage_discard(luminous, "SOR_049")
+	var recovered_second := stage_discard(luminous, "SOR_087")
+	var friendly := add_unit(luminous, 0, "SOR_095")
+	var opposing := add_unit(luminous, 1, "SOR_128")
+	var buff := put_in_hand(luminous, "LOF_104")
+	check(luminous.do_action({"a": "play", "uid": buff.uid}) and luminous.submit_choice([recovered_first.uid, recovered_second.uid])
+		and luminous.pending.get("min") == 2 and not luminous.submit_choice([friendly.uid]),
+		"Luminous Beings requires a distinct target for each returned card")
+	check(luminous.submit_choice([friendly.uid, opposing.uid]) and friendly.power() == 7 and opposing.power() == 7,
+		"Luminous Beings buffs two chosen units")
+	check(luminous.players[0].deck.slice(-2).has(recovered_first) and luminous.players[0].deck.slice(-2).has(recovered_second),
+		"Luminous Beings puts both Force units at the bottom of the deck")
+
+	var path := funded_match()
+	var top := stage_search_deck(path, ["SOR_049", "SOR_095", "SOR_087"])
+	var following := put_in_hand(path, "LOF_103")
+	check(path.do_action({"a": "play", "uid": following.uid}) and path.submit_choice([top[2].uid, top[0].uid])
+		and path.players[0].deck == [top[2], top[0], top[1]] and path.cards_drawn_this_phase[0] == 0,
+		"Following the Path preserves the chosen top-deck order without drawing")
+
+
+func test_immediate_replays() -> void:
+	var addition := funded_match()
+	var stolen := addition._new_inst("SOR_057", 1)
+	stolen.zone = "discard"
+	addition.players[1].discard.append(stolen)
+	var host := add_unit(addition, 0, "SOR_095")
+	addition.defeat(add_unit(addition, 1, "SOR_128"))
+	var event := put_in_hand(addition, "TWI_040")
+	check(addition.do_action({"a": "play", "uid": event.uid}) and addition.submit_choice([stolen.uid])
+		and addition.submit_choice([host.uid]) and stolen.attached_to == host and stolen.controller == 0
+		and stolen.owner == 1 and stolen not in addition.players[1].discard,
+		"A Fine Addition plays an eligible upgrade from the opponent's discard under the acting player's control")
+
+	var l3_match := funded_match()
+	stage_search_deck(l3_match, ["SOR_095", "SOR_095", "SOR_095", "SOR_095"])
+	add_unit(l3_match, 0, "HMW_215")
+	var arms := put_in_hand(l3_match, "TS26_068")
+	stage_discard(l3_match, "TS26_068")
+	var before: int = l3_match.players[0].available()
+	check(l3_match.do_action({"a": "play", "uid": arms.uid}) and l3_match.pending.get("options", []) == [arms.uid],
+		"L3-37 offers the event just played even when another copy is in discard")
+	check(l3_match.submit_choice([arms.uid]) and l3_match.pending.is_empty()
+		and l3_match.cards_drawn_this_phase[0] == 4 and l3_match.players[0].available() == before - arms.cost(),
+		"L3-37 repeats the event for free once without triggering itself a second time")
+
+	var lama_match := funded_match()
+	var lama := lama_match._new_inst("SEC_003", 0)
+	lama.zone = "leader"
+	lama_match.players[0].leader = lama
+	var ground := add_unit(lama_match, 0, "SOR_095")
+	var vehicle := add_unit(lama_match, 0, "SOR_225")
+	var enemy := add_unit(lama_match, 1, "SOR_128")
+	var protector := put_in_hand(lama_match, "SOR_057")
+	check(lama_match.do_action({"a": "ability", "uid": lama.uid, "idx": 0}) and lama_match.submit_choice([protector.uid])
+		and lama_match.pending.get("options", []) == [ground.uid] and not lama_match.submit_choice([vehicle.uid])
+		and not lama_match.submit_choice([enemy.uid]), "Lama Su restricts attachment to a friendly non-Vehicle unit")
+	check(lama_match.submit_choice([ground.uid]) and protector.attached_to == ground and ground.damage == 1,
+		"Lama Su damages the actual recipient after attaching the upgrade")
+
+
+func test_resources_and_action_start() -> void:
+	var solo := funded_match()
+	var han := solo._new_inst("SOR_017", 0)
+	han.zone = "leader"
+	solo.players[0].leader = han
+	var investment := put_in_hand(solo, "SOR_095")
+	var existing: CardInst = solo.players[0].resources[0]
+	check(solo.do_action({"a": "ability", "uid": han.uid, "idx": 0}) and solo.submit_choice([investment.uid])
+		and investment.zone == "resource" and not investment.exhausted and existing.zone == "resource",
+		"Han Solo adds a ready resource and waits before charging his delayed cost")
+	solo.start_action_phase()
+	solo.pump()
+	check(solo.pending.get("kind") == "resource" and solo.submit_choice([existing.uid]) and existing.zone == "discard"
+		and investment.zone == "resource" and solo.next_action_effects.is_empty(),
+		"Han Solo lets the player defeat any friendly resource at the next action phase")
+
+	var plots := funded_match()
+	var plotted := put_in_hand(plots, "SEC_036")
+	plots.move_to_resources(0, plotted)
+	var replacement := stage_search_deck(plots, ["SOR_128", "SOR_095"])[0] as CardInst
+	var event := put_in_hand(plots, "SEC_245")
+	var size_before: int = plots.players[0].resources.size()
+	check(plots.do_action({"a": "play", "uid": event.uid}) and plots.pending.get("options", []) == [plotted.uid]
+		and plots.submit_choice([plotted.uid]) and plotted.in_play(), "When Has Become Now selects only a resource with Plot")
+	check(plots.players[0].resources.size() == size_before and replacement.zone == "resource" and replacement.exhausted
+		and plots.players[0].deck.size() == 1, "A successful play replaces the resource exactly once")
+
+	var no_plot := funded_match()
+	var failed := put_in_hand(no_plot, "SEC_245")
+	var without_plot: int = no_plot.players[0].resources.size()
+	check(no_plot.do_action({"a": "play", "uid": failed.uid}) and no_plot.pending.is_empty()
+		and no_plot.players[0].resources.size() == without_plot, "When Has Become Now adds no resource if no Plot card is played")
+
+	var loss := funded_match()
+	var lackeys := add_unit(loss, 0, "SHD_107")
+	var spent: CardInst = loss.players[0].resources[0]
+	loss.defeat(lackeys)
+	loss.pump()
+	check(loss.submit_choice([spent.uid]) and spent.zone == "discard" and lackeys.zone == "resource" and lackeys.exhausted,
+		"Enterprising Lackeys can replace a chosen resource on defeat")
+
+
+func test_combat_order_and_modifiers() -> void:
+	for early in [false, true]:
+		var m := funded_match()
+		var stranger := add_unit(m, 0, "LAW_086")
+		var marine := add_unit(m, 1, "SOR_095")
+		check(m.do_action({"a": "attack", "uid": stranger.uid, "target": marine.uid}) and m.pending.get("kind") == "yesno"
+			and m.submit_choice([int(early)]), "The Stranger offers the order of combat damage")
+		check(stranger.damage == 3 and (marine.zone == "discard" if early else marine.damage == 1),
+			"A surviving Stranger uses the updated Grit power only when he takes damage first")
+
+	for first in [false, true]:
+		var racer_match := funded_match()
+		var racer := add_unit(racer_match, 0, "LAW_219")
+		var rival := add_unit(racer_match, 1, "SOR_095")
+		if not first:
+			var earlier := add_unit(racer_match, 1, "SOR_128")
+			racer_match.attacked_with[1].append(earlier.uid)
+		check(racer_match.do_action({"a": "attack", "uid": racer.uid, "target": rival.uid}) and rival.zone == "discard"
+			and racer.in_play() == first, "Anakin's Podracer strikes first only before any other unit has attacked")
+
+	var swoop := funded_match()
+	var ship := add_unit(swoop, 0, "SOR_237")
+	var ground := add_unit(swoop, 1, "SOR_095")
+	add_unit(swoop, 1, "SOR_066")
+	var swoop_card := put_in_hand(swoop, "SHD_230")
+	check(ground.uid not in swoop.attack_targets(ship) and swoop.do_action({"a": "play", "uid": swoop_card.uid})
+		and swoop.submit_choice([ship.uid]) and ground.uid in swoop.pending.get("options", []),
+		"Swoop Down grants Saboteur and cross-arena targeting before a defender is selected")
+	check(swoop.submit_choice([ground.uid]) and ground.zone == "discard" and ship.damage == 1 and ship.power() == 2
+		and not ship.has_kw("saboteur"), "Swoop Down applies both ground modifiers and removes them after combat")
+
+	var speed := funded_match()
+	var attacker := add_unit(speed, 0, "SOR_095")
+	var defender := add_unit(speed, 1, "SOR_088")
+	var protector := speed._new_inst("SOR_057", 1)
+	speed.attach_upgrade(protector, defender)
+	var elsewhere := add_unit(speed, 1, "SOR_128")
+	var not_chosen := speed._new_inst("SOR_057", 1)
+	speed.attach_upgrade(not_chosen, elsewhere)
+	var event := put_in_hand(speed, "LOF_205")
+	check(speed.do_action({"a": "play", "uid": event.uid}) and speed.submit_choice([attacker.uid]) and speed.submit_choice([defender.uid])
+		and speed.pending.get("options", []) == [protector.uid], "Force Speed offers only non-unique upgrades attached to its defender")
+	check(speed.submit_choice([protector.uid]) and protector.zone == "hand" and not_chosen.attached_to == elsewhere,
+		"Force Speed returns the selected upgrade before combat and leaves other units' upgrades attached")
+
+	var rukh_match := funded_match()
+	var rukh := add_unit(rukh_match, 0, "SOR_085")
+	var large := add_unit(rukh_match, 1, "SOR_049")
+	check(rukh_match.do_action({"a": "attack", "uid": rukh.uid, "target": large.uid}) and large.zone == "discard"
+		and rukh.in_play(), "Rukh defeats the damaged non-leader even when his combat damage was insufficient")
+
+
+func test_phase_damage_history() -> void:
+	var m := funded_match()
+	var wounded := add_unit(m, 0, "SOR_095", false)
+	var untouched := add_unit(m, 0, "SOR_225", false)
+	m.deal_damage(wounded, 1, null)
+	m.heal(wounded, 1)
+	var leap := put_in_hand(m, "ASH_188")
+	check(m.do_action({"a": "play", "uid": leap.uid}) and m.pending.get("options", []) == [wounded.uid]
+		and m.submit_choice([wounded.uid]) and not wounded.exhausted and untouched.exhausted,
+		"Galvanized Leap can ready a unit that was healed after taking damage this phase")
+
+	var retaliation := funded_match()
+	var invader := add_unit(retaliation, 1, "SOR_128")
+	var bystander := add_unit(retaliation, 1, "SOR_088")
+	retaliation.deal_damage(bystander, 1, null)
+	retaliation.active = 1
+	check(retaliation.do_action({"a": "attack", "uid": invader.uid, "target": retaliation.players[0].base.uid}),
+		"The opponent records combat damage to the base through a normal attack")
+	var answer := put_in_hand(retaliation, "SEC_077")
+	check(retaliation.do_action({"a": "play", "uid": answer.uid}) and retaliation.pending.get("options", []) == [invader.uid]
+		and retaliation.submit_choice([invader.uid]) and invader.zone == "discard",
+		"Retaliation targets units that dealt base damage rather than units with damage on them")
+
+	for damages_enemy in [false, true]:
+		var tempest := funded_match()
+		var ship := add_unit(tempest, 1, "SOR_066")
+		var source := add_unit(tempest, 0, "SOR_095")
+		tempest.deal_damage(tempest.players[int(damages_enemy)].base, 1, source)
+		var assault := put_in_hand(tempest, "SEC_144")
+		check(tempest.do_action({"a": "play", "uid": assault.uid}) and ship.damage == (2 if damages_enemy else 0),
+			"Tempest Assault requires damage dealt to an enemy base this phase")
+
+	var qui_match := funded_match()
+	var leader := qui_match._new_inst("SOR_010", 1)
+	leader.deployed = true
+	qui_match.players[1].leader = leader
+	qui_match._put_in_play(leader, "ground", false)
+	qui_match.active = 1
+	check(qui_match.do_action({"a": "attack", "uid": leader.uid, "target": qui_match.players[0].base.uid})
+		and qui_match.submit_choice([]), "The deployed enemy leader attacks the base and skips his optional damage")
+	var qui_gon := put_in_hand(qui_match, "HMW_078")
+	check(qui_match.do_action({"a": "play", "uid": qui_gon.uid}) and qui_match.pending.get("options", []) == [leader.uid]
+		and qui_match.submit_choice([leader.uid]) and leader.zone == "leader" and qui_gon.zone == "discard",
+		"Qui-Gon can defeat the leader that attacked the base and is defeated in return")
+
+	var control := funded_match()
+	var raider := add_unit(control, 1, "SOR_128")
+	control.begin_attack(raider, control.players[0].base)
+	control.pump()
+	control.take_control(raider, 0)
+	control.exhaust(raider, false)
+	control.begin_attack(raider, control.players[1].base)
+	control.pump()
+	check(Effects.matches(control, raider, {"attacked_your_base": true}, {"ctl": 0}) and
+		Effects.matches(control, raider, {"attacked_your_base": true}, {"ctl": 1}),
+		"Both bases remember an attacker that changed sides mid-phase")
+
+
+func test_search_and_bounty_payoffs() -> void:
+	for unique in [false, true]:
+		var m := funded_match()
+		var deck := stage_search_deck(m, ["SOR_095", "SOR_095", "SOR_095", "SOR_095", "SOR_095", "SOR_225"])
+		var quarry := add_unit(m, 1, "SOR_087" if unique else "SOR_128")
+		m.attach_upgrade(m._new_inst("SHD_123", 0), quarry)
+		m.defeat(quarry)
+		m.pump()
+		check(m.pending.get("player") == 0 and m.submit_choice([0])
+			and m.pending.get("options", []).size() == (6 if unique else 5),
+			"Bounty Hunter's Quarry increases the search window for a unique defeated unit")
+		check(m.submit_choice([deck[0].uid]) and deck[0].in_play(), "Bounty Hunter's Quarry plays the chosen unit for free")
+
+	var posting := funded_match()
+	var bounty := stage_search_deck(posting, ["SHD_123", "SOR_057"])[0] as CardInst
+	var other := put_in_hand(posting, "SHD_222")
+	var target := add_unit(posting, 1, "SOR_095")
+	var poster := put_in_hand(posting, "SHD_228")
+	check(posting.do_action({"a": "play", "uid": poster.uid}) and posting.pending.get("options", []) == [bounty.uid]
+		and posting.submit_choice([bounty.uid]) and posting.pending.get("options", []) == [bounty.uid]
+		and not posting.submit_choice([other.uid]), "Bounty Posting offers only the Bounty upgrade it just drew")
+	check(posting.submit_choice([bounty.uid]) and posting.submit_choice([target.uid]) and bounty.attached_to == target,
+		"Bounty Posting plays the selected upgrade through the normal attachment picker")
+
+	var invisible := funded_match()
+	var draw := stage_search_deck(invisible, ["SOR_059", "SOR_095"])[0] as CardInst
+	var cruiser := put_in_hand(invisible, "JTL_089")
+	check(invisible.do_action({"a": "play", "uid": cruiser.uid}) and invisible.submit_choice([1])
+		and invisible.pending.get("options", []) == [draw.uid] and invisible.submit_choice([draw.uid]),
+		"The Invisible Hand optionally searches for and draws a Droid")
+	check(invisible.pending.get("options", []) == [draw.uid] and invisible.submit_choice([draw.uid]) and draw.in_play(),
+		"The Invisible Hand plays the inexpensive Droid it drew")
+
+	for defeated in [false, true]:
+		var spark_match := funded_match()
+		var source := add_unit(spark_match, 0, "SOR_095") if defeated else stage_discard(spark_match, "SOR_095")
+		if defeated:
+			spark_match.defeat(source)
+		var spark := put_in_hand(spark_match, "SHD_105")
+		check(spark_match.do_action({"a": "play", "uid": spark.uid}) and spark_match.submit_choice([source.uid])
+			and source.zone == ("resource" if defeated else "discard"), "Spark of Hope resources only a unit defeated this phase")
+
+
+func stage_discard(m: Match, id: String) -> CardInst:
+	var card := m._new_inst(id, 0)
+	card.zone = "discard"
+	m.players[0].discard.append(card)
+	return card
+
+
+func stage_search_deck(m: Match, ids: Array) -> Array:
+	var ps: PlayerState = m.players[0]
+	for card in ps.deck:
+		card.zone = "discard"
+		ps.discard.append(card)
+	ps.deck.clear()
+	for id in ids:
+		var card := m._new_inst(id, 0)
+		card.zone = "deck"
+		ps.deck.append(card)
+	return ps.deck.duplicate()
+
+
+func test_disclosure() -> void:
+	var m := funded_match()
+	for held in m.players[0].hand.duplicate():
+		m._remove_from_zones(held)
+		held.zone = "discard"
+		m.players[0].discard.append(held)
+	var protector := put_in_hand(m, "SOR_095")
+	var ally := put_in_hand(m, "SOR_095")
+	var foe := add_unit(m, 1, "SOR_225")
+	var corruption := put_in_hand(m, "SEC_127")
+	var guard := add_unit(m, 0, "SOR_095")
+	check(m.do_action({"a": "play", "uid": corruption.uid}) and m.pending.get("kind") == "disclose", "Charged with Corruption prompts for disclosure")
+	check(not m.submit_choice([protector.uid]), "One printed Command icon cannot pay for two")
+	check(not m.submit_choice([protector.uid, protector.uid]), "A single card cannot be selected twice for one disclosure")
+	check(m.submit_choice([protector.uid, ally.uid]) and m.pending.get("kind") == "disclosure_reveal", "Both disclosed cards are shown together to the opponent")
+	check(protector.zone == "hand" and ally.zone == "hand", "Disclosure keeps revealed cards in hand")
+	check(m.submit_choice([]) and guard.uid in m.pending.get("options", []), "Acknowledging the reveal resumes the capture choice")
+	if guard.uid in m.pending.get("options", []):
+		m.submit_choice([guard.uid])
+		if foe.uid in m.pending.get("options", []):
+			m.submit_choice([foe.uid])
+	check(foe.zone == "captured", "Successful disclosure resolves capture")
+
+	var decline := funded_match()
+	var spy := put_in_hand(decline, "SEC_181")
+	put_in_hand(decline, "SOR_095")
+	put_in_hand(decline, "SOR_128")
+	put_in_hand(decline, "SOR_172")
+	check(decline.do_action({"a": "play", "uid": spy.uid}), "Unauthorized Investigation plays normally")
+	check(decline.pending.get("kind") == "disclose" and decline.submit_choice([]), "Declining a valid disclosure is permitted")
+	check(decline.players[0].units.size() == 1, "Declining disclosure keeps only the initial Spy")
+
+	var reveal := funded_match()
+	var padme := reveal._new_inst("SEC_016", 0)
+	reveal.players[0].leader = padme
+	padme.zone = "leader"
+	var event := put_in_hand(reveal, "SOR_172")
+	var agent := put_in_hand(reveal, "SOR_176")
+	var target := add_unit(reveal, 1, "SOR_095")
+	check(reveal.do_action({"a": "play", "uid": agent.uid}) and reveal.pending.get("options") == [event.uid],
+		"ISB Agent can reveal only an event from hand")
+	check(reveal.submit_choice([event.uid]) and reveal.submit_choice([]) and reveal.pending.get("kind") == "yesno",
+		"Revealing the event triggers Padmé")
+	check(reveal.submit_choice([1]) and reveal.submit_choice([target.uid]) and reveal.submit_choice([target.uid]),
+		"Padmé and ISB Agent resolve their separate choices")
+	check(padme.exhausted and target.damage == 2 and event.zone == "hand", "Both printed abilities deal damage, and the event stays in hand")
+
+
+func test_next_unit_and_copy_limit() -> void:
+	var m := funded_match()
+	var neel := put_in_hand(m, "ASH_248")
+	check(m.do_action({"a": "play", "uid": neel.uid}), "Neel's When Played queues a printed-power entry modifier")
+	m.active = 0
+	var marine := put_in_hand(m, "SOR_095")
+	check(m.do_action({"a": "play", "uid": marine.uid}) and marine.exhausted, "Unqualified units do not consume Neel's modifier")
+	m.active = 0
+	var cheap := put_in_hand(m, "SOR_059")
+	check(m.do_action({"a": "play", "uid": cheap.uid}) and not cheap.exhausted, "The next qualifying unit enters ready")
+	m.active = 0
+	cheap = put_in_hand(m, "SOR_059")
+	check(m.do_action({"a": "play", "uid": cheap.uid}) and cheap.exhausted, "Only one qualifying unit enters ready")
+
+	var deck: Array = []
+	deck.resize(15)
+	deck.fill("JTL_256")
+	var rules := RuleSet.campaign()
+	rules.deck_min = 0
+	check(DeckBuilder.validate(lib, rules, "SOR_010", "HMW_028", deck).is_empty(), "Swarming Vulture Droid allows fifteen copies")
+	deck.append("JTL_256")
+	check(not DeckBuilder.validate(lib, rules, "SOR_010", "HMW_028", deck).is_empty(), "A sixteenth Swarming Vulture Droid exceeds the copy limit")
+	var first := add_unit(m, 0, "JTL_256")
+	var second := add_unit(m, 0, "JTL_256")
+	add_unit(m, 1, "JTL_256")
+	check(first.power() == 3 and second.power() == 3, "Vultures count friendly names and exclude themselves")
+	m.defeat(second)
+	check(first.power() == 2, "Vulture power updates when its ally leaves play")
+
+
+func test_commanded_attacks() -> void:
+	var m := funded_match()
+	var ally := add_unit(m, 0, "LOF_073", false)
+	ally.data = ally.data.duplicate()
+	ally.data["traits"] = ["force"]
+	var enemy := add_unit(m, 1, "SOR_128")
+	enemy.data = {"hp": 12, "power": 0, "type": "unit"}
+	var strike := put_in_hand(m, "LOF_124")
+	var power := ally.power()
+	check(m.do_action({"a": "play", "uid": strike.uid}) and ally.uid in m.pending.get("options", []),
+		"Niman Strike offers an exhausted Force unit")
+	check(m.submit_choice([ally.uid]) and m.pending.get("options") == [enemy.uid], "Niman Strike restricts the attack to units")
+	check(m.submit_choice([enemy.uid]) and enemy.damage == power + 1, "Niman Strike applies the extra power to combat")
+	check(ally.power() == power, "Niman Strike's buff expires after the attack")
+
+	var trap := funded_match()
+	var gunner := add_unit(trap, 0, "SOR_095")
+	var blocker := add_unit(trap, 1, "SOR_028")
+	blocker.data = {"hp": 7, "power": 0, "type": "unit"}
+	trap.attach_token(blocker, "shield")
+	var breaker := put_in_hand(trap, "TWI_224")
+	check(trap.do_action({"a": "play", "uid": breaker.uid}) and trap.submit_choice([gunner.uid]) and trap.submit_choice([blocker.uid]),
+		"Breaking In declares an attack using the normal choice flow")
+	check(blocker.shield_count() == 0 and blocker.damage == 5 and not gunner.has_kw("saboteur"),
+		"Breaking In grants both Saboteur and power for combat only")
+
+
+func test_unit_departure() -> void:
+	var m := funded_match()
+	var boba := m._new_inst("SOR_015", 0)
+	m.players[0].leader = boba
+	boba.zone = "leader"
+	var resource: CardInst = m.players[0].resources[0]
+	resource.exhausted = true
+	var bounced := add_unit(m, 1, "SOR_095")
+	m.return_to_hand(bounced)
+	m.pump()
+	check(m.units_left_this_phase[1] == 1 and m.defeated_this_phase[1] == 0, "Bouncing leaves play without counting as defeat")
+	check(m.pending.get("kind") == "yesno" and m.submit_choice([1]) and boba.exhausted and not resource.exhausted,
+		"Boba Fett may exhaust to ready a resource when an enemy leaves play")
+
+	var blue := put_in_hand(m, "JTL_096")
+	m.active = 0
+	check(m.do_action({"a": "play", "uid": blue.uid}) and m.pending.get("op") == "_ordered_triggers" and m.submit_choice([0])
+		and m.pending.get("kind") == "yesno", "Blue Leader can resolve its optional arena move before Ambush")
+	var entry := blue.entry_serial
+	check(m.submit_choice([1]) and blue.zone == "ground" and blue.entry_serial == entry and blue.exhausted and blue.upgrades.size() == 2,
+		"Blue Leader moves without reentering, and receives both Experience tokens")
 
 
 func test_spotlight_rules() -> void:
@@ -82,6 +1237,79 @@ func test_spotlight_rules() -> void:
 	check(falcon in Effects.upgrade_targets(m, 0, third, true), "R2-D2 gives the Falcon a third pilot slot")
 	m.attach_upgrade(third, falcon)
 	check(falcon not in Effects.upgrade_targets(m, 0, m._new_inst("JTL_148", 0), true), "The Falcon with R2-D2 caps at three pilots")
+
+
+func test_attached_printed_rules() -> void:
+	var m := funded_match()
+	for data in [["LOF_101", "restore"], ["LOF_231", "raid"], ["LOF_170", "sentinel"]]:
+		var host := add_unit(m, 0, data[0])
+		var before := host.kw(data[1])
+		var saber := put_in_hand(m, "LOF_261")
+		m.active = 0
+		check(m.do_action({"a": "play", "uid": saber.uid}) and m.submit_choice([host.uid]),
+			"Constructed Lightsaber attaches to a Force unit")
+		check(host.kw(data[1]) == before + (1 if data[1] == "sentinel" else 2),
+			"Constructed Lightsaber grants the keyword for %s" % host.name())
+		m.defeat(saber)
+		check(host.kw(data[1]) == before, "Constructed Lightsaber's bonus ends when it leaves play")
+
+	m = funded_match()
+	var non_mandalorian := add_unit(m, 0, "SOR_095")
+	var foundling := put_in_hand(m, "SHD_069")
+	check(m.do_action({"a": "play", "uid": foundling.uid}) and m.submit_choice([non_mandalorian.uid])
+		and non_mandalorian.has_trait("mandalorian"), "Foundling adds Mandalorian for live rules")
+	m.active = 0
+	var armor := put_in_hand(m, "SHD_073")
+	check(m.do_action({"a": "play", "uid": armor.uid}) and m.submit_choice([non_mandalorian.uid])
+		and non_mandalorian.shield_count() == 1, "Mandalorian Armor recognizes Foundling's granted trait")
+	m.defeat(foundling)
+	check(not non_mandalorian.has_trait("mandalorian") and non_mandalorian.shield_count() == 1,
+		"The granted trait ends without removing the Shield already given")
+
+	m = funded_match()
+	var exhausted := add_unit(m, 1, "SOR_095", false)
+	var shadow := put_in_hand(m, "LAW_077")
+	check(m.do_action({"a": "play", "uid": shadow.uid}) and m.submit_choice([exhausted.uid]) and not exhausted.can_ready(),
+		"Shadow of Stygeon Prime prevents readying the attached unit")
+	m.exhaust(exhausted, false)
+	Effects.exec(m, {"op": "_ready_all"}, {})
+	check(exhausted.exhausted, "Shadow prevents both card-effect and regroup readying")
+	Effects.exec(m, {"op": "_regroup_triggers"}, {})
+	m.pump()
+	check(m.players[1].base.damage == 2 and m.players[0].base.damage == 0, "Shadow damages the attached unit controller's base")
+	m.defeat(shadow)
+	m.exhaust(exhausted, false)
+	check(not exhausted.exhausted, "Removing the upgrade restores normal readying")
+
+	m = funded_match()
+	var guarded := add_unit(m, 0, "LOF_101")
+	var enemy := add_unit(m, 1, "LOF_170")
+	m.attach_upgrade(m._new_inst("TWI_220", 0), guarded)
+	for op in ["defeat", "bounce"]:
+		m.push_frame([{"op": op, "t": {"s": "choose", "kind": "unit", "side": "enemy"}}], {"ctl": 1, "src": enemy.uid})
+		m.pump()
+		check(m.pending.is_empty() and guarded.in_play(), "Shadowed Intentions prevents enemy %s" % op)
+	check(not m.capture(enemy, guarded), "Shadowed Intentions prevents enemy capture")
+	m.deal_damage(guarded, 30, enemy, false, true)
+	m.pump()
+	check(guarded.zone == "discard", "Shadowed Intentions does not prevent combat damage or state-based defeat")
+
+	m = funded_match()
+	var cohort_host := add_unit(m, 0, "SOR_095")
+	var cohort := put_in_hand(m, "TWI_169")
+	check(m.do_action({"a": "play", "uid": cohort.uid}) and m.submit_choice([cohort_host.uid]) and cohort_host.kw("raid") == 2,
+		"Clone Cohort grants Raid 2 when played")
+	m.defeat(cohort_host)
+	m.pump()
+	check(m.players[0].units.any(func(unit): return unit.is_token and unit.name() == "Clone Trooper"),
+		"Clone Cohort grants the host a defeat trigger that creates a Clone Trooper")
+
+	m = funded_match()
+	var mace := add_unit(m, 0, "HMW_128")
+	var windu_saber := put_in_hand(m, "TWI_152")
+	var hand_size: int = m.players[0].hand.size()
+	check(m.do_action({"a": "play", "uid": windu_saber.uid}) and m.submit_choice([mace.uid])
+		and m.players[0].hand.size() == hand_size + 1, "Mace Windu's Lightsaber draws two cards for any title-matching printing")
 
 
 func test_reported_card_abilities() -> void:
@@ -386,6 +1614,115 @@ func test_multi_mode_events() -> void:
 		"Vigilance discards from the opponent's deck before prompting for the selected Shield mode")
 	check(m.submit_choice([unit.uid]) and unit.shield_count() == 1,
 		"Vigilance grants the Shield to the selected unit")
+
+
+func test_printed_event_rules() -> void:
+	for event_id in ["SOR_173", "SOR_221", "SOR_043", "SOR_154"]:
+		var m := funded_match()
+		var friendly := add_unit(m, 0, "SOR_095")
+		var enemy := add_unit(m, 1, "SOR_095")
+		var ship := add_unit(m, 1, "SOR_237")
+		var tactic := put_in_hand(m, event_id)
+		check(m.do_action({"a": "play", "uid": tactic.uid}), "%s can be played from hand" % tactic.name())
+		match event_id:
+			"SOR_173":
+				check(m.pending.get("labels") == ["Ground", "Space"] and m.submit_choice([0]), "Bombing Run chooses an arena")
+				check(friendly.zone == "discard" and enemy.zone == "discard" and ship.damage == 0,
+					"Bombing Run hits both sides of only the chosen arena")
+			"SOR_221":
+				check(m.submit_choice([1]) and ship.exhausted and not friendly.exhausted and not enemy.exhausted,
+					"Outmaneuver exhausts only the chosen arena")
+			"SOR_043":
+				check(m.all_units().is_empty(), "Superlaser Blast defeats all units in both arenas")
+			"SOR_154":
+				check(friendly.kw("raid") == 2 and enemy.kw("raid") == 0, "Rallying Cry grants Raid 2 only to friendly units")
+				m._end_action_phase()
+				check(friendly.kw("raid") == 0, "Rallying Cry expires when the phase ends")
+
+	var frozen := funded_match()
+	var leader: CardInst = frozen.players[1].leader
+	leader.deployed = true
+	frozen._put_in_play(leader, "ground", true)
+	var freeze := put_in_hand(frozen, "SOR_186")
+	check(frozen.do_action({"a": "play", "uid": freeze.uid}) and frozen.submit_choice([leader.uid]),
+		"No Good to Me Dead may target an already exhausted leader unit")
+	frozen.exhaust(leader, false)
+	Effects.exec(frozen, {"op": "_ready_all"}, {})
+	check(leader.exhausted, "No Good to Me Dead blocks card effects and the regroup ready step")
+	frozen.end_round()
+	frozen.exhaust(leader, false)
+	check(not leader.exhausted, "No Good to Me Dead expires before the next round")
+
+	var bolt := funded_match()
+	var blaster := add_unit(bolt, 0, "SOR_095", false)
+	var target := add_unit(bolt, 1, "SOR_049")
+	var strike := put_in_hand(bolt, "SOR_127")
+	check(bolt.do_action({"a": "play", "uid": strike.uid}) and bolt.pending.get("options") == [blaster.uid]
+		and bolt.submit_choice([blaster.uid]) and bolt.pending.get("options") == [target.uid]
+		and bolt.submit_choice([target.uid]) and target.damage == blaster.power(),
+		"Strike True uses the selected friendly unit's power as non-combat damage")
+	check(blaster.damage == 0 and blaster.exhausted, "Strike True does not start an attack or ready its source")
+	var lucky := funded_match()
+	var wounded := add_unit(lucky, 0, "SOR_049")
+	wounded.damage = 2
+	var rival := add_unit(lucky, 1, "SOR_095")
+	var balance := put_in_hand(lucky, "SOR_075")
+	check(lucky.do_action({"a": "play", "uid": balance.uid}) and lucky.submit_choice([wounded.uid])
+		and lucky.submit_choice([1]) and wounded.damage == 1 and not wounded.uid in lucky.pending.get("options", [])
+		and lucky.submit_choice([rival.uid]) and rival.damage == 1, "It Binds All Things uses the amount actually healed and excludes the healed unit")
+
+	var choke_match := funded_match()
+	var victim := add_unit(choke_match, 1, "SOR_095")
+	var vehicle := add_unit(choke_match, 1, "SOR_237")
+	var choke := put_in_hand(choke_match, "SOR_139")
+	var normal_cost := choke_match.play_cost(0, choke)
+	add_unit(choke_match, 0, "SOR_049")
+	var enemy_cards: int = choke_match.players[1].hand.size()
+	check(choke_match.play_cost(0, choke) == normal_cost - 1, "Force Choke discounts by one for a friendly Force unit")
+	check(choke_match.do_action({"a": "play", "uid": choke.uid}) and not vehicle.uid in choke_match.pending.get("options", [])
+		and choke_match.submit_choice([victim.uid]) and victim.zone == "discard"
+		and choke_match.players[1].hand.size() == enemy_cards + 1, "Force Choke excludes Vehicles and the target controller draws even if the unit is defeated")
+
+	var brief := funded_match()
+	var briefing := put_in_hand(brief, "SOR_171")
+	var friendly_cards: int = brief.players[0].hand.size()
+	enemy_cards = brief.players[1].hand.size()
+	check(brief.do_action({"a": "play", "uid": briefing.uid}) and brief.submit_choice([1])
+		and brief.players[0].hand.size() == friendly_cards - 1 and brief.players[1].hand.size() == enemy_cards + 2,
+		"Mission Briefing draws for the chosen player")
+
+	for refusal in [false, true]:
+		var father := funded_match()
+		var defender := add_unit(father, 1, "SOR_095")
+		for i in 3:
+			var deck_card := father._new_inst("SOR_095", 0)
+			deck_card.zone = "deck"
+			father.players[0].deck.append(deck_card)
+		var event := put_in_hand(father, "SOR_233")
+		friendly_cards = father.players[0].hand.size()
+		check(father.do_action({"a": "play", "uid": event.uid}) and father.submit_choice([defender.uid])
+			and father.pending.get("player") == 1 and father.submit_choice([1 if refusal else 0]),
+			"I Am Your Father asks the targeted unit's controller")
+		check(defender.in_play() == refusal and father.players[0].hand.size() == friendly_cards - 1 + (3 if refusal else 0),
+			"I Am Your Father deals damage or lets the event player draw, according to the opponent's choice")
+
+	var inspect := funded_match()
+	var enemy_nonunit := put_in_hand(inspect, "SOR_200")
+	var enemy_unit: CardInst = inspect.players[1].hand[0]
+	inspect.players[0].hand.erase(enemy_nonunit)
+	enemy_nonunit.owner = 1
+	enemy_nonunit.controller = 1
+	inspect.players[1].hand.append(enemy_nonunit)
+	var scout := put_in_hand(inspect, "SOR_201")
+	check(inspect.do_action({"a": "play", "uid": scout.uid}) and inspect.pending.get("player") == 0
+		and enemy_unit.uid in inspect.pending.get("reveal", []) and inspect.pending.get("options") == [enemy_nonunit.uid],
+		"Bodhi Rook shows the full opponent hand but only offers eligible discards")
+	check(not inspect.submit_choice([enemy_unit.uid]) and inspect.submit_choice([enemy_nonunit.uid])
+		and enemy_nonunit.zone == "discard", "Bodhi Rook discards the chosen non-unit")
+	inspect.active = 0
+	var spark := put_in_hand(inspect, "SOR_200")
+	check(inspect.do_action({"a": "play", "uid": spark.uid}) and inspect.submit_choice([enemy_unit.uid])
+		and enemy_unit.zone == "discard", "Spark of Rebellion allows the player to discard a unit")
 
 
 func test_play_discounts() -> void:
@@ -762,6 +2099,7 @@ func test_attack_timing() -> void:
 	kit.mods.append({"kw": "overwhelm", "v": 1})
 	var marine := add_unit(m2, 1, "SOR_095")
 	check(m2.do_action({"a": "attack", "uid": kit.uid, "target": marine.uid}), "Kit Fisto attacks with Coordinate active")
+	check(m2.pending.get("op") == "_ordered_triggers" and m2.submit_choice([0]), "Kit Fisto resolves his printed trigger before Restore")
 	check(m2.submit_choice([marine.uid]), "Kit Fisto uses On Attack damage on his defender")
 	check(not marine.in_play() and kit.damage == 0, "Defender defeated before combat deals no retaliation damage")
 	check(m2.players[1].base.damage == kit.power(true), "Overwhelm sends full combat damage to the base")
@@ -1044,6 +2382,94 @@ func test_multiword_traits() -> void:
 	check(hunt.pending.get("options", []) == [hunter.uid] and hunt.submit_choice([hunter.uid]),
 		"Asajj Ventress offers the other Bounty Hunter and excludes the non-Bounty Hunter")
 	check(not hunter.exhausted and exhausted.exhausted, "Asajj Ventress readies only the selected Bounty Hunter")
+
+
+func test_shared_unit_triggers() -> void:
+	var m := funded_match()
+	var the_executor := put_in_hand(m, "JTL_090")
+	var base_uid: int = m.players[1].base.uid
+	check(m.do_action({"a": "play", "uid": the_executor.uid}) and m.players[0].units.size() == 4,
+		"Executor creates three TIE Fighters when played")
+	m.active = 0
+	m.exhaust(the_executor, false)
+	check(m.do_action({"a": "attack", "uid": the_executor.uid, "target": base_uid}) and m.players[0].units.size() == 7,
+		"Executor creates three additional TIE Fighters when attacking")
+	m.defeat(the_executor)
+	m.pump()
+	check(m.players[0].units.size() == 9 and m.players[0].units.all(func(unit): return unit.is_token and unit.name() == "TIE Fighter"),
+		"Executor creates three additional TIE Fighters when defeated")
+
+	var avenger_match := funded_match()
+	var leader: CardInst = avenger_match.players[1].leader
+	leader.deployed = true
+	avenger_match._put_in_play(leader, "ground")
+	var soldier := add_unit(avenger_match, 1, "SOR_128")
+	var avenger := put_in_hand(avenger_match, "SOR_040")
+	check(avenger_match.do_action({"a": "play", "uid": avenger.uid}) and avenger_match.pending.get("player") == 1
+		and avenger_match.pending.get("options", []) == [soldier.uid], "Avenger has the opponent choose a non-leader unit")
+	check(avenger_match.submit_choice([soldier.uid]) and soldier.zone == "discard" and leader.in_play(), "Avenger defeats only the chosen unit")
+
+	var oppress_match := funded_match()
+	var savage := put_in_hand(oppress_match, "LOF_137")
+	oppress_match.players[0].force_token = true
+	check(oppress_match.do_action({"a": "play", "uid": savage.uid}) and oppress_match.submit_choice([1])
+		and not oppress_match.players[0].force_token and oppress_match.players[0].base.damage == 0,
+		"Savage Opress can spend the Force to prevent the damage when played")
+	oppress_match.defeat(savage)
+	oppress_match.pump()
+	check(oppress_match.pending.is_empty() and oppress_match.players[0].base.damage == 9,
+		"Savage Opress deals 9 damage to its own base when defeated without the Force")
+
+
+func test_attack_end_results() -> void:
+	var m := blank_match()
+	var windu := add_unit(m, 0, "SOR_149")
+	var marine := add_unit(m, 1, "SOR_095")
+	m.attach_token(marine, "shield")
+	check(m.do_action({"a": "attack", "uid": windu.uid, "target": marine.uid}) and windu.exhausted and marine.in_play(),
+		"Mace Windu stays exhausted when a Shield saves the defender")
+	m.active = 0
+	m.exhaust(windu, false)
+	check(m.do_action({"a": "attack", "uid": windu.uid, "target": marine.uid}) and not windu.exhausted and marine.zone == "discard",
+		"Mace Windu readies after defeating the defender")
+
+	var hera_match := blank_match()
+	var hera := add_unit(hera_match, 0, "ASH_031")
+	var hera_base: CardInst = hera_match.players[0].base
+	var enemy_base: CardInst = hera_match.players[1].base
+	hera_base.damage = 8
+	check(hera_match.do_action({"a": "attack", "uid": hera.uid, "target": enemy_base.uid})
+		and hera_base.damage == 5 and enemy_base.damage == 3, "Hera heals the amount of combat damage dealt to the base")
+	var fatal_defender := add_unit(hera_match, 1, "SOR_095")
+	hera_match.active = 0
+	hera.damage = 1
+	hera.mods.append({"kw": "overwhelm", "dur": "phase"})
+	hera_match.exhaust(hera, false)
+	fatal_defender.damage = 2
+	check(hera_match.do_action({"a": "attack", "uid": hera.uid, "target": fatal_defender.uid})
+		and hera.zone == "discard" and hera_base.damage == 3 and enemy_base.damage == 5,
+		"Hera still heals from Overwhelm when both combatants are defeated")
+
+	var cruiser_match := blank_match()
+	var cruiser := add_unit(cruiser_match, 0, "SHD_122")
+	var ship := add_unit(cruiser_match, 1, "SOR_225")
+	check(cruiser_match.do_action({"a": "attack", "uid": cruiser.uid, "target": ship.uid}) and ship.zone == "resource"
+		and ship in cruiser_match.players[0].resources and ship.exhausted and ship.owner == 1,
+		"Arquitens resources the defeated non-leader under the attacker's control")
+
+	var hunter_match := blank_match()
+	var boba: CardInst = hunter_match.players[0].leader
+	boba.data = lib.get_card("LAW_007")
+	var troop := add_unit(hunter_match, 0, "SOR_095")
+	var trooper := add_unit(hunter_match, 1, "SOR_128")
+	check(hunter_match.do_action({"a": "attack", "uid": troop.uid, "target": trooper.uid})
+		and hunter_match.pending.is_empty() and hunter_match.players[0].credits == 0, "Boba Fett ignores attackers without the Bounty Hunter trait")
+	hunter_match.active = 0
+	var hunter := add_unit(hunter_match, 0, "SOR_182")
+	var victim := add_unit(hunter_match, 1, "SOR_128")
+	check(hunter_match.do_action({"a": "attack", "uid": hunter.uid, "target": victim.uid}) and hunter_match.pending.get("kind") == "yesno"
+		and hunter_match.submit_choice([1]) and hunter_match.players[0].credits == 1 and boba.exhausted,
+		"Boba Fett can exhaust to create a Credit after a friendly Bounty Hunter defeats a defender")
 
 
 func test_support_and_recovery() -> void:

@@ -143,8 +143,7 @@ func _run() -> void:
 		screen._sync()
 		await _wait(0.4)
 		var token: UnitToken = screen.tokens[host.uid]
-		check(token.attachment_caption == "Academy Graduate +1" and "Twin Laser Turret" in token.tooltip_text,
-			"The Vehicle shows its Pilot in a named attachment tab and includes the other upgrade")
+		check(token._attachments == [pilot, turret], "The Vehicle previews both attached cards")
 		if only == "capture":
 			await _shot("pilot-and-upgrade-board")
 		await _click(token)
@@ -156,6 +155,28 @@ func _run() -> void:
 			check(selector != null and selector.item_count == 3 and inspector._inst == host,
 				"Inspection starts on the Vehicle and lists both attachments")
 			if selector and selector.item_count == 3:
+				check(inspector._carousel_previews.all(func(preview): return preview.visible and preview.texture != null),
+					"Host inspection shows both holographic neighbors")
+				var center := inspector._card.home_pos + inspector._card.base_size() * inspector._card.home_scale * 0.5
+				await _drag(center, center - Vector2(130, 0))
+				await _wait(0.35)
+				check(inspector._inst == pilot, "Dragging left moves from host to Pilot")
+				await _click(inspector._carousel_arrows[1])
+				check(inspector._inst == turret, "Next arrow moves from Pilot to upgrade")
+				await _click(inspector._carousel_arrows[1])
+				check(inspector._inst == host, "The carousel wraps back to the host")
+				var finger_down := InputEventScreenTouch.new()
+				finger_down.index = 3
+				finger_down.position = center
+				finger_down.pressed = true
+				get_viewport().push_input(finger_down, true)
+				var finger_up := InputEventScreenTouch.new()
+				finger_up.index = 3
+				finger_up.position = center + Vector2(130, 0)
+				get_viewport().push_input(finger_up, true)
+				await _wait(0.35)
+				check(inspector._inst == turret, "Touch swipe navigates in the other direction")
+				await _click(inspector._carousel_arrows[1])
 				await _click(selector)
 				check(selector.get_popup().visible, "The attachment selector opens via portrait input")
 				if only == "capture":
@@ -187,8 +208,8 @@ func _run() -> void:
 			await _click(picker._views[pilot.uid])
 			await _click(_button(picker, "Confirm"))
 			check(pilot.zone == "discard" and not host.has_kw("sentinel"), "The chosen upgrade is removed")
-			check(screen.tokens[host.uid].attachment_caption == "Twin Laser Turret",
-				"The attached card caption updates when the Pilot is defeated")
+			check(screen.tokens[host.uid]._attachments == [turret],
+				"The attachment previews update when the Pilot is defeated")
 	m.active = 0
 	var base := m._new_inst("LOF_028", 0)
 	base.zone = "base"
@@ -342,10 +363,57 @@ func _run() -> void:
 		check(screen.arena_rects[key].encloses(token.get_global_rect()), "Crowded portrait unit stays in its own arena and side")
 	if only == "capture":
 		await _shot("portrait-crowded-arenas")
+	await _test_search_budget(screen)
 
 	print("CAMPAIGN INPUT: %d checks, %d failed" % [checks, failures])
 	if failures:
 		get_tree().quit(1)
+
+
+func _test_search_budget(screen) -> void:
+	var m: Match = screen.m
+	var choices: Array[CardInst] = []
+	for id in ["SOR_049", "SOR_095", "SOR_225"]:
+		var unit := m._new_inst(id, 0)
+		unit.zone = "deck"
+		choices.append(unit)
+		m.players[0].deck.push_front(unit)
+	var reinforcement := m._new_inst("SOR_104", 0)
+	m.push_ability(reinforcement, reinforcement.abilities_with("event")[0])
+	m.pump()
+	for node in screen.find_children("*", "Control", true, false):
+		if node is ChoicePanel:
+			node.get_parent().queue_free()
+	await get_tree().process_frame
+	screen._choice_open = false
+	check(m.pending.get("kind") == "search" and m.pending.get("src") == reinforcement.uid,
+		"U-Wing Reinforcement queues the expected live search")
+	if m.pending.get("kind") != "search":
+		return
+	screen._show_pending()
+	await _wait(0.35)
+	var panel: ChoicePanel
+	for node in screen.find_children("*", "Control", true, false):
+		if node is ChoicePanel and node.pending.get("src") == reinforcement.uid:
+			panel = node
+			break
+	check(panel != null, "U-Wing Reinforcement shows the portrait search picker")
+	if panel == null:
+		return
+	var shown := choices.all(func(card): return panel._views.has(card.uid))
+	check(shown, "The three staged reinforcement cards appear in the live picker")
+	if not shown:
+		return
+	await _click(panel._views[choices[0].uid])
+	await _click(panel._views[choices[1].uid])
+	check(panel._confirm.disabled and "8/7" in panel._count.text, "The picker shows the cost and blocks an over-budget group")
+	if only == "capture":
+		await _shot("search-combined-cost")
+	await _click(panel._views[choices[0].uid])
+	await _click(panel._views[choices[2].uid])
+	check(not panel._confirm.disabled and "3/7" in panel._count.text, "Removing a card enables a valid search group")
+	await _click(panel._confirm)
+	check(choices[1].in_play() and choices[2].in_play() and choices[0].zone == "deck", "Tapping Confirm plays the selected reinforcements")
 
 
 func _printed_ability(inspector: InspectOverlay) -> String:

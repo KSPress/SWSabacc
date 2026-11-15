@@ -292,7 +292,7 @@ func roll_cosmetic(random: RandomNumberGenerator, set_code := "") -> Dictionary:
 	for pack in packs():
 		if not pack.get("bonus", {}).is_empty():
 			reserved.append(pack["bonus"]["key"])
-	var choices: Array = Cosmetics.all_items().filter(func(item): return item["kind"] == kind and not item["key"] in reserved)
+	var choices: Array = Cosmetics.all_items().filter(func(item): return item["kind"] == kind and not item.get("starter", false) and not item["key"] in reserved)
 	if choices.is_empty():
 		return {}
 	var set_background := preload("res://ui/kit/set_art.gd").background_id(set_code)

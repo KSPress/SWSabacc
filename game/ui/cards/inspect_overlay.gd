@@ -20,6 +20,15 @@ void fragment() {
 	COLOR = vec4(mix(acc / 20.0, vec3(0.012, 0.018, 0.028), amount * 0.64), 1.0);
 }
 """
+const ATTACHMENT_SHADER := """
+shader_type canvas_item;
+void fragment() {
+	vec4 pixel = texture(TEXTURE, UV);
+	float scan = 0.72 + 0.28 * sin(UV.y * 330.0 + TIME * 1.25);
+	float luminance = dot(pixel.rgb, vec3(0.299, 0.587, 0.114));
+	COLOR = vec4(mix(pixel.rgb, vec3(0.26, 0.69, 0.94) * (0.48 + luminance * 0.55), 0.52), pixel.a * scan * 0.65);
+}
+"""
 
 var _card: CardView
 var _panels: Array[PanelContainer] = []
@@ -35,6 +44,11 @@ var _actions: HBoxContainer
 var _flip_button: Button
 var _attachment_picker: OptionButton
 var _stack: Array[CardInst] = []
+var _stack_index := 0
+var _carousel_previews: Array[TextureRect] = []
+var _carousel_arrows: Array[Button] = []
+var _carousel_origin := Vector2.ZERO
+var _carousel_pointer := -2
 var _flight: Tween
 var _closing := false
 var _time := 0.0
@@ -144,6 +158,25 @@ func _add_attachment_picker() -> void:
 		return
 	_stack.append(host)
 	_stack.append_array(host.upgrades)
+	_stack_index = _stack.find(_inst)
+	var shader := Shader.new()
+	shader.code = ATTACHMENT_SHADER
+	var hologram := ShaderMaterial.new()
+	hologram.shader = shader
+	for direction in [-1, 1]:
+		var preview := TextureRect.new()
+		preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		preview.material = hologram
+		add_child(preview)
+		_carousel_previews.append(preview)
+		var arrow := SabaccButton.make("‹" if direction < 0 else "›", SabaccButton.Style.GHOST)
+		arrow.custom_minimum_size = Vector2(46, 46)
+		arrow.tooltip_text = "Previous card" if direction < 0 else "Next card"
+		arrow.pressed.connect(_step_attachment.bind(direction))
+		add_child(arrow)
+		_carousel_arrows.append(arrow)
 	_attachment_picker = OptionButton.new()
 	_attachment_picker.fit_to_longest_item = false
 	_attachment_picker.clip_text = true
@@ -152,17 +185,19 @@ func _add_attachment_picker() -> void:
 	for upgrade in host.upgrades:
 		var role := "Pilot" if upgrade.is_pilot_upgrade() else ("Token" if upgrade.is_token else "Upgrade")
 		_attachment_picker.add_item(role + " · " + upgrade.name())
-	_attachment_picker.select(_stack.find(_inst))
+	_attachment_picker.select(_stack_index)
 	_attachment_picker.item_selected.connect(_inspect_attachment)
 	add_child(_attachment_picker)
 
 
 func _inspect_attachment(index: int) -> void:
-	if _closing or index < 0 or index >= _stack.size():
+	if _closing or index < 0 or index >= _stack.size() or index == _stack_index:
 		return
 	if _flight and _flight.is_valid():
 		_flight.kill()
-	_inst = _stack[index]
+	_stack_index = index
+	_attachment_picker.select(index)
+	_inst = _stack[_stack_index]
 	_id = _inst.id
 	_back = _inst.deployed
 	_heading.text = _inst.name().to_upper()
@@ -172,6 +207,67 @@ func _inspect_attachment(index: int) -> void:
 	_make_panels()
 	_layout()
 	Sfx.play("whoosh", 1.5)
+
+
+func _step_attachment(direction: int) -> void:
+	var next := posmod(_stack_index + direction, _stack.size())
+	_inspect_attachment(next)
+	if not _closing and not Sabacc.perf():
+		_card.position.x += 64 * direction
+		_card.modulate.a = 0.72
+		_flight = create_tween().set_parallel()
+		_flight.tween_property(_card, "position", _card.home_pos, Sabacc.anim(0.24)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		_flight.tween_property(_card, "modulate:a", 1.0, Sabacc.anim(0.2))
+
+
+func _layout_attachment_previews(view: Vector2, shown: Vector2) -> void:
+	for slot in _carousel_previews.size():
+		var direction := slot * 2 - 1
+		var index := posmod(_stack_index + direction, _stack.size())
+		var card := _stack[index]
+		var preview := _carousel_previews[slot]
+		preview.visible = _stack.size() > 2 or direction == 1
+		var art_id: String = card.data.get("art", card.id)
+		var back := card.deployed
+		var art_key := art_id + str(back)
+		if preview.get_meta("art_key", "") != art_key:
+			preview.set_meta("art_key", art_key)
+			preview.texture = Art.request(art_id, func(texture):
+				if is_instance_valid(preview) and preview.get_meta("art_key", "") == art_key:
+					preview.texture = texture, back)
+		preview.size = shown * 0.86
+		preview.pivot_offset = preview.size * 0.5
+		preview.position = (view - preview.size) * 0.5 + Vector2(direction * shown.x * 0.31, 8)
+		preview.rotation_degrees = direction * 9
+
+
+func _input(event: InputEvent) -> void:
+	if _stack.size() < 2 or _closing or is_instance_valid(_expanded) or _card == null:
+		return
+	var pointer := -2
+	var pressed := false
+	var at := Vector2.ZERO
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		pointer = -1
+		pressed = event.pressed
+		at = event.position
+	elif event is InputEventScreenTouch:
+		pointer = event.index
+		pressed = event.pressed
+		at = event.position
+	if pointer == -2:
+		return
+	if pressed:
+		if Rect2(_card.home_pos, _card.base_size() * _card.home_scale).grow(38).has_point(at):
+			_carousel_origin = at
+			_carousel_pointer = pointer
+	elif pointer == _carousel_pointer:
+		_carousel_pointer = -2
+		var delta := at - _carousel_origin
+		if absf(delta.x) >= 44.0 and absf(delta.x) > absf(delta.y) * 1.25:
+			_card._press = false
+			get_viewport().set_input_as_handled()
+			_step_attachment.call_deferred(-1 if delta.x > 0 else 1)
 
 
 func _add_live_actions() -> void:
@@ -407,9 +503,14 @@ func _layout() -> void:
 	_heading.size = Vector2(view.x - 52, 42)
 	var top := 64.0
 	if _attachment_picker:
-		var picker_width := minf(view.x - 44, 420)
+		var picker_width := minf(view.x - 124, 420)
 		_attachment_picker.size = Vector2(picker_width, 46)
 		_attachment_picker.position = Vector2((view.x - picker_width) / 2.0, 56)
+		_carousel_arrows[0].position = _attachment_picker.position - Vector2(52, 0)
+		_carousel_arrows[1].position = _attachment_picker.position + Vector2(picker_width + 6, 0)
+		for arrow in _carousel_arrows:
+			arrow.size = Vector2(46, 46)
+		_layout_attachment_previews(view, shown)
 		top = 116.0
 	_actions.position = Vector2(20, view.y - 76)
 	_actions.size = Vector2(view.x - 40, 56)

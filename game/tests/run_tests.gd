@@ -29,6 +29,7 @@ func _init() -> void:
 	test_leader_deploy_and_defeat()
 	test_effect_dsl()
 	test_live_card_rules()
+	test_continuous_printed_rules()
 	test_campaign_content()
 	test_formats()
 	test_choose_one()
@@ -147,6 +148,60 @@ func test_live_card_rules() -> void:
 	check(walker.exhausted, "Hijacked AT-ST stays exhausted through first regroup")
 	Effects.exec(walker_match, {"op": "_ready_all"}, {})
 	check(not walker.exhausted, "Hijacked AT-ST readies on later regroups")
+
+
+func test_continuous_printed_rules() -> void:
+	var setup := blank_match(RuleSet.campaign())
+	var luke := give_card(setup, "HMW_208")
+	check(setup.do_action({"a": "play", "uid": luke.uid}) and not luke.exhausted, "Farmboy Luke enters ready in round one")
+	setup.active = 0
+	setup.round_num = 2
+	setup.defeat(luke)
+	luke = give_card(setup, "HMW_208")
+	check(setup.do_action({"a": "play", "uid": luke.uid}) and luke.exhausted, "Farmboy Luke enters exhausted in round two")
+
+	var ready_match := blank_match(RuleSet.campaign())
+	ready_match.players[0].base.data = lib.get_card("HMW_028")
+	var dragon := give_card(ready_match, "HMW_234")
+	check(ready_match.do_action({"a": "play", "uid": dragon.uid}) and not dragon.exhausted, "Ritual Dragon's Tatooine rule includes itself")
+	var token := ready_match.create_unit_token(0, "battle_droid")
+	var opposing_token := ready_match.create_unit_token(1, "battle_droid")
+	check(not token.exhausted and opposing_token.exhausted, "Ritual Dragon readies friendly units entering via token creation only on its side")
+	ready_match.defeat(dragon)
+	check(ready_match.create_unit_token(0, "battle_droid").exhausted, "Removing Ritual Dragon removes the readying effect")
+
+	var ambush_match := blank_match(RuleSet.campaign())
+	var warship := add_unit(ambush_match, 0, "SOR_237")
+	var marine := add_unit(ambush_match, 0, "SOR_095")
+	var enemy_ship := add_unit(ambush_match, 1, "SOR_237")
+	var wedge := give_card(ambush_match, "SOR_100")
+	check(ambush_match.do_action({"a": "play", "uid": wedge.uid}), "Wedge enters play")
+	check(warship.power() == warship.printed_power() + 1 and warship.max_hp() == warship.printed_hp() + 1 and warship.has_kw("ambush"),
+		"Wedge grants both Vehicle stats and Ambush")
+	check(not marine.has_kw("ambush") and not enemy_ship.has_kw("ambush"), "Wedge filters enemy and non-Vehicle units out")
+	var interceptor := add_unit(ambush_match, 0, "JTL_137")
+	check(interceptor.has_kw("overwhelm") and not interceptor.has_kw("raid"), "A continuous Vehicle buff meets Vonreg's four-power threshold")
+	ambush_match.attach_token(interceptor, "experience")
+	ambush_match.attach_token(interceptor, "experience")
+	check(interceptor.kw("raid") == 1 and interceptor.power(true) == 7, "Six non-Raid power grants Raid without including its own bonus")
+	ambush_match.defeat(wedge)
+	check(not interceptor.has_kw("raid") and not warship.has_kw("ambush"), "Thresholds and keyword gains update when Wedge leaves play")
+
+	var scout_match := blank_match()
+	var hidden := add_unit(scout_match, 1, "HMW_162")
+	var attacker := add_unit(scout_match, 0, "SOR_095")
+	check(not hidden.uid in scout_match.attack_targets(attacker), "A just-played Hidden unit cannot be attacked")
+	hidden.mods.append({"kw": "sentinel", "dur": "phase"})
+	check(scout_match.attack_targets(attacker) == [hidden.uid], "Gaining Sentinel lets Hidden be attacked and protects the base")
+
+	var defense_match := blank_match()
+	var grunt := add_unit(defense_match, 0, "SOR_095")
+	var guardian := add_unit(defense_match, 1, "LOF_049")
+	check(guardian.power() == guardian.printed_power(), "Jedi Guardian has normal power before battle")
+	defense_match.begin_attack(grunt, guardian)
+	check(guardian.power() == guardian.printed_power() + 2, "Jedi Guardian gains two power when defending")
+	defense_match.pump()
+	check(guardian.power() == guardian.printed_power(), "The defending bonus expires at attack end")
 
 
 func test_aspect_penalty() -> void:

@@ -41,6 +41,8 @@ func state() -> Dictionary:
 func all_items() -> Array:
 	var items: Array = [{"key": "cardback:default", "id": "default", "kind": "cardback", "name": "Classic card back"},
 		{"key": "background:datapad", "id": "datapad", "kind": "background", "name": "Datapad · Deck aspects"}]
+	for id in ["space_deep", "space_nebula", "space_hyperspace", "datapad_imperial", "datapad_republic", "datapad_outer_rim"]:
+		items.append({"key": "background:" + id, "id": id, "kind": "background", "name": Appearance.PRESETS[id]["name"], "starter": true})
 	for entry in catalog.get("emblems", []):
 		items.append({"key": "emblem:" + entry["id"], "id": entry["id"], "kind": "emblem", "name": entry["name"]})
 	for entry in catalog.get("cardbacks", []):
@@ -77,6 +79,8 @@ func unlocked(key: String) -> bool:
 		return true
 	if key == "background:emblem":
 		return unlocked("emblem:" + equipped("emblem"))
+	if key.begins_with("background:") and Appearance.PRESETS.has(key.trim_prefix("background:")):
+		return true
 	return key in s["earned"]
 
 
@@ -119,7 +123,7 @@ func record_match(won: bool, identity: String, winner := -1, aspects := [], lead
 	var reward: Dictionary = {}
 	if won:
 		if not s["gm"]:
-			var pool: Array = all_items().filter(func(item): return not item["key"] in s["earned"])
+			var pool: Array = all_items().filter(func(item): return not item.get("starter", false) and not item["key"] in s["earned"])
 			if not pool.is_empty():
 				reward = pool.pick_random().duplicate()
 				s["earned"].append(reward["key"])

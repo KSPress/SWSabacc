@@ -111,6 +111,8 @@ func _run() -> void:
 		await _input_test()
 	if only == "anims":
 		await _anims()
+	if only == "arena_cards":
+		await _arena_cards()
 	if only == "new":
 		await _new_screens()
 	if only == "tokens":
@@ -131,6 +133,49 @@ func _run() -> void:
 	if _want("settings"):
 		await _go("settings")
 		await _shot("14_settings_portrait")
+
+
+func _arena_cards() -> void:
+	await _size(570, 1050)
+	await _go("match")
+	var screen := get_tree().current_scene
+	var battle: Match = screen.m
+	for i in 22:
+		if battle.phase == "action" and battle.pending.is_empty() and not screen.busy:
+			break
+		_resolve_setup(screen)
+		await _wait(0.25)
+	if battle.phase != "action" or not battle.pending.is_empty() or screen.busy:
+		push_error("Arena screenshot match did not finish setup")
+		get_tree().quit(1)
+		return
+	battle.players[1].is_ai = false
+	var chewbacca := battle._new_inst("SOR_003", 0)
+	chewbacca.deployed = true
+	battle._put_in_play(chewbacca, "ground", false)
+	battle.attach_upgrade(battle._new_inst("SOR_057", 0), chewbacca)
+	battle.attach_upgrade(battle._new_inst("TWI_256", 0), chewbacca)
+	var tie := battle._new_inst("SOR_231", 1)
+	battle._put_in_play(tie, "space", false)
+	battle.attach_upgrade(battle._new_inst("JTL_189", 1), tie)
+	battle._put_in_play(battle._new_inst("SOR_237", 0), "space", false)
+	battle._put_in_play(battle._new_inst("SOR_095", 0), "ground", true)
+	battle._put_in_play(battle._new_inst("SOR_230", 1), "ground", false)
+	battle.take_events()
+	screen._sync()
+	await _wait(0.9)
+	await _shot("arena-portrait")
+	await _size(1600, 900)
+	await _wait(0.7)
+	await _shot("arena-landscape")
+	await RenderingServer.frame_post_draw
+	var image := get_viewport().get_texture().get_image()
+	var token: UnitToken = screen.tokens[chewbacca.uid]
+	var to_canvas := token.get_global_transform_with_canvas()
+	var pixel_scale := Vector2(image.get_size()) / get_viewport().get_visible_rect().size
+	var position := (to_canvas * Vector2(-10, -7)) * pixel_scale
+	var end := (to_canvas * (UnitToken.SIZE + Vector2(10, 7))) * pixel_scale
+	image.get_region(Rect2i(Vector2i(position), Vector2i(end - position))).save_png(out.path_join("arena-attachment-detail.png"))
 
 
 func _find_card(n: Node) -> CardView:

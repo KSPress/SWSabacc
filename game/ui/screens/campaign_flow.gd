@@ -73,7 +73,7 @@ static func start_node(chapter: Dictionary, node: Dictionary) -> void:
 		or needs_new_route(run, chapter) or node["id"] not in CampaignRun.available_nodes(run, chapter):
 		return
 	var cfg := CampaignRun.match_config(run, chapter, node, treasures_for(chapter))
-	var theme: String = node.get("board_theme", chapter.get("board_theme", "space"))
+	var theme: String = chapter.get("board_theme", "space")
 	Router.go("match", {
 		"mode": "campaign", "cfg": cfg, "theme": theme, "title": node.get("title", "Battle"),
 		"chapter_id": chapter["id"], "node_id": node["id"], "run_id": run.get("reward_id", ""),

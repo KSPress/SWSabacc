@@ -69,7 +69,15 @@ func _build() -> void:
 			var skip := SabaccButton.make("Skip", SabaccButton.Style.GHOST)
 			skip.pressed.connect(func(): _submit([]))
 			col.add_child(skip)
-		v.add_child(col)
+		if pending.get("op") == "_ordered_triggers":
+			var scroll := ScrollContainer.new()
+			scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+			scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			scroll.follow_focus = true
+			v.add_child(scroll)
+			scroll.add_child(col)
+		else:
+			v.add_child(col)
 	elif kind in ["yesno", "mulligan"]:
 		if kind == "mulligan":
 			_add_cards(v, _hand_uids(), false)
@@ -104,8 +112,16 @@ func _fit() -> void:
 
 
 func _title_for(kind: String) -> String:
+	if kind == "disclose":
+		return "Disclose aspects"
+	if kind == "disclosure_reveal":
+		return "Disclosed cards"
+	if kind == "ready_resources":
+		return "Ready resources"
 	if kind == "hand" and pending.get("op", "") == "play_from_hand":
 		return "Play a card"
+	if kind == "hand" and pending.get("op", "") in ["_resource_hand", "_sundari_resource"]:
+		return "Resource a card"
 	return {"option": "Choose one", "mulligan": "Opening hand", "resource": "Resources", "hand": "Discard", "scry": "Look at the top of your deck",
 		"search": "Search your deck", "yesno": "Optional ability"}.get(kind, "Choose")
 
@@ -171,6 +187,8 @@ func _rows() -> int:
 
 
 func _cols() -> int:
+	if pending.get("effect", {}).get("whole_deck", false):
+		return 3 if get_viewport_rect().size.y >= get_viewport_rect().size.x else 6
 	return ceili(_count_cards() / float(_rows()))
 
 
@@ -208,8 +226,18 @@ func _update() -> void:
 	var mn := int(pending["min"])
 	var mx := int(pending["max"])
 	_confirm.disabled = _sel.size() < mn or _sel.size() > mx
+	if pending["kind"] == "disclose" and not _sel.is_empty():
+		_confirm.disabled = not Effects.covers_aspects(m, _sel, pending["effect"].get("aspects", []))
 	_count.text = ("Select %d" % mn if mn == mx else "Select %d–%d" % [mn, mx]) + "   (%d chosen)" % _sel.size()
-	if mn == 0 and _sel.is_empty():
+	var budget: int = pending.get("effect", {}).get("combined_cost", -1)
+	if budget >= 0:
+		var total := Effects.selection_cost(m, _sel)
+		_confirm.disabled = _confirm.disabled or total > budget
+		_count.text += " · %d/%d combined cost" % [total, budget]
+	if mx == 0:
+		_count.hide()
+		_confirm.text = "Continue"
+	elif mn == 0 and _sel.is_empty():
 		_confirm.text = "Skip"
 	else:
 		_confirm.text = "Confirm"

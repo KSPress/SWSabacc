@@ -7,6 +7,7 @@ var _time := 0.0
 var _badge: ProfileBadge
 var emblem_override := ""
 var force_datapad := false
+var preset_override: Dictionary = {}
 
 
 func _ready() -> void:
@@ -45,10 +46,11 @@ func _draw() -> void:
 		return
 	var is_emblem := not force_datapad and (not emblem_override.is_empty() or Cosmetics.background() == "emblem")
 	var identity := emblem_override if not emblem_override.is_empty() else Cosmetics.equipped("emblem")
-	var primary := Cosmetics.emblem_color(identity, 0) if is_emblem else (Appearance.line_color(0) if force_datapad else Appearance.backdrop_color(0))
-	var secondary := Cosmetics.emblem_color(identity, 1) if is_emblem else (Appearance.line_color(1) if force_datapad else Appearance.backdrop_color(1))
-	var tertiary := Cosmetics.emblem_color(identity, 2) if is_emblem else (Appearance.line_color(2) if force_datapad else Appearance.backdrop_color(2))
-	draw_rect(Rect2(Vector2.ZERO, size), primary.darkened(0.95) if force_datapad or not emblem_override.is_empty() else Appearance.preset()["base"])
+	var primary := Cosmetics.emblem_color(identity, 0) if is_emblem else _palette_color(0)
+	var secondary := Cosmetics.emblem_color(identity, 1) if is_emblem else _palette_color(1)
+	var tertiary := Cosmetics.emblem_color(identity, 2) if is_emblem else _palette_color(2)
+	var spec := Appearance.preset() if preset_override.is_empty() else preset_override
+	draw_rect(Rect2(Vector2.ZERO, size), primary.darkened(0.95) if preset_override.is_empty() and (force_datapad or not emblem_override.is_empty()) else spec["base"])
 	# A visible ambient wash accompanies the traces, especially for short AI turns.
 	draw_rect(Rect2(Vector2.ZERO, size), Color(primary, 0.045))
 	draw_circle(size * Vector2(0.68, 0.48), size.length() * 0.48, Color(secondary, 0.025))
@@ -65,7 +67,7 @@ func _draw() -> void:
 	for i in 5:
 		var radius := unit * (0.12 + i * 0.18)
 		var center := anchor + Vector2(-0.32, -1).normalized() * radius
-		var col := Appearance.line_color(i) if force_datapad else Appearance.backdrop_color(i)
+		var col := _palette_color(i)
 		draw_arc(center, radius, 0, TAU, 128, Color(col, 0.035), 7.0, true)
 		draw_arc(center, radius, 0, TAU, 128, Color(col, 0.24), 1.1, true)
 		var angle := _time * (0.07 + i * 0.013) + i
@@ -85,6 +87,15 @@ func _draw() -> void:
 	if Sabacc.settings.get("show_aurebesh", true):
 		draw_string(Sabacc.font_aurebesh, size * Vector2(0.08, 0.12), "SABACC // TACTICAL ARCHIVE", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(primary, 0.22))
 		draw_string(Sabacc.font_aurebesh, size * Vector2(0.55, 0.94), "ORBITAL LINK // 2187", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(secondary, 0.22))
+
+
+func _palette_color(index: int) -> Color:
+	if not preset_override.is_empty():
+		var tint: Color = preset_override["accent"]
+		return tint.lightened(0.1 * (index % 3))
+	var tint := Appearance.line_color(index) if force_datapad else Appearance.backdrop_color(index)
+	var selected := Cosmetics.background()
+	return tint.lerp(Appearance.PRESETS[selected]["accent"], 0.65) if selected.begins_with("datapad_") else tint
 
 
 func _path(points: PackedVector2Array, color: Color) -> void:

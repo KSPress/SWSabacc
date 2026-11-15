@@ -24,11 +24,16 @@ var _enemy_mix := 0.0
 var _fade: Tween
 
 
-func preset() -> Dictionary:
+func preset(location := "") -> Dictionary:
+	if not location.is_empty():
+		return PRESETS.get("planet_" + location, PRESETS["space_deep"])
 	var background := Cosmetics.background()
+	if PRESETS.has(background):
+		return PRESETS[background]
 	if background in ["datapad", "emblem"]:
-		var accent := Cosmetics.emblem_color() if background == "emblem" else Color("9fdcff")
-		return {"name": "Emblem hologram" if background == "emblem" else "Datapad", "kind": "datapad", "accent": accent, "base": accent.darkened(0.95), "emblem": background == "emblem"}
+		var emblem := background == "emblem"
+		var accent := Cosmetics.emblem_color() if emblem else Color("9fdcff")
+		return {"name": "Emblem hologram" if emblem else "Datapad", "kind": "datapad", "accent": accent, "base": accent.darkened(0.95), "emblem": emblem}
 	if background.begins_with("set_"):
 		return {"name": CardLibrary.expansion_title(background.trim_prefix("set_").to_upper()), "kind": "planet",
 			"art": background, "accent": Color("9fdcff"), "base": Color("060a13")}

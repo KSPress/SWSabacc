@@ -5,7 +5,7 @@ func capture_effect(name: String, token: UnitToken) -> void:
 	await RenderingServer.frame_post_draw
 	var shot := get_viewport().get_texture().get_image()
 	shot.save_png(out.path_join(name + ".png"))
-	var screen_center := token.get_global_transform_with_canvas() * Vector2(UnitToken.SIZE.x / 2, UnitToken.HEX_H / 2)
+	var screen_center := token.get_global_transform_with_canvas() * UnitToken.FACE_CENTER
 	var viewport_scale := Vector2(shot.get_size()) / get_viewport().get_visible_rect().size
 	var center := Vector2i(screen_center * viewport_scale)
 	var detail := shot.get_region(Rect2i(center - Vector2i(105, 91), Vector2i(210, 180)))
@@ -200,7 +200,28 @@ func _run() -> void:
 	screen.fx_layer.child_entered_tree.disconnect(observe)
 	check(shots.size() in [2, 4, 6] and shots.all(func(name): return name == "Bolt Yellow")
 		and impacts.size() == shots.size(), "A neutral vehicle uses yellow sheets and pairs every bolt with a hit")
+	check(UnitToken._frame_color(["command", "heroism"]) == UnitToken._frame_color(["command"])
+		and UnitToken._frame_color(["aggression", "villainy"]) != UnitToken._frame_color(["command"]),
+		"Arena frames use the card's color aspect even when it has an alignment")
+	await _test_attachment_slide(screen, tie)
 
 	print("BOARD EFFECTS: %d checks, %d failed" % [checks, failures])
 	if failures:
 		get_tree().quit(1)
+
+
+func _test_attachment_slide(screen: Node, host: CardInst) -> void:
+	var battle: Match = screen.m
+	var token: UnitToken = screen.tokens[host.uid]
+	battle.take_events()
+	for card_id in ["JTL_172", "JTL_189"]:
+		var card := battle._new_inst(card_id, host.controller)
+		battle.attach_upgrade(card, host)
+		screen._drain()
+		check(token._attachment_drop.get(card.uid, -1.0) == 0.0, card.name() + " starts hidden behind its host")
+		await _wait(0.09)
+		var progress := float(token._attachment_drop.get(card.uid, -1.0))
+		check(progress > 0.0 and progress < 1.0, card.name() + " slides down into view")
+		await _wait(0.34)
+		check(not token._attachment_drop.has(card.uid) and card in token._attachments, card.name() + " stays in the stack after the animation")
+	await capture_effect("11-attached-pilot-and-upgrade", token)

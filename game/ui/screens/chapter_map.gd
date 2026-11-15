@@ -15,14 +15,7 @@ var _start_box: VBoxContainer
 func build() -> void:
 	chapter = CardDB.chapter(Router.params.get("chapter_id", "ep4_ch1_tatooine"))
 	set_header("Ep %s · %s" % [CampaignFlow.episode_data(int(chapter.get("episode", 4))).get("roman", ""), chapter.get("title", "")], "episodes")
-	var theme_img: String = {"tatooine": "tatooine", "deathstar": "deathstar"}.get(chapter.get("board_theme", ""), "")
-	if theme_img != "":
-		bg.backdrop = Art.ui_texture(theme_img)
-		bg.backdrop_alpha = 0.35
-	if chapter["id"] == "ep4_ch1_tatooine" and bg.backdrop:
-		bg.location_backdrop = true
-		bg.backdrop_alpha = 0.63
-		bg._retheme()
+	bg.set_location(chapter.get("board_theme", "space"))
 	run = Save.run()
 	var active: bool = run.get("chapter", "") == chapter["id"] and run.get("status", "") == "active"
 	if not active or CampaignFlow.needs_new_route(run, chapter):

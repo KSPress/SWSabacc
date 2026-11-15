@@ -127,6 +127,13 @@ static func score_action(m: Match, p: int, a: Dictionary) -> float:
 					s2 = maxf(s2, 0.8 + minf(ap, t.remaining_hp()) * 0.2)
 			return s2
 		"ability":
+			var source := m.card(a["uid"])
+			var abilities := source.abilities_with("action")
+			var index: int = a["idx"]
+			if index < abilities.size():
+				var effects: Array = abilities[index].get("effects", [])
+				if not effects.is_empty() and effects[0].get("op") == "_resource_hand" and me.hand.is_empty():
+					return -1.0
 			return 1.5
 	return 0.0
 
@@ -167,6 +174,11 @@ static func choose(m: Match) -> Array:
 			sel = [1 if cheap < 2 else 0]
 		"yesno":
 			sel = [1]
+			if pd.get("op") == "_choose_combat_order":
+				var attacker := m.card(m.attack.get("a", 0))
+				var defender := m.card(m.attack.get("t", 0))
+				if defender.power() >= attacker.remaining_hp() and attacker.shield_count() == 0:
+					sel = [0]
 		"damage_assignment":
 			var ranked := opts.duplicate()
 			var assigned: Dictionary = pd.get("assigned", {})
@@ -210,9 +222,29 @@ static func choose(m: Match) -> Array:
 				if m.card(uid).cost() > res + 2:
 					sel.append(uid)
 		"search":
-			var ranked2 := opts.duplicate()
-			ranked2.sort_custom(func(a, b): return m.card(a).cost() > m.card(b).cost())
-			sel = ranked2.slice(0, mx)
+			var ranked := opts.duplicate()
+			ranked.sort_custom(func(a, b): return m.card(a).cost() > m.card(b).cost())
+			var remaining: int = pd.get("effect", {}).get("combined_cost", 9999)
+			for uid in ranked:
+				if sel.size() >= mx:
+					break
+				var cost := m.card(uid).cost()
+				if cost <= remaining:
+					sel.append(uid)
+					remaining -= cost
+		"disclose":
+			var required: Array = pd["effect"].get("aspects", [])
+			sel = opts.slice(0, 1) if required.is_empty() else opts.duplicate()
+			if not required.is_empty():
+				for uid in opts:
+					var without_card := sel.duplicate()
+					without_card.erase(uid)
+					if Effects.covers_aspects(m, without_card, required):
+						sel = without_card
+		"disclosure_reveal":
+			pass
+		"ready_resources":
+			sel = opts.slice(0, mx)
 		"hand" when pd.get("op", "") == "play_from_hand":
 			var best := opts.duplicate()
 			best.sort_custom(func(a, b): return m.card(a).cost() > m.card(b).cost())
