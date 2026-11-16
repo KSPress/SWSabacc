@@ -23,6 +23,7 @@
         "HMW_032"
       ],
       "base_hp_override": 28,
+      "repair_after_win": 4,
       "starting_deck": [
         "HMW_208",
         "SOR_236",
@@ -139,19 +140,20 @@
           "id": "tusken_raid",
           "type": "objective",
           "title": "Tusken Raid",
-          "desc": "Luke is unconscious. R2 stays with him while you hold off the Tuskens. Use the Krayt Call once per round to send a Tusken back to hand.",
+          "desc": "Keep Luke alive for five rounds. He starts unconscious with one Shield. Use Krayt Call before a ready Tusken can attack. It returns that Tusken to hand and spends one action.",
           "objective": {
             "type": "defend_unit",
             "params": {
               "rounds": 5,
               "objective_only": true,
               "protect_unit": "HMW_208",
-              "protect_hp": 9,
+              "protect_hp": 11,
               "name": "Luke"
             }
           },
           "base": "HMW_028",
           "first": 0,
+          "player_extra_resources": 1,
           "battle_rules": {
             "deck_out_damage": 0
           },
@@ -163,7 +165,8 @@
             {
               "id": "HMW_208",
               "arena": "ground",
-              "ready": false
+              "ready": false,
+              "shield": true
             },
             {
               "id": "SOR_236",
@@ -283,7 +286,7 @@
           "enemy": {
             "name": "Tusken War Party",
             "base": "HMW_019",
-            "hp": 14,
+            "hp": 12,
             "hero_skin": "tusken",
             "ai_profile": "aggressive",
             "deck": [
@@ -1413,8 +1416,8 @@
               "target": "HMW_155",
               "target_name": "Filthy Dianoga",
               "rounds": 3,
-              "target_hp": 8,
-              "target_power_bonus": 2,
+              "target_hp": 7,
+              "target_power_bonus": 1,
               "objective_only": true
             }
           },
@@ -1866,6 +1869,7 @@
         "KYB_001"
       ],
       "base_hp_override": 20,
+      "repair_after_win": 4,
       "starting_deck": [
         "SOR_237",
         "SOR_237",

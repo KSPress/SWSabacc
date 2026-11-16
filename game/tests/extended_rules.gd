@@ -158,6 +158,26 @@ func test_death_star_saga() -> void:
 	var episode: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/campaign/ep4.json"))
 	var tatooine: Dictionary = episode["chapters"][0]
 	var chapter: Dictionary = episode["chapters"][1]
+	var raid_run := CampaignRun.start(tatooine, "SEC_015", 101)
+	var raid_node := CampaignRun.node_by_id(tatooine, "tusken_raid")
+	var raid := Match.new()
+	raid.setup(lib, CampaignRun.match_config(raid_run, tatooine, raid_node, {}))
+	while not raid.pending.is_empty():
+		AiBot.choose(raid)
+	var luke: CardInst = raid.objective.protected_unit
+	check(luke.exhausted and not luke.can_ready() and luke.max_hp() == 11 and luke.shield_count() == 1
+		and raid.players[0].ready_resources() == raid.rules.starting_resources + 1,
+		"Tusken Raid opens with shielded, unconscious Luke and an extra player resource")
+	var raider: CardInst = raid.players[1].units[0]
+	check(raid.deal_damage(luke, 3, raider) == 0 and luke.shield_count() == 0,
+		"Luke's opening Shield absorbs one hit")
+	for _round in 4:
+		raid.end_round()
+		while not raid.pending.is_empty():
+			AiBot.choose(raid)
+	check(not raid.is_over(), "Tusken Raid requires four full rounds plus round five")
+	raid.end_round()
+	check(raid.winner == 0 and raid.round_num == 5, "Keeping Luke alive through round five clears Tusken Raid")
 	for leader in ["SOR_017", "SOR_003"]:
 		var run := CampaignRun.start(chapter, leader, 555)
 		var companion := "SOR_196" if leader == "SOR_017" else "SOR_198"
@@ -195,13 +215,13 @@ func test_death_star_saga() -> void:
 	check(compactor.objective.target == null and not compactor.is_over(), "Compactor cannot be won by waiting two rounds")
 	compactor.end_round()
 	var dianoga: CardInst = compactor.objective.target
-	check(dianoga != null and dianoga.id == "HMW_155" and dianoga.max_hp() == 8 and dianoga.power() == 7,
+	check(dianoga != null and dianoga.id == "HMW_155" and dianoga.max_hp() == 7 and dianoga.power() == 6,
 		"The boosted Dianoga appears in round three")
 	if dianoga:
 		compactor.return_to_hand(dianoga)
 		check(dianoga.in_play() and compactor.deal_damage(compactor.players[1].base, 100, null) == 0,
 			"The Dianoga must be defeated rather than removed or bypassed")
-		compactor.deal_damage(dianoga, 8, null)
+		compactor.deal_damage(dianoga, dianoga.remaining_hp(), null)
 		compactor.pump()
 		check(compactor.winner == 0, "Defeating the Dianoga wins the compactor encounter")
 

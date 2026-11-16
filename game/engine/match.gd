@@ -112,6 +112,8 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 			if pre.has("hp"):
 				u.mods.append({"h": int(pre["hp"]) - u.printed_hp(), "dur": "permanent"})
 			_apply_card_upgrades(u)
+			if pre.get("shield", false):
+				attach_token(u, "shield")
 		for cid in pc.get("bonus_hand", []):
 			if lib.has(cid):
 				var hc := _new_inst(cid, i)
