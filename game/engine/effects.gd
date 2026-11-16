@@ -248,6 +248,8 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 					if t.zone == "base":
 						m.deal_damage(t, t.remaining_hp(), src, true)
 					else:
+						if t.in_play():
+							t.flags["lethal_source"] = src.uid if src and src.controller != t.controller else 0
 						m.defeat(t)
 		"bounce":
 			for t in targets:

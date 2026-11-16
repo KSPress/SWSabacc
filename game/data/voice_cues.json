@@ -1,0 +1,233 @@
+{
+  "characters": {
+    "anakin skywalker": {
+      "played": [
+        "res://ip/audio/custom/new/anakin_played.mp3"
+      ],
+      "lose": [
+        "res://ip/audio/custom/new/anakin_lose_3.mp3"
+      ],
+      "played_rare": [
+        "res://ip/audio/custom/new/anakin_played_5_percent.mp3"
+      ]
+    },
+    "boba fett": {
+      "played": [
+        "res://ip/audio/custom/new/boba_played.mp3"
+      ],
+      "kill": [
+        "res://ip/audio/custom/new/boba_kill_2.mp3",
+        "res://ip/audio/custom/new/boba_kill.mp3"
+      ],
+      "played_rare": [
+        "res://ip/audio/custom/new/boba_played_5_percent.mp3"
+      ]
+    },
+    "c_3po": {
+      "action": [
+        "res://ip/audio/custom/new/i_dont_like_you_either_c3po.mp3",
+        "res://ip/audio/custom/new/ive_just_about_had_enough_of_you.mp3",
+        "res://ip/audio/custom/new/r2d2_c3po.mp3",
+        "res://ip/audio/custom/new/what_are_you_talking_about_c3po.mp3"
+      ]
+    },
+    "han solo": {
+      "lose": [
+        "res://ip/audio/custom/new/han_lose.mp3"
+      ],
+      "kill": [
+        "res://ip/audio/custom/new/han_kill.mp3"
+      ],
+      "played": [
+        "res://ip/audio/custom/new/han_played_2.mp3",
+        "res://ip/audio/custom/new/han_played.mp3"
+      ]
+    },
+    "krennic": {
+      "lose": [
+        "res://ip/audio/custom/new/krennic_lose.mp3"
+      ],
+      "kill": [
+        "res://ip/audio/custom/new/krennic_kill.mp3"
+      ],
+      "played": [
+        "res://ip/audio/custom/new/krennic_played.mp3"
+      ]
+    },
+    "obi_wan kenobi": {
+      "lose": [
+        "res://ip/audio/custom/new/obi_wan_lose_2.mp3",
+        "res://ip/audio/custom/new/obi_wan_lose.mp3",
+        "res://ip/audio/custom/new/obiwan_lose.mp3"
+      ],
+      "kill": [
+        "res://ip/audio/custom/new/obiwan_kill.mp3"
+      ]
+    },
+    "darth vader": {
+      "played": [
+        "res://ip/audio/custom/new/vader_played_2.mp3",
+        "res://ip/audio/custom/new/vader_played.mp3"
+      ],
+      "kill": [
+        "res://ip/audio/custom/new/vader_kill.mp3"
+      ]
+    },
+    "mace windu": {
+      "kill": [
+        "res://ip/audio/custom/new/mace_windu_kill.mp3"
+      ]
+    },
+    "ackbar": {
+      "played": [
+        "res://ip/audio/custom/new/ackbar_played.mp3"
+      ]
+    },
+    "ben kenobi": {
+      "lose": [
+        "res://ip/audio/custom/new/ben_kenobi_lose.mp3"
+      ],
+      "played": [
+        "res://ip/audio/custom/new/ben_kenobi_played_2.mp3",
+        "res://ip/audio/custom/new/ben_kenobi_played.mp3"
+      ]
+    },
+    "chopper": {
+      "played": [
+        "res://ip/audio/custom/new/chopper_played.mp3"
+      ]
+    },
+    "@clone": {
+      "lose": [
+        "res://ip/audio/custom/new/clone_lose.mp3"
+      ]
+    },
+    "@creature": {
+      "played_rare": [
+        "res://ip/audio/custom/new/creature_played_5_percent.mp3"
+      ]
+    },
+    "count dooku": {
+      "played": [
+        "res://ip/audio/custom/new/dooku_played.mp3"
+      ]
+    },
+    "general grievous": {
+      "kill": [
+        "res://ip/audio/custom/new/grevious_kill.mp3"
+      ],
+      "played": [
+        "res://ip/audio/custom/new/grevious_played.mp3"
+      ]
+    },
+    "general hux": {
+      "played": [
+        "res://ip/audio/custom/new/hux_played.mp3"
+      ]
+    },
+    "jango fett": {
+      "kill": [
+        "res://ip/audio/custom/new/jango_fett_kill.mp3"
+      ],
+      "lose": [
+        "res://ip/audio/custom/new/jango_fett_lose.mp3"
+      ]
+    },
+    "jar jar binks": {
+      "played": [
+        "res://ip/audio/custom/new/jar_jar_played.mp3"
+      ]
+    },
+    "@jawa": {
+      "played": [
+        "res://ip/audio/custom/new/jawa_played.mp3"
+      ]
+    },
+    "kylo ren": {
+      "lose": [
+        "res://ip/audio/custom/new/kylo_ren_lose.mp3"
+      ],
+      "played": [
+        "res://ip/audio/custom/new/kylo_ren_played.mp3"
+      ]
+    },
+    "leia organa": {
+      "lose": [
+        "res://ip/audio/custom/new/leia_lose.mp3"
+      ]
+    },
+    "@maul_quigon": {
+      "played_rare": [
+        "res://ip/audio/custom/new/maul_quigon_5_percent_played.mp3"
+      ]
+    },
+    "millennium falcon": {
+      "played": [
+        "res://ip/audio/custom/new/millenium_falcon_played.mp3"
+      ]
+    },
+    "padmé amidala": {
+      "lose": [
+        "res://ip/audio/custom/new/padme_lose.mp3"
+      ],
+      "played": [
+        "res://ip/audio/custom/new/padme_played.mp3"
+      ]
+    },
+    "qui_gon jinn": {
+      "kill": [
+        "res://ip/audio/custom/new/quigon_kill.mp3"
+      ],
+      "played": [
+        "res://ip/audio/custom/new/quigon_played.mp3"
+      ]
+    },
+    "rey": {
+      "lose": [
+        "res://ip/audio/custom/new/rey_lose.mp3"
+      ]
+    },
+    "chancellor palpatine": {
+      "played": [
+        "res://ip/audio/custom/new/senator_palp_played.mp3"
+      ]
+    },
+    "@separatist_droid": {
+      "lose": [
+        "res://ip/audio/custom/new/sepratist_droid_lose.mp3"
+      ],
+      "played": [
+        "res://ip/audio/custom/new/sepratist_droid_played_2.mp3",
+        "res://ip/audio/custom/new/sepratist_droid_played_3.mp3",
+        "res://ip/audio/custom/new/sepratist_droid_played.mp3"
+      ]
+    },
+    "@stormtrooper": {
+      "lose_rare": [
+        "res://ip/audio/custom/new/stormtrooper_lose_5_percent.mp3"
+      ]
+    },
+    "@undead": {
+      "played_rare": [
+        "res://ip/audio/custom/new/undead_played_5_percent.mp3"
+      ]
+    },
+    "yoda": {
+      "lose": [
+        "res://ip/audio/custom/new/yoda_lose.mp3"
+      ],
+      "played": [
+        "res://ip/audio/custom/new/yoda_played_2.mp3",
+        "res://ip/audio/custom/new/yoda_played.mp3"
+      ],
+      "played_rare": [
+        "res://ip/audio/custom/new/yoda_played_5_percent.mp3"
+      ]
+    }
+  },
+  "effects": {
+    "saga_chapter_2_end": [
+      "res://ip/audio/custom/new/saga_campaign_ch2_end.mp3"
+    ]
+  }
+}

@@ -17,6 +17,7 @@ func _run() -> void:
 			paths.append_array(clips)
 	for clips in Sfx.catalog["effects"].values():
 		paths.append_array(clips)
+	check(paths.filter(func(path): return "/custom/new/" in path).size() == 63, "all 63 new cues loaded")
 	for path in paths:
 		var stream = load(path)
 		check(stream is AudioStream and stream.get_length() > 0, "decodable audio " + path.get_file())
@@ -36,7 +37,17 @@ func _run() -> void:
 	space["arena"] = "space"
 	check(Sfx.defeat_paths(space, 0.0) != Sfx.catalog["effects"]["wilhelm"], "space units excluded from Wilhelm")
 	check(not Sfx.character_paths(villain, "action").is_empty(), "unlabeled character action clips")
-	check(Sfx.character_key({"name": "Ben Kenobi"}) == "obi_wan kenobi", "Obi-Wan alias")
+	check(Sfx.character_paths({"name": "Ben Kenobi"}, "played").size() >= 3, "Ben has new and existing Obi-Wan entries")
+	var yoda := {"name": "Yoda", "type": "unit"}
+	check(Sfx.entry_paths(yoda, 0.049) == Sfx.character_paths(yoda, "played_rare")
+		and Sfx.entry_paths(yoda, 0.05) == Sfx.character_paths(yoda, "played"), "Yoda rare clip uses the five percent boundary")
+	var trooper := {"name": "Death Star Stormtrooper", "type": "unit", "traits": ["imperial", "trooper"]}
+	check(Sfx.defeat_paths(trooper, 0.049) == Sfx.catalog["effects"]["wilhelm"]
+		and not Sfx.defeat_paths(trooper, 0.05).is_empty() and Sfx.defeat_paths(trooper, 0.10).is_empty(),
+		"Stormtrooper and Wilhelm cues each get a separate five percent chance")
+	var vader_kills := Sfx.character_paths(villain, "kill")
+	Sfx.unit_kill(villain)
+	check(not vader_kills.is_empty() and heard.back() in vader_kills, "kill event uses the character's kill pool")
 	var windu := {"name": "Mace Windu", "type": "leader", "traits": ["force", "jedi"]}
 	Sfx.entered(windu)
 	check(not Sfx.character_paths(windu, "played").is_empty() and heard.back() in Sfx.character_paths(windu, "played"),

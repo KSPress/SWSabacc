@@ -931,6 +931,7 @@ func _put_in_play(u: CardInst, arena: String, exhausted := true, apply_entry_rul
 	u.flags.erase("skip_regroup_ready")
 	u.flags.erase("last_healed_phase")
 	u.flags.erase("last_damaged_phase")
+	u.flags.erase("lethal_source")
 	u.flags.erase("last_base_damage_phase")
 	u.flags.erase("base_attack_phases")
 	u.entry_serial += 1
@@ -1242,6 +1243,8 @@ func deal_damage(target: CardInst, n: int, source: CardInst, unpreventable := fa
 				events.append({"t": "shield_break", "uid": target.uid, "remaining": 0})
 				return 0
 	target.damage += n
+	if target.in_play() and target.remaining_hp() <= 0:
+		target.flags["lethal_source"] = source.uid if source and source.controller != target.controller else 0
 	target.flags["last_damaged_phase"] = phase_serial
 	if source and not combat:
 		player_trigger(source.controller, "noncombat_damage", {"trigger_amount": n})
@@ -1265,6 +1268,8 @@ func heal(target: CardInst, n: int) -> int:
 	var h := mini(n, target.damage)
 	if h > 0:
 		target.damage -= h
+		if target.remaining_hp() > 0:
+			target.flags.erase("lethal_source")
 		target.flags["last_healed_phase"] = phase_serial
 		events.append({"t": "heal", "uid": target.uid, "n": h})
 		if target.in_play():
@@ -1325,7 +1330,8 @@ func defeat(u: CardInst, departing_host := false, skip_replacement := false) -> 
 	_note_unit_departure(p)
 	defeated_this_phase[p] += 1
 	defeated_cards_this_phase[p].append(u)
-	events.append({"t": "defeat", "uid": u.uid, "p": p})
+	events.append({"t": "defeat", "uid": u.uid, "p": p, "src": u.flags.get("lethal_source", 0)})
+	u.flags.erase("lethal_source")
 	_log("%s is defeated." % u.title())
 	u.mods.clear()
 	if u.is_leader():

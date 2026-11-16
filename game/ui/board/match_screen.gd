@@ -452,7 +452,8 @@ func _drain() -> void:
 			"enter":
 				_ensure_token(m.card(e["uid"]), true)
 				if m.card(e["uid"]):
-					Sfx.entered(m.card(e["uid"]).data)
+					var played := m.card(e["uid"])
+					Sfx.entered(played.data, m.players[1 - played.controller].units)
 				_position_tokens()
 				Sfx.play("play")
 				await _wait(0.18)
@@ -507,6 +508,9 @@ func _drain() -> void:
 				if m.card(e["uid"]):
 					var dead := m.card(e["uid"])
 					Sfx.defeated(dead.data, dead.arena())
+				var killer := m.card(e.get("src", 0))
+				if killer:
+					Sfx.unit_kill(killer.data)
 				var dt: UnitToken = tokens.get(e["uid"])
 				if dt:
 					tokens.erase(e["uid"])
@@ -1467,6 +1471,8 @@ func _game_over() -> void:
 		row.add_child(scont)
 	elif params.get("mode", "quick") == "campaign":
 		var res := CampaignFlow.on_match_end(params, m)
+		if res["won"] and res["boss"] and res["chapter_id"] == "ep4_ch2_deathstar":
+			Sfx.play_effect("saga_chapter_2_end", "result")
 		var cont := SabaccButton.make("Continue", SabaccButton.Style.PRIMARY, "play", true)
 		cont.custom_minimum_size.x = 260
 		cont.pressed.connect(func(): CampaignFlow.after_match(res))

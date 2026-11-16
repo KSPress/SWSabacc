@@ -29,6 +29,17 @@ func _ready() -> void:
 	var manifest := "res://ip/audio/catalog.json"
 	if FileAccess.file_exists(manifest):
 		catalog = JSON.parse_string(FileAccess.get_file_as_string(manifest))
+	var additions: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/voice_cues.json"))
+	for actor in additions["characters"]:
+		var pools: Dictionary = catalog["characters"].get_or_add(actor, {})
+		for event in additions["characters"][actor]:
+			for path in additions["characters"][actor][event]:
+				if ResourceLoader.exists(path) and path not in pools.get(event, []):
+					pools.get_or_add(event, []).append(path)
+	for event in additions["effects"]:
+		for path in additions["effects"][event]:
+			if ResourceLoader.exists(path) and path not in catalog["effects"].get(event, []):
+				catalog["effects"].get_or_add(event, []).append(path)
 	_voice = AudioStreamPlayer.new()
 	_result = AudioStreamPlayer.new()
 	add_child(_voice)
@@ -90,10 +101,16 @@ func play_clip(path: String, channel := "effect") -> void:
 
 func character_key(data: Dictionary) -> String:
 	var name: String = data.get("name", "").to_lower().replace("-", "_").replace(" ", "_")
+	if name.ends_with("_base") or "'s_" in name or "’s_" in name:
+		return ""
 	if "ben_kenobi" in name:
-		return "obi_wan kenobi"
+		return "ben kenobi"
+	if name.begins_with("chancellor_palpatine"):
+		return "chancellor palpatine"
+	if name == "rey":
+		return "rey"
 	for key in catalog.get("characters", {}):
-		if key.replace(" ", "_") in name:
+		if key != "rey" and key.replace(" ", "_") in name:
 			return key
 	return ""
 
@@ -102,7 +119,42 @@ func character_paths(data: Dictionary, event: String) -> Array:
 	event = event.to_lower()
 	if event == "die":
 		event = "lose"
-	return catalog.get("characters", {}).get(character_key(data), {}).get(event, [])
+	var key := character_key(data)
+	var voices: Dictionary = catalog.get("characters", {})
+	var paths: Array = voices.get(key, {}).get(event, [])
+	if key == "ben kenobi":
+		return paths + voices.get("obi_wan kenobi", {}).get(event, [])
+	if key == "chancellor palpatine":
+		return paths + voices.get("palpatine", {}).get(event, [])
+	return paths
+
+
+func _group_paths(group: String, event: String) -> Array:
+	return catalog["characters"].get("@" + group, {}).get(event, [])
+
+
+func entry_paths(data: Dictionary, roll: float, opponents := []) -> Array:
+	var traits: Array = data.get("traits", [])
+	var key := character_key(data)
+	var other := "qui_gon jinn" if key == "maul" else "maul"
+	if roll < 0.05:
+		if key in ["maul", "qui_gon jinn"] and opponents.any(func(unit): return character_key(unit.data) == other):
+			return _group_paths("maul_quigon", "played_rare")
+		var rare := character_paths(data, "played_rare")
+		if not rare.is_empty():
+			return rare
+		for unit_trait in ["undead", "creature"]:
+			if unit_trait in traits:
+				return _group_paths(unit_trait, "played_rare")
+	var paths := character_paths(data, "played")
+	if not paths.is_empty():
+		return paths
+	if "separatist" in traits and "droid" in traits:
+		var droids := _group_paths("separatist_droid", "played")
+		if str(data.get("name", "")).to_lower().begins_with("b1 "):
+			return droids + catalog["effects"].get("b1_enter", [])
+		return droids
+	return _group_paths("jawa", "played") if "jawa" in traits else []
 
 
 func is_tie(data: Dictionary) -> bool:
@@ -110,20 +162,22 @@ func is_tie(data: Dictionary) -> bool:
 	return name.begins_with("tie ") or name.begins_with("tie/") or name.begins_with("tie-")
 
 
-func entered(data: Dictionary) -> void:
-	var paths := character_paths(data, "played")
+func entered(data: Dictionary, opponents := []) -> void:
+	if not data.get("type", "unit") in ["unit", "token_unit", "leader"]:
+		return
+	var paths := entry_paths(data, randf(), opponents)
 	if not paths.is_empty():
 		play_clip(paths.pick_random(), "voice")
 	if is_tie(data):
 		play_effect("tie_enter")
-	elif str(data.get("name", "")).to_lower().begins_with("b1 "):
+	elif paths.is_empty() and str(data.get("name", "")).to_lower().begins_with("b1 "):
 		play_effect("b1_enter")
 
 
-func play_effect(key: String) -> void:
+func play_effect(key: String, channel := "effect") -> void:
 	var paths: Array = catalog.get("effects", {}).get(key, [])
 	if not paths.is_empty():
-		play_clip(paths.pick_random())
+		play_clip(paths.pick_random(), channel)
 
 
 func shield_cue(broken: bool, roll: float) -> String:
@@ -147,7 +201,16 @@ func defeat_paths(data: Dictionary, roll: float) -> Array:
 		return catalog.get("effects", {}).get("vehicle_easter_egg", [])
 	if data.get("arena", "ground") == "ground" and not "vehicle" in traits and not "creature" in traits and roll < 0.05:
 		return catalog.get("effects", {}).get("wilhelm", [])
-	return character_paths(data, "lose")
+	if roll >= 0.05 and roll < 0.10 and "trooper" in traits and "stormtrooper" in str(data.get("name", "")).to_lower():
+		return _group_paths("stormtrooper", "lose_rare")
+	var paths := character_paths(data, "lose")
+	if not paths.is_empty():
+		return paths
+	if "clone" in traits:
+		return _group_paths("clone", "lose")
+	if "separatist" in traits and "droid" in traits:
+		return _group_paths("separatist_droid", "lose")
+	return []
 
 
 func defeated(data: Dictionary, arena := "") -> void:
@@ -167,6 +230,12 @@ func acted(data: Dictionary) -> void:
 	var paths := character_paths(data, "action")
 	if not paths.is_empty():
 		play_clip(paths.pick_random(), "voice")
+
+
+func unit_kill(data: Dictionary) -> void:
+	var paths := character_paths(data, "kill")
+	if not paths.is_empty():
+		play_clip(paths.pick_random())
 
 
 func attack_sound(data: Dictionary, style: String) -> String:
