@@ -336,7 +336,7 @@ func _attack_targets(u: CardInst, allow_exhausted: bool, units_only: bool) -> Ar
 	var enemies: Array = players[opp(p)].units
 	var screened := not u.has_kw("saboteur") and enemies.any(func(e): return e.zone == u.zone and e.has_kw("sentinel"))
 	for e in enemies:
-		if not e.zone in allowed_arenas or e.flags.get("untargetable", false):
+		if not e.zone in allowed_arenas or e.flags.get("untargetable", false) or e.flags.get("story_duelist", false):
 			continue
 		if not e.has_kw("sentinel"):
 			if screened:
@@ -863,6 +863,8 @@ func on_cards_drawn(p: int, count := 1) -> void:
 
 
 func move_to_resources(p: int, c: CardInst, exhausted := false) -> void:
+	if c.in_play() and c.flags.get("objective_target", false):
+		return
 	var was_unit := c.in_play()
 	var prev_controller := c.controller
 	_remove_from_zones(c)
@@ -1086,7 +1088,7 @@ func _enforce_unique(p: int, c: CardInst) -> void:
 	for u in trigger_sources():
 		if u.controller != p or (not u.in_play() and u.zone != "upgrade"):
 			continue
-		if u.flags.get("protected", false):
+		if u.flags.get("protected", false) or u.flags.get("story_duelist", false):
 			continue  # scenario units (e.g. unconscious Luke) are outside the unique rule
 		if u.id == c.id or (u.unique() and u.title() == c.title()):
 			_log("Unique rule: %s is defeated." % u.title())
@@ -1216,6 +1218,8 @@ func summon(p: int, cid: String, ready := false) -> CardInst:
 
 func deal_damage(target: CardInst, n: int, source: CardInst, unpreventable := false, combat := false) -> int:
 	if n <= 0 or target == null:
+		return 0
+	if target.flags.get("story_duelist", false) and (source == null or not source.flags.get("story_duelist", false)):
 		return 0
 	if target == players[1].base and not objective.enemy_base_damage_allowed():
 		return 0
@@ -1356,6 +1360,8 @@ func _defeat_attached_upgrades(host: CardInst) -> void:
 func take_control(unit: CardInst, player: int) -> bool:
 	if not unit.in_play() or unit.is_leader_unit() or unit.controller == player:
 		return false
+	if unit.flags.get("objective_target", false):
+		return false
 	if unit.abilities_with("constant").any(func(a): return a.get("flag") == "cannot_take_control"):
 		return false
 	players[unit.controller].units.erase(unit)
@@ -1369,6 +1375,8 @@ func take_control(unit: CardInst, player: int) -> bool:
 
 
 func return_to_hand(u: CardInst) -> void:
+	if u.in_play() and u.flags.get("objective_target", false):
+		return
 	if u.is_leader() or u.is_token:
 		defeat(u)
 		return
@@ -1378,6 +1386,8 @@ func return_to_hand(u: CardInst) -> void:
 
 
 func put_unit_on_bottom(u: CardInst) -> void:
+	if u.in_play() and u.flags.get("objective_target", false):
+		return
 	if u.is_leader() or u.is_token:
 		return
 	_leave_for_owner_zone(u, "deck")

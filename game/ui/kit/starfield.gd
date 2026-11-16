@@ -14,6 +14,7 @@ var drift := Vector2(-6, 2)
 var _stars: Array = []
 var _t := 0.0
 var _datapad: DatapadBackground
+var _film: TextureRect
 
 
 func _ready() -> void:
@@ -21,6 +22,9 @@ func _ready() -> void:
 	_datapad = DatapadBackground.new()
 	UIKit.fill_rect(_datapad)
 	add_child(_datapad)
+	_film = SagaScenes.film_layer()
+	add_child(_film)
+	UIKit.fill_rect(_film)
 	Appearance.changed.connect(_retheme)
 	_retheme()
 	var rng := RandomNumberGenerator.new()
@@ -41,6 +45,8 @@ func _process(dt: float) -> void:
 
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), _spec["base"])
+	if _film.visible:
+		return
 	if _photo:
 		var source_size := _photo.get_size()
 		var covered := source_size * maxf(size.x / source_size.x, size.y / source_size.y)
@@ -79,6 +85,7 @@ func _retheme() -> void:
 	_datapad._refresh_emblem()
 	_datapad.queue_redraw()
 	_photo = Cosmetics.background_texture(_spec.get("art", "")) if _spec["kind"] == "planet" else null
+	SagaScenes.set_film_photo(_film, _photo, _spec.get("film", false))
 	queue_redraw()
 
 

@@ -18,6 +18,8 @@ func build() -> void:
 	body.add_child(_box)
 	if int(res.get("run_credits", 0)) > 0:
 		_box.add_child(UIKit.credit_label("+%d run credits" % int(res["run_credits"])))
+	if int(res.get("repaired", 0)) > 0:
+		_box.add_child(UIKit.label("Field repairs restored %d base HP" % int(res["repaired"]), 18, Sabacc.C_GOOD, HORIZONTAL_ALIGNMENT_CENTER))
 	if res.get("boss", false):
 		_build_clear()
 		return
@@ -98,6 +100,9 @@ func _take(effect: Dictionary) -> void:
 
 
 func _build_clear() -> void:
+	for id in res.get("backgrounds", []):
+		var name: String = SagaScenes.catalog()[id]["name"]
+		_box.add_child(UIKit.label("Background unlocked · " + name, 18, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 	_box.add_child(UIKit.aurebesh("chapter complete", 26))
 	_box.add_child(UIKit.title("%s cleared!" % chapter.get("title", ""), 44, Sabacc.C_GOLD))
 	var ending: String = CampaignRun.node_by_id(chapter, res["node_id"]).get("ending", "")

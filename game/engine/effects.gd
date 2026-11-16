@@ -678,6 +678,8 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 		return false
 	if c.zone == "base":
 		return c.remaining_hp() <= int(t.get("max_hp", 999999)) and (not t.has("trait") or c.has_trait(t["trait"]))
+	if c.flags.get("story_duelist", false):
+		return false
 	if c.flags.get("untargetable", false) and side != "friendly" and not ctx.get("static_filter", false):
 		return false
 	if t.get("other", false) and src and (c == src or (src.is_pilot_upgrade() and c == src.attached_to)):

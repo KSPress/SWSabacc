@@ -73,10 +73,11 @@ static func start_node(chapter: Dictionary, node: Dictionary) -> void:
 		or needs_new_route(run, chapter) or node["id"] not in CampaignRun.available_nodes(run, chapter):
 		return
 	var cfg := CampaignRun.match_config(run, chapter, node, treasures_for(chapter))
-	var theme: String = chapter.get("board_theme", "space")
+	var theme := CampaignRun.scene_for(run, chapter, node)
 	Router.go("match", {
 		"mode": "campaign", "cfg": cfg, "theme": theme, "title": node.get("title", "Battle"),
 		"chapter_id": chapter["id"], "node_id": node["id"], "run_id": run.get("reward_id", ""),
+		"arena_names": node.get("arena_names", {}),
 	})
 
 
@@ -96,8 +97,8 @@ static func on_match_end(params: Dictionary, m: Match) -> Dictionary:
 	run["credits"] = int(run.get("credits", 0)) + Progression.RUN_BATTLE
 	res["run_credits"] = Progression.RUN_BATTLE
 	if won:
-		var maxhp := CampaignRun.max_base_hp(run, chapter)
-		run["base_damage"] = clampi(m.players[0].base.damage, 0, maxhp - 1)
+		run["base_damage"] = CampaignRun.damage_after_victory(run, chapter, m.players[0].base.damage)
+		res["repaired"] = m.players[0].base.damage - run["base_damage"]
 		CampaignRun.complete_node(run, node["id"])
 		var pickups: Array = node.get("pickups", [node["pickup"]] if node.has("pickup") else [])
 		if not pickups.is_empty():
@@ -109,6 +110,12 @@ static func on_match_end(params: Dictionary, m: Match) -> Dictionary:
 				run["consecutive_clears"] = int(run.get("consecutive_clears", 0)) + 1
 			Save.clear_chapter(chapter["id"])
 			res["unlocked"] = [] if Cosmetics.state()["gm"] else Save.unlock(chapter.get("unlocks_on_clear", []))
+			res["backgrounds"] = []
+			if not Cosmetics.state()["gm"]:
+				var scene := CampaignRun.remaining_background(run, chapter, Cosmetics.state()["earned"])
+				for id in [scene, chapter.get("completion_background", "")]:
+					if not id.is_empty() and Cosmetics.award("background:" + id):
+						res["backgrounds"].append(id)
 			res["pack"] = Progression.grant("Saga campaign run completed",
 				"saga:%s:%s" % [chapter["id"], run.get("reward_id", run.get("node_seed", 0))], CampaignRun.completion_pack_size(run, chapter))
 		else:

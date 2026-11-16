@@ -115,8 +115,9 @@ func _build() -> void:
 		h.inspect.connect(func(id, r, inst): InspectOverlay.open(self, id, r, inst))
 		hud.append(h)
 	for a in ["ground", "space"]:
-		var l := UIKit.aurebesh(a, 20, Color(1, 1, 1, 0.18))
-		var l2 := UIKit.label(a.to_upper() + " ARENA", 14, Color(1, 1, 1, 0.3))
+		var arena_name: String = params.get("arena_names", {}).get(a, a)
+		var l := UIKit.aurebesh(arena_name.to_lower(), 20, Color(1, 1, 1, 0.18))
+		var l2 := UIKit.label(arena_name.to_upper() + " ARENA", 14, Color(1, 1, 1, 0.3))
 		board_layer.add_child(l)
 		board_layer.add_child(l2)
 		_arena_labels[a] = [l, l2]
@@ -314,7 +315,8 @@ func _layout_arenas() -> void:
 		var ls: Array = _arena_labels[a]
 		ls[0].visible = true
 		ls[1].visible = true
-		ls[1].text = "BATTLEFIELD · ONE LANE" if m.rules.single_lane else a.to_upper() + " ARENA"
+		if m.rules.single_lane:
+			ls[1].text = "BATTLEFIELD · ONE LANE"
 		ls[0].position = divider + Vector2(8, -30)
 		ls[1].position = divider + Vector2(8, -8)
 	board_layer.queue_redraw()

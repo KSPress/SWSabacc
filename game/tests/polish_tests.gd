@@ -81,13 +81,18 @@ func _run() -> void:
 	random.seed = 77
 	var emblems := 0
 	var backgrounds := 0
+	var saga_backgrounds := 0
 	for i in 2000:
 		var reward := Progression.roll_cosmetic(random)
 		if reward.get("kind") == "emblem":
 			emblems += 1
 		elif reward.get("kind") == "background":
-			backgrounds += 1
+			if reward.get("saga_art", false):
+				saga_backgrounds += 1
+			else:
+				backgrounds += 1
 	check(emblems > 190 and emblems < 320 and backgrounds > 60 and backgrounds < 140, "seeded rare cosmetic distribution")
+	check(saga_backgrounds > 60 and saga_backgrounds < 140, "New backgrounds drop in about five percent of packs")
 	var pack_id := Progression.grant("Polish QA", "polish_test")
 	var pack: Dictionary = Progression.packs()[0]
 	pack["bonus"] = {"key": "emblem:sith_eternal", "id": "sith_eternal", "kind": "emblem", "name": "Sith Eternal", "rarity": "Rare"}

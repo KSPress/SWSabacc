@@ -13,14 +13,71 @@
       "intro": "The stolen Death Star plans must leave Tatooine. Protect Luke in the Jundland Wastes, find a pilot in Mos Eisley, and hold Docking Bay 94 until the Falcon is ready.",
       "alignment": "heroism",
       "ruleset": "campaign",
-      "board_theme": "tatooine",
-      "leader_options": ["SEC_015"],
-      "base_sequence": ["HMW_028", "HMW_019", "HMW_032"],
+      "board_theme": "saga_tatooine_canyon",
+      "leader_options": [
+        "SEC_015"
+      ],
+      "base_sequence": [
+        "HMW_028",
+        "HMW_019",
+        "HMW_032"
+      ],
       "base_hp_override": 28,
-      "starting_deck": ["HMW_208", "SOR_236", "LOF_057", "LOF_057", "ASH_156", "SOR_205", "SOR_205", "JTL_214", "JTL_214", "SHD_055", "SHD_055", "SEC_110", "SEC_110", "TWI_256", "TWI_256", "LAW_131", "LAW_131", "LAW_245", "SOR_251", "HMW_268"],
-      "reward_pool": ["HMW_268", "HMW_222", "SHD_214", "SOR_205", "HMW_221", "JTL_214", "SEC_110", "ASH_156", "SHD_055", "TWI_256", "LAW_131", "LAW_245", "SOR_251", "SHD_078", "SOR_238", "HMW_240", "LOF_215", "ASH_229", "SEC_052"],
+      "starting_deck": [
+        "HMW_208",
+        "SOR_236",
+        "LOF_057",
+        "LOF_057",
+        "ASH_156",
+        "SOR_205",
+        "SOR_205",
+        "JTL_214",
+        "JTL_214",
+        "SHD_055",
+        "SHD_055",
+        "SEC_110",
+        "SEC_110",
+        "TWI_256",
+        "TWI_256",
+        "LAW_131",
+        "LAW_131",
+        "LAW_245",
+        "SOR_251",
+        "HMW_268"
+      ],
+      "reward_pool": [
+        "HMW_268",
+        "HMW_222",
+        "SHD_214",
+        "SOR_205",
+        "HMW_221",
+        "JTL_214",
+        "SEC_110",
+        "ASH_156",
+        "SHD_055",
+        "TWI_256",
+        "LAW_131",
+        "LAW_245",
+        "SOR_251",
+        "SHD_078",
+        "SOR_238",
+        "HMW_240",
+        "LOF_215",
+        "ASH_229",
+        "SEC_052"
+      ],
       "treasures": [],
-      "unlocks_on_clear": ["SEC_015", "HMW_019", "HMW_028", "HMW_032", "HMW_261", "SOR_053", "HMW_170", "IBH_003", "SOR_193"],
+      "unlocks_on_clear": [
+        "SEC_015",
+        "HMW_019",
+        "HMW_028",
+        "HMW_032",
+        "HMW_261",
+        "SOR_053",
+        "HMW_170",
+        "IBH_003",
+        "SOR_193"
+      ],
       "next_chapter": "ep4_ch2_deathstar",
       "map": {
         "rows": [
@@ -98,7 +155,10 @@
           "battle_rules": {
             "deck_out_damage": 0
           },
-          "deploy_from_deck": ["HMW_208", "SOR_236"],
+          "deploy_from_deck": [
+            "HMW_208",
+            "SOR_236"
+          ],
           "player_preplaced": [
             {
               "id": "HMW_208",
@@ -115,7 +175,10 @@
             "initiative",
             "krayt_call"
           ],
-          "pickups": ["HMW_261", "SOR_053"],
+          "pickups": [
+            "HMW_261",
+            "SOR_053"
+          ],
           "reward_pool": [],
           "enemy": {
             "name": "Tusken Raiders",
@@ -123,7 +186,28 @@
             "hp": 30,
             "hero_skin": "tusken",
             "ai_profile": "aggressive",
-            "deck": ["HMW_224", "HMW_224", "HMW_052", "HMW_180", "HMW_180", "HMW_181", "LOF_209", "HMW_235", "HMW_240", "HMW_167", "HMW_230", "HMW_192", "HMW_224", "HMW_181", "HMW_235", "HMW_180", "HMW_167", "HMW_192", "LOF_209", "HMW_230"],
+            "deck": [
+              "HMW_224",
+              "HMW_224",
+              "HMW_052",
+              "HMW_180",
+              "HMW_180",
+              "HMW_181",
+              "LOF_209",
+              "HMW_235",
+              "HMW_240",
+              "HMW_167",
+              "HMW_230",
+              "HMW_192",
+              "HMW_224",
+              "HMW_181",
+              "HMW_235",
+              "HMW_180",
+              "HMW_167",
+              "HMW_192",
+              "LOF_209",
+              "HMW_230"
+            ],
             "preplaced": [
               {
                 "id": "HMW_224",
@@ -131,7 +215,12 @@
                 "ready": false
               }
             ]
-          }
+          },
+          "scenes": [
+            "saga_tatooine_canyon",
+            "saga_tatooine_sunset",
+            "saga_tatooine_tower"
+          ]
         },
         {
           "id": "sandcrawler",
@@ -144,7 +233,13 @@
               "id": "recruit_jawas",
               "label": "Recruit the five-card Jawa crew",
               "cost": 25,
-              "cards": ["HMW_268", "HMW_222", "SHD_214", "SOR_205", "HMW_221"]
+              "cards": [
+                "HMW_268",
+                "HMW_222",
+                "SHD_214",
+                "SOR_205",
+                "HMW_221"
+              ]
             },
             {
               "id": "duplicate",
@@ -166,8 +261,17 @@
               "id": "salvage",
               "label": "Buy Camtono and Salvaged Materials",
               "cost": 20,
-              "cards": ["ASH_229", "LAW_245"]
+              "cards": [
+                "ASH_229",
+                "LAW_245"
+              ]
             }
+          ],
+          "scenes": [
+            "saga_tatooine_canyon",
+            "saga_tatooine_sunset",
+            "saga_tatooine_tower",
+            "saga_tatooine_junkyard"
           ]
         },
         {
@@ -182,10 +286,42 @@
             "hp": 14,
             "hero_skin": "tusken",
             "ai_profile": "aggressive",
-            "deck": ["HMW_224", "HMW_224", "HMW_052", "HMW_180", "HMW_180", "HMW_181", "LOF_209", "HMW_235", "HMW_240", "HMW_167", "HMW_230", "HMW_192", "HMW_224", "HMW_181", "HMW_235", "HMW_180", "HMW_167", "HMW_192", "LOF_209", "HMW_230"]
+            "deck": [
+              "HMW_224",
+              "HMW_224",
+              "HMW_052",
+              "HMW_180",
+              "HMW_180",
+              "HMW_181",
+              "LOF_209",
+              "HMW_235",
+              "HMW_240",
+              "HMW_167",
+              "HMW_230",
+              "HMW_192",
+              "HMW_224",
+              "HMW_181",
+              "HMW_235",
+              "HMW_180",
+              "HMW_167",
+              "HMW_192",
+              "LOF_209",
+              "HMW_230"
+            ]
           },
-          "pickups": ["HMW_052", "HMW_224", "HMW_181", "LOF_209", "HMW_235"],
-          "reward_pool": []
+          "pickups": [
+            "HMW_052",
+            "HMW_224",
+            "HMW_181",
+            "LOF_209",
+            "HMW_235"
+          ],
+          "reward_pool": [],
+          "scenes": [
+            "saga_tatooine_canyon",
+            "saga_tatooine_sunset",
+            "saga_tatooine_tower"
+          ]
         },
         {
           "id": "homestead",
@@ -199,20 +335,93 @@
             "hp": 12,
             "hero_skin": "stormtrooper",
             "ai_profile": "aggressive",
-            "deck": ["HMW_242", "HMW_242", "HMW_107", "HMW_107", "HMW_201", "HMW_201", "LOF_232", "HMW_250", "SOR_165", "HMW_192", "SOR_128", "SOR_128", "SOR_128", "SOR_128", "TWI_041", "TWI_256", "HMW_242", "HMW_192", "SOR_128", "HMW_107", "HMW_201"]
+            "deck": [
+              "HMW_242",
+              "HMW_242",
+              "HMW_107",
+              "HMW_107",
+              "HMW_201",
+              "HMW_201",
+              "LOF_232",
+              "HMW_250",
+              "SOR_165",
+              "HMW_192",
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "TWI_041",
+              "TWI_256",
+              "HMW_242",
+              "HMW_192",
+              "SOR_128",
+              "HMW_107",
+              "HMW_201"
+            ]
           },
           "enemy_variants": [
             {
               "name": "Sandtrooper Patrol",
-              "deck": ["HMW_242", "HMW_242", "HMW_107", "HMW_107", "HMW_201", "HMW_201", "LOF_232", "HMW_250", "SOR_165", "HMW_192", "SOR_128", "SOR_128", "SOR_128", "SOR_128", "TWI_041", "TWI_256", "HMW_242", "HMW_192", "SOR_128", "HMW_107", "HMW_201"]
+              "deck": [
+                "HMW_242",
+                "HMW_242",
+                "HMW_107",
+                "HMW_107",
+                "HMW_201",
+                "HMW_201",
+                "LOF_232",
+                "HMW_250",
+                "SOR_165",
+                "HMW_192",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "TWI_041",
+                "TWI_256",
+                "HMW_242",
+                "HMW_192",
+                "SOR_128",
+                "HMW_107",
+                "HMW_201"
+              ]
             },
             {
               "name": "Mos Eisley Checkpoint Patrol",
-              "deck": ["HMW_242", "HMW_242", "HMW_107", "HMW_107", "HMW_201", "HMW_201", "LOF_232", "HMW_242", "LOF_232", "HMW_192", "SOR_128", "SOR_128", "SOR_128", "SOR_128", "TWI_041", "TWI_256", "HMW_242", "HMW_192", "SOR_128", "HMW_107", "HMW_201"]
+              "deck": [
+                "HMW_242",
+                "HMW_242",
+                "HMW_107",
+                "HMW_107",
+                "HMW_201",
+                "HMW_201",
+                "LOF_232",
+                "HMW_242",
+                "LOF_232",
+                "HMW_192",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "TWI_041",
+                "TWI_256",
+                "HMW_242",
+                "HMW_192",
+                "SOR_128",
+                "HMW_107",
+                "HMW_201"
+              ]
             }
           ],
           "reward_tier": 2,
-          "reward_pool": ["LOF_215", "LAW_131", "TWI_256", "SEC_052", "JTL_260", "SOR_251"],
+          "reward_pool": [
+            "LOF_215",
+            "LAW_131",
+            "TWI_256",
+            "SEC_052",
+            "JTL_260",
+            "SOR_251"
+          ],
           "player_extra_resources": 1,
           "player_preplaced": [
             {
@@ -221,7 +430,14 @@
               "ready": true
             }
           ],
-          "deploy_from_deck": ["HMW_261"]
+          "deploy_from_deck": [
+            "HMW_261"
+          ],
+          "scenes": [
+            "saga_tatooine_canyon",
+            "saga_tatooine_sunset",
+            "saga_tatooine_tower"
+          ]
         },
         {
           "id": "cantina_duel",
@@ -246,7 +462,10 @@
               "objective_only": true
             }
           },
-          "pickups": ["HMW_170", "IBH_003"],
+          "pickups": [
+            "HMW_170",
+            "IBH_003"
+          ],
           "reward_pool": [],
           "enemy": {
             "name": "Greedo and the Cantina Regulars",
@@ -254,7 +473,28 @@
             "hp": 30,
             "hero_skin": "",
             "ai_profile": "aggressive",
-            "deck": ["SOR_157", "SOR_157", "LAW_049", "SOR_202", "SOR_207", "SHD_209", "SHD_209", "JTL_216", "LAW_151", "LAW_197", "SHD_229", "SHD_176", "SHD_174", "LAW_131", "LAW_049", "SOR_157", "LAW_151", "SOR_207", "LAW_197", "JTL_216"],
+            "deck": [
+              "SOR_157",
+              "SOR_157",
+              "LAW_049",
+              "SOR_202",
+              "SOR_207",
+              "SHD_209",
+              "SHD_209",
+              "JTL_216",
+              "LAW_151",
+              "LAW_197",
+              "SHD_229",
+              "SHD_176",
+              "SHD_174",
+              "LAW_131",
+              "LAW_049",
+              "SOR_157",
+              "LAW_151",
+              "SOR_207",
+              "LAW_197",
+              "JTL_216"
+            ],
             "preplaced": [
               {
                 "id": "SOR_204",
@@ -263,7 +503,10 @@
                 "hp": 11
               }
             ]
-          }
+          },
+          "scenes": [
+            "saga_cantina"
+          ]
         },
         {
           "id": "cantina_supplies",
@@ -287,14 +530,24 @@
               "id": "blasters",
               "label": "Buy Hotshot DL-44 Blaster and Chewbacca’s Bowcaster",
               "cost": 25,
-              "cards": ["SHD_174", "HMW_127"]
+              "cards": [
+                "SHD_174",
+                "HMW_127"
+              ]
             },
             {
               "id": "papers",
               "label": "Buy Diplomatic Immunity and Death Star Plans",
               "cost": 20,
-              "cards": ["SEC_052", "JTL_260"]
+              "cards": [
+                "SEC_052",
+                "JTL_260"
+              ]
             }
+          ],
+          "scenes": [
+            "saga_mos_eisley_street",
+            "saga_mos_eisley_alley"
           ]
         },
         {
@@ -319,14 +572,24 @@
               "id": "tools",
               "label": "Buy Ascension Cable and Confiscate",
               "cost": 15,
-              "cards": ["LOF_215", "SOR_251"]
+              "cards": [
+                "LOF_215",
+                "SOR_251"
+              ]
             },
             {
               "id": "contacts",
               "label": "Hire a Crafty Smuggler and Contracted Hunter",
               "cost": 25,
-              "cards": ["SOR_207", "JTL_216"]
+              "cards": [
+                "SOR_207",
+                "JTL_216"
+              ]
             }
+          ],
+          "scenes": [
+            "saga_mos_eisley_street",
+            "saga_mos_eisley_alley"
           ]
         },
         {
@@ -341,25 +604,120 @@
             "hp": 14,
             "hero_skin": "",
             "ai_profile": "aggressive",
-            "deck": ["SOR_157", "SOR_157", "LAW_049", "SOR_202", "SOR_207", "SHD_209", "SHD_209", "JTL_216", "LAW_151", "LAW_197", "SHD_229", "SHD_176", "SHD_174", "LAW_131", "LAW_049", "SOR_157", "LAW_151", "SOR_207", "LAW_197", "JTL_216"]
+            "deck": [
+              "SOR_157",
+              "SOR_157",
+              "LAW_049",
+              "SOR_202",
+              "SOR_207",
+              "SHD_209",
+              "SHD_209",
+              "JTL_216",
+              "LAW_151",
+              "LAW_197",
+              "SHD_229",
+              "SHD_176",
+              "SHD_174",
+              "LAW_131",
+              "LAW_049",
+              "SOR_157",
+              "LAW_151",
+              "SOR_207",
+              "LAW_197",
+              "JTL_216"
+            ]
           },
           "enemy_variants": [
             {
               "name": "Dockside Street Thugs",
-              "deck": ["SOR_157", "SOR_157", "LAW_049", "SOR_202", "SOR_207", "SHD_209", "SHD_209", "JTL_216", "LAW_151", "LAW_197", "SHD_229", "SHD_176", "SHD_174", "LAW_131", "LAW_049", "SOR_157", "LAW_151", "SOR_207", "LAW_197", "JTL_216"]
+              "deck": [
+                "SOR_157",
+                "SOR_157",
+                "LAW_049",
+                "SOR_202",
+                "SOR_207",
+                "SHD_209",
+                "SHD_209",
+                "JTL_216",
+                "LAW_151",
+                "LAW_197",
+                "SHD_229",
+                "SHD_176",
+                "SHD_174",
+                "LAW_131",
+                "LAW_049",
+                "SOR_157",
+                "LAW_151",
+                "SOR_207",
+                "LAW_197",
+                "JTL_216"
+              ]
             },
             {
               "name": "Mos Eisley Imperial Patrol",
               "hero_skin": "stormtrooper",
-              "deck": ["HMW_242", "HMW_242", "HMW_107", "HMW_107", "HMW_201", "HMW_201", "LOF_232", "HMW_250", "SOR_165", "HMW_192", "SOR_128", "SOR_128", "SOR_128", "SOR_128", "TWI_041", "TWI_256", "HMW_242", "HMW_192", "SOR_128", "HMW_107", "HMW_201"]
+              "deck": [
+                "HMW_242",
+                "HMW_242",
+                "HMW_107",
+                "HMW_107",
+                "HMW_201",
+                "HMW_201",
+                "LOF_232",
+                "HMW_250",
+                "SOR_165",
+                "HMW_192",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "TWI_041",
+                "TWI_256",
+                "HMW_242",
+                "HMW_192",
+                "SOR_128",
+                "HMW_107",
+                "HMW_201"
+              ]
             },
             {
               "name": "Bounty Hunters at the Gate",
-              "deck": ["JTL_216", "JTL_216", "LAW_049", "SOR_202", "SOR_207", "SHD_209", "SHD_209", "JTL_216", "LAW_151", "LAW_197", "SHD_229", "SHD_176", "SHD_174", "LAW_131", "LAW_049", "SOR_157", "LAW_151", "SOR_207", "LAW_197", "JTL_216"]
+              "deck": [
+                "JTL_216",
+                "JTL_216",
+                "LAW_049",
+                "SOR_202",
+                "SOR_207",
+                "SHD_209",
+                "SHD_209",
+                "JTL_216",
+                "LAW_151",
+                "LAW_197",
+                "SHD_229",
+                "SHD_176",
+                "SHD_174",
+                "LAW_131",
+                "LAW_049",
+                "SOR_157",
+                "LAW_151",
+                "SOR_207",
+                "LAW_197",
+                "JTL_216"
+              ]
             }
           ],
           "reward_tier": 2,
-          "reward_pool": ["SOR_207", "JTL_216", "LAW_151", "SOR_202", "SHD_229", "SHD_176", "SHD_174", "HMW_127", "HMW_192"],
+          "reward_pool": [
+            "SOR_207",
+            "JTL_216",
+            "LAW_151",
+            "SOR_202",
+            "SHD_229",
+            "SHD_176",
+            "SHD_174",
+            "HMW_127",
+            "HMW_192"
+          ],
           "player_extra_resources": 1,
           "player_preplaced": [
             {
@@ -368,7 +726,13 @@
               "ready": true
             }
           ],
-          "deploy_from_deck": ["HMW_170"]
+          "deploy_from_deck": [
+            "HMW_170"
+          ],
+          "scenes": [
+            "saga_mos_eisley_street",
+            "saga_mos_eisley_alley"
+          ]
         },
         {
           "id": "docking_bay",
@@ -380,7 +744,10 @@
           "battle_rules": {
             "deck_out_damage": 0
           },
-          "deploy_from_deck": ["HMW_170", "IBH_003"],
+          "deploy_from_deck": [
+            "HMW_170",
+            "IBH_003"
+          ],
           "player_preplaced": [
             {
               "id": "HMW_170",
@@ -401,22 +768,33 @@
               "reinforcements": [
                 {
                   "round": 2,
-                  "cards": ["SOR_128"],
+                  "cards": [
+                    "SOR_128"
+                  ],
                   "ready": true
                 },
                 {
                   "round": 4,
-                  "cards": ["SOR_128", "HMW_107"],
+                  "cards": [
+                    "SOR_128",
+                    "HMW_107"
+                  ],
                   "ready": true
                 },
                 {
                   "round": 6,
-                  "cards": ["HMW_201", "SOR_128"],
+                  "cards": [
+                    "HMW_201",
+                    "SOR_128"
+                  ],
                   "ready": true
                 },
                 {
                   "round": 8,
-                  "cards": ["HMW_201", "SOR_128"],
+                  "cards": [
+                    "HMW_201",
+                    "SOR_128"
+                  ],
                   "ready": true
                 }
               ]
@@ -428,7 +806,33 @@
             "hp": 30,
             "hero_skin": "stormtrooper",
             "ai_profile": "aggressive",
-            "deck": ["SOR_128", "SOR_128", "SOR_128", "SOR_128", "HMW_242", "HMW_242", "HMW_107", "HMW_107", "HMW_201", "HMW_201", "HMW_192", "HMW_192", "TWI_256", "TWI_256", "LOF_232", "HMW_250", "SOR_165", "SOR_251", "LAW_131", "HMW_242", "SOR_128", "HMW_192", "HMW_201", "SOR_251", "HMW_107"],
+            "deck": [
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "HMW_242",
+              "HMW_242",
+              "HMW_107",
+              "HMW_107",
+              "HMW_201",
+              "HMW_201",
+              "HMW_192",
+              "HMW_192",
+              "TWI_256",
+              "TWI_256",
+              "LOF_232",
+              "HMW_250",
+              "SOR_165",
+              "SOR_251",
+              "LAW_131",
+              "HMW_242",
+              "SOR_128",
+              "HMW_192",
+              "HMW_201",
+              "SOR_251",
+              "HMW_107"
+            ],
             "preplaced": [
               {
                 "id": "SOR_128",
@@ -437,7 +841,10 @@
               }
             ]
           },
-          "ending": "The Millennium Falcon lifts off from Docking Bay 94 with the crew and the Death Star plans aboard."
+          "ending": "The Millennium Falcon lifts off from Docking Bay 94 with the crew and the Death Star plans aboard.",
+          "scenes": [
+            "saga_docking_94"
+          ]
         }
       ],
       "route_version": 1,
@@ -447,17 +854,29 @@
       "battle_rules": {
         "aspect_penalties": false,
         "deck_min": 20
-      }
+      },
+      "background_rewards": [
+        "saga_tatooine_canyon",
+        "saga_tatooine_sunset",
+        "saga_tatooine_tower",
+        "saga_tatooine_junkyard",
+        "saga_tatooine_story",
+        "saga_mos_eisley_street",
+        "saga_mos_eisley_alley",
+        "saga_cantina",
+        "saga_docking_94"
+      ],
+      "completion_background": "saga_docking_94_icon"
     },
     {
       "id": "ep4_ch2_deathstar",
       "episode": 4,
       "number": 2,
       "title": "Death Star Rescue",
-      "intro": "Caught in a tractor beam, the Millennium Falcon is pulled into the Death Star. A princess waits in a detention block.",
+      "intro": "The Death Star captures the Millennium Falcon. Steal armor, find Leia, and get the crew back to the ship.",
       "alignment": "heroism",
       "ruleset": "campaign",
-      "board_theme": "deathstar",
+      "board_theme": "saga_falcon_halls",
       "leader_options": [
         "SOR_017",
         "SOR_003"
@@ -465,37 +884,39 @@
       "base_sequence": [
         "SOR_023"
       ],
-      "base_hp_override": 22,
+      "base_hp_override": 34,
       "starting_deck": [
         "SOR_236",
-        "HMW_208",
-        "LOF_249",
+        "SOR_236",
         "SOR_238",
-        "JTL_097",
-        "SOR_095",
-        "SOR_095",
-        "SOR_239",
-        "SOR_239",
-        "LAW_146",
-        "SOR_046",
-        "IBH_042",
-        "SOR_220",
-        "SOR_172",
-        "SOR_073"
+        "SOR_238",
+        "LOF_249",
+        "LOF_249",
+        "SOR_049",
+        "SOR_067",
+        "SOR_067",
+        "TWI_174",
+        "TWI_174",
+        "SOR_053",
+        "SHD_070",
+        "HMW_264",
+        "JTL_075",
+        "SOR_236",
+        "SOR_238",
+        "SEC_110",
+        "SEC_110"
       ],
       "reward_pool": [
-        "SOR_189",
-        "HMW_115",
-        "IBH_046",
-        "LAW_034",
-        "SOR_143",
-        "SOR_218",
-        "SOR_216",
-        "SOR_222",
-        "LAW_246",
-        "SOR_106",
-        "ASH_152",
-        "LAW_142"
+        "LOF_215",
+        "JTL_260",
+        "JTL_075",
+        "SEC_177",
+        "HMW_264",
+        "SHD_070",
+        "HMW_261",
+        "LAW_180",
+        "SOR_067",
+        "SHD_205"
       ],
       "treasures": [
         "kyber_shard",
@@ -512,222 +933,788 @@
       "map": {
         "rows": [
           [
-            "n1",
-            "n2"
+            "falcon_armor"
           ],
           [
-            "n3",
-            "n4"
+            "armory",
+            "droid_reprocessing",
+            "isb_interrogation"
           ],
           [
-            "rest"
+            "inner_patrol"
+          ],
+          [
+            "rescue_rebels",
+            "rescue_scum"
+          ],
+          [
+            "prison_escape"
+          ],
+          [
+            "garbage_compactor"
+          ],
+          [
+            "tractor_beam",
+            "hangar_route"
+          ],
+          [
+            "blast_doors"
+          ],
+          [
+            "repair_station"
           ],
           [
             "boss"
           ]
         ],
         "edges": {
-          "n1": [
-            "n3",
-            "n4"
+          "falcon_armor": [
+            "armory",
+            "droid_reprocessing",
+            "isb_interrogation"
           ],
-          "n2": [
-            "n4"
+          "armory": [
+            "inner_patrol"
           ],
-          "n3": [
-            "rest"
+          "droid_reprocessing": [
+            "inner_patrol"
           ],
-          "n4": [
-            "rest"
+          "isb_interrogation": [
+            "inner_patrol"
           ],
-          "rest": [
+          "inner_patrol": [
+            "rescue_rebels",
+            "rescue_scum"
+          ],
+          "rescue_rebels": [
+            "prison_escape"
+          ],
+          "rescue_scum": [
+            "prison_escape"
+          ],
+          "prison_escape": [
+            "garbage_compactor"
+          ],
+          "garbage_compactor": [
+            "tractor_beam",
+            "hangar_route"
+          ],
+          "tractor_beam": [
+            "blast_doors"
+          ],
+          "hangar_route": [
+            "blast_doors"
+          ],
+          "blast_doors": [
+            "repair_station"
+          ],
+          "repair_station": [
             "boss"
           ]
         }
       },
       "nodes": [
         {
-          "id": "n1",
+          "id": "falcon_armor",
           "type": "fight",
-          "title": "Hangar Bay 327",
-          "desc": "Stormtroopers sweep the captured freighter.",
+          "title": "Steal the Stormtrooper Armor",
+          "desc": "Ambush the boarding party in the Falcon’s rounded corridors and take their armor.",
+          "enemy": {
+            "name": "Falcon Boarding Party",
+            "hp": 9,
+            "deck": [
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "HMW_107",
+              "HMW_107",
+              "HMW_107",
+              "SHD_238",
+              "SHD_238",
+              "LAW_097",
+              "LAW_097",
+              "IBH_062",
+              "IBH_062",
+              "TWI_174",
+              "TWI_174",
+              "SEC_184",
+              "SHD_114"
+            ],
+            "base": "SOR_023",
+            "hero_skin": "stormtrooper",
+            "ai_profile": "tempo"
+          },
+          "scenes": [
+            "saga_falcon_halls"
+          ],
           "objective": {
             "type": "standard"
           },
-          "base": "SOR_023",
-          "arenas": [
-            "ground"
-          ],
-          "claimable_tokens": [
-            "initiative",
-            "alarm"
-          ],
-          "enemy": {
-            "name": "Death Star Garrison",
-            "hero_skin": "stormtrooper",
-            "ai_profile": "tempo",
-            "hp": 10,
-            "base": "SOR_023",
-            "deck": [
-              "SOR_128",
-              "SOR_128",
-              "LAW_097",
-              "LAW_097",
-              "LAW_097",
-              "SOR_229",
-              "IBH_055",
-              "IBH_063",
-              "IBH_063",
-              "SEC_080",
-              "IBH_057",
-              "SOR_128"
-            ]
-          },
-          "reward_tier": 1,
-          "player_bonus_hand": [
-            "SOR_172"
+          "first": 0,
+          "pickups": [
+            "SEC_070"
           ]
         },
         {
-          "id": "n2",
-          "type": "fight",
-          "title": "Trash Compactor 3263827",
-          "desc": "Something is down here with you. Survive until the droids shut the compactor down.",
-          "objective": {
-            "type": "survive_n",
-            "params": {
-              "rounds": 3
-            }
-          },
-          "base": "SOR_023",
-          "arenas": [
-            "ground"
+          "id": "armory",
+          "type": "event",
+          "title": "Imperial Armory",
+          "desc": "The stolen armor gets you through the door. Stock up before proceeding.",
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
           ],
-          "enemy": {
-            "name": "Dianoga",
-            "hero_skin": "creature",
-            "ai_profile": "aggressive",
-            "hp": 30,
-            "base": "SOR_023",
-            "preplaced": [
+          "event": {
+            "choices": [
               {
-                "id": "HMW_155",
-                "arena": "ground",
-                "ready": false
+                "label": "Take six weapons and items",
+                "effect": {
+                  "add_cards": [
+                    "TWI_256",
+                    "SHD_174",
+                    "ASH_210",
+                    "LOF_171",
+                    "LAW_200",
+                    "LAW_201"
+                  ]
+                }
               }
-            ],
-            "deck": [
-              "HMW_179",
-              "HMW_179",
-              "ASH_213",
-              "ASH_213",
-              "ASH_213",
-              "HMW_182",
-              "HMW_179",
-              "ASH_213",
-              "ASH_213",
-              "HMW_179",
-              "ASH_213",
-              "HMW_155"
             ]
+          }
+        },
+        {
+          "id": "droid_reprocessing",
+          "type": "event",
+          "title": "Droid Reprocessing",
+          "desc": "R2 slices the terminal and brings six labor and utility droids online.",
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
+          ],
+          "event": {
+            "choices": [
+              {
+                "label": "Recruit six sliced droids",
+                "effect": {
+                  "add_cards": [
+                    "SEC_259",
+                    "SEC_110",
+                    "ASH_237",
+                    "SEC_221",
+                    "SEC_239",
+                    "LAW_075"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "isb_interrogation",
+          "type": "event",
+          "title": "ISB Interrogation Room",
+          "desc": "Unlock the cells and turn five disillusioned Imperial personnel against the station.",
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
+          ],
+          "event": {
+            "choices": [
+              {
+                "label": "Recruit five Imperial defectors",
+                "effect": {
+                  "add_cards": [
+                    "ASH_250",
+                    "IBH_062",
+                    "LAW_097",
+                    "SHD_114",
+                    "HMW_107"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "inner_patrol",
+          "type": "fight",
+          "title": "Behind Enemy Lines",
+          "desc": "Get past the Death Star’s security detail.",
+          "enemy": {
+            "name": "Corridor Patrol",
+            "hp": 12,
+            "deck": [
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "HMW_107",
+              "HMW_107",
+              "HMW_107",
+              "SHD_238",
+              "SHD_238",
+              "LAW_097",
+              "LAW_097",
+              "IBH_062",
+              "IBH_062",
+              "TWI_174",
+              "TWI_174",
+              "SEC_184",
+              "SHD_114"
+            ],
+            "base": "SOR_023",
+            "hero_skin": "stormtrooper",
+            "ai_profile": "tempo"
           },
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
+          ],
+          "objective": {
+            "type": "standard"
+          },
+          "enemy_variants": [
+            {
+              "name": "Corridor Patrol",
+              "hp": 12,
+              "deck": [
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "HMW_107",
+                "HMW_107",
+                "HMW_107",
+                "SHD_238",
+                "SHD_238",
+                "LAW_097",
+                "LAW_097",
+                "IBH_062",
+                "IBH_062",
+                "TWI_174",
+                "TWI_174",
+                "SEC_184",
+                "SHD_114"
+              ],
+              "base": "SOR_023",
+              "hero_skin": "stormtrooper",
+              "ai_profile": "tempo"
+            },
+            {
+              "name": "ISB Sweep",
+              "hp": 11,
+              "deck": [
+                "SEC_184",
+                "SEC_184",
+                "SEC_184",
+                "SHD_114",
+                "SHD_114",
+                "LAW_075",
+                "LAW_075",
+                "LAW_075",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "LAW_097",
+                "LAW_097",
+                "HMW_107",
+                "HMW_107",
+                "SOR_234",
+                "SOR_139"
+              ],
+              "base": "SOR_023",
+              "hero_skin": "stormtrooper",
+              "ai_profile": "tempo"
+            },
+            {
+              "name": "Droid Security Detail",
+              "hp": 12,
+              "deck": [
+                "ASH_237",
+                "ASH_237",
+                "ASH_237",
+                "SEC_239",
+                "SEC_239",
+                "SEC_239",
+                "SOR_228",
+                "SOR_228",
+                "LAW_075",
+                "LAW_075",
+                "SEC_259",
+                "SEC_259",
+                "HMW_107",
+                "HMW_107",
+                "HMW_107",
+                "SOR_128",
+                "SOR_128"
+              ],
+              "base": "SOR_023",
+              "hero_skin": "stormtrooper",
+              "ai_profile": "tempo"
+            }
+          ],
           "reward_tier": 2
         },
         {
-          "id": "n3",
-          "type": "elite",
+          "id": "rescue_rebels",
+          "type": "event",
+          "title": "Tantive IV Prisoners",
+          "desc": "Six survivors from the captured Tantive IV can reinforce the rescue.",
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
+          ],
+          "event": {
+            "choices": [
+              {
+                "label": "Free six Rebel prisoners",
+                "effect": {
+                  "add_cards": [
+                    "SOR_046",
+                    "SOR_240",
+                    "LAW_254",
+                    "LAW_180",
+                    "SOR_067",
+                    "SHD_200"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "rescue_scum",
+          "type": "event",
+          "title": "Detention Block Outlaws",
+          "desc": "Five prisoners will help you reach Leia if you open their cells.",
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
+          ],
+          "event": {
+            "choices": [
+              {
+                "label": "Free five underworld prisoners",
+                "effect": {
+                  "add_cards": [
+                    "LAW_218",
+                    "LAW_159",
+                    "SOR_247",
+                    "LAW_060",
+                    "LAW_197"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "prison_escape",
+          "type": "objective",
           "title": "Detention Block AA-23",
-          "desc": "Free the princess. The warden won't make it easy.",
+          "desc": "Defeat Lieutenant Childsen and free Leia before the guards seal the block.",
+          "enemy": {
+            "name": "Death Star Prison Guard",
+            "hp": 30,
+            "deck": [
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "HMW_107",
+              "HMW_107",
+              "HMW_107",
+              "SHD_238",
+              "SHD_238",
+              "LAW_097",
+              "LAW_097",
+              "IBH_062",
+              "IBH_062",
+              "TWI_174",
+              "TWI_174",
+              "SEC_184",
+              "SHD_114"
+            ],
+            "base": "SOR_023",
+            "hero_skin": "stormtrooper",
+            "ai_profile": "tempo",
+            "preplaced": [
+              {
+                "id": "SOR_035",
+                "arena": "ground",
+                "ready": false,
+                "hp": 6
+              }
+            ]
+          },
+          "scenes": [
+            "saga_deathstar_cell_block"
+          ],
           "objective": {
             "type": "hunt",
             "params": {
               "target": "SOR_035",
               "target_name": "Lieutenant Childsen",
-              "reward_mult": 1.5
+              "objective_only": true
             }
           },
-          "base": "SOR_023",
-          "arenas": [
-            "ground"
+          "reward_tier": 3,
+          "pickups": [
+            "SOR_189"
           ],
-          "pickup": "SOR_189",
-          "claimable_tokens": [
-            "initiative",
-            "alarm"
-          ],
+          "first": 0
+        },
+        {
+          "id": "garbage_compactor",
+          "type": "objective",
+          "title": "Garbage Compactor 3263827",
+          "desc": "Hold off the Stormtroopers until the Dianoga surfaces in round 3. Defeat it to escape.",
           "enemy": {
-            "name": "Detention Guards",
-            "hero_skin": "stormtrooper",
-            "ai_profile": "defensive",
-            "hp": 12,
-            "base": "SOR_023",
+            "name": "Compactor Pursuit",
+            "hp": 30,
             "deck": [
-              "SOR_035",
-              "SOR_229",
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "HMW_107",
+              "HMW_107",
+              "HMW_107",
+              "SHD_238",
               "SHD_238",
               "LAW_097",
               "LAW_097",
-              "LAW_097",
-              "SOR_128",
-              "SOR_128",
-              "IBH_063",
-              "IBH_063",
-              "SEC_080",
-              "SOR_128"
+              "IBH_062",
+              "IBH_062",
+              "TWI_174",
+              "TWI_174",
+              "SEC_184",
+              "SHD_114"
+            ],
+            "base": "SOR_023",
+            "hero_skin": "stormtrooper",
+            "ai_profile": "aggressive",
+            "preplaced": [
+              {
+                "id": "SOR_128",
+                "arena": "ground",
+                "ready": false
+              }
             ]
           },
-          "reward_tier": 3,
-          "player_bonus_hand": [
-            "SOR_172"
-          ]
-        },
-        {
-          "id": "n4",
-          "type": "fight",
-          "title": "Tractor Beam Controls",
-          "desc": "Ben slips away to disable the tractor beam. Keep the garrison busy.",
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
+          ],
           "objective": {
-            "type": "attrition",
+            "type": "reinforcement_hunt",
             "params": {
-              "per": 4
+              "target": "HMW_155",
+              "target_name": "Filthy Dianoga",
+              "rounds": 3,
+              "target_hp": 8,
+              "target_power_bonus": 2,
+              "objective_only": true
             }
           },
-          "base": "SOR_023",
-          "arenas": [
-            "ground"
+          "reward_tier": 3,
+          "player_extra_resources": 2
+        },
+        {
+          "id": "tractor_beam",
+          "type": "fight",
+          "title": "Tractor Beam Controls",
+          "desc": "Cover Ben while he disables the tractor beam.",
+          "enemy": {
+            "name": "Tractor Beam Guard",
+            "hp": 13,
+            "deck": [
+              "SEC_184",
+              "SEC_184",
+              "SEC_184",
+              "SHD_114",
+              "SHD_114",
+              "LAW_075",
+              "LAW_075",
+              "LAW_075",
+              "SOR_128",
+              "SOR_128",
+              "SOR_128",
+              "LAW_097",
+              "LAW_097",
+              "HMW_107",
+              "HMW_107",
+              "SOR_234",
+              "SOR_139"
+            ],
+            "base": "SOR_023",
+            "hero_skin": "stormtrooper",
+            "ai_profile": "tempo"
+          },
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
+          ],
+          "objective": {
+            "type": "standard"
+          },
+          "enemy_variants": [
+            {
+              "name": "Tractor Beam Guard",
+              "hp": 13,
+              "deck": [
+                "SEC_184",
+                "SEC_184",
+                "SEC_184",
+                "SHD_114",
+                "SHD_114",
+                "LAW_075",
+                "LAW_075",
+                "LAW_075",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "LAW_097",
+                "LAW_097",
+                "HMW_107",
+                "HMW_107",
+                "SOR_234",
+                "SOR_139"
+              ],
+              "base": "SOR_023",
+              "hero_skin": "stormtrooper",
+              "ai_profile": "tempo"
+            },
+            {
+              "name": "Stormtrooper Intercept",
+              "hp": 14,
+              "deck": [
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "HMW_107",
+                "HMW_107",
+                "HMW_107",
+                "SHD_238",
+                "SHD_238",
+                "LAW_097",
+                "LAW_097",
+                "IBH_062",
+                "IBH_062",
+                "TWI_174",
+                "TWI_174",
+                "SEC_184",
+                "SHD_114"
+              ],
+              "base": "SOR_023",
+              "hero_skin": "stormtrooper",
+              "ai_profile": "tempo"
+            }
+          ],
+          "reward_tier": 2
+        },
+        {
+          "id": "hangar_route",
+          "type": "fight",
+          "title": "Security Escape",
+          "desc": "Cut through a security patrol on the way to the Falcon.",
+          "enemy": {
+            "name": "Security Droids",
+            "hp": 13,
+            "deck": [
+              "ASH_237",
+              "ASH_237",
+              "ASH_237",
+              "SEC_239",
+              "SEC_239",
+              "SEC_239",
+              "SOR_228",
+              "SOR_228",
+              "LAW_075",
+              "LAW_075",
+              "SEC_259",
+              "SEC_259",
+              "HMW_107",
+              "HMW_107",
+              "HMW_107",
+              "SOR_128",
+              "SOR_128"
+            ],
+            "base": "SOR_023",
+            "hero_skin": "stormtrooper",
+            "ai_profile": "tempo"
+          },
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
+          ],
+          "objective": {
+            "type": "standard"
+          },
+          "enemy_variants": [
+            {
+              "name": "Security Droids",
+              "hp": 13,
+              "deck": [
+                "ASH_237",
+                "ASH_237",
+                "ASH_237",
+                "SEC_239",
+                "SEC_239",
+                "SEC_239",
+                "SOR_228",
+                "SOR_228",
+                "LAW_075",
+                "LAW_075",
+                "SEC_259",
+                "SEC_259",
+                "HMW_107",
+                "HMW_107",
+                "HMW_107",
+                "SOR_128",
+                "SOR_128"
+              ],
+              "base": "SOR_023",
+              "hero_skin": "stormtrooper",
+              "ai_profile": "tempo"
+            },
+            {
+              "name": "Hangar Checkpoint",
+              "hp": 14,
+              "deck": [
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "HMW_107",
+                "HMW_107",
+                "HMW_107",
+                "SHD_238",
+                "SHD_238",
+                "LAW_097",
+                "LAW_097",
+                "IBH_062",
+                "IBH_062",
+                "TWI_174",
+                "TWI_174",
+                "SEC_184",
+                "SHD_114"
+              ],
+              "base": "SOR_023",
+              "hero_skin": "stormtrooper",
+              "ai_profile": "tempo"
+            }
+          ],
+          "reward_tier": 2
+        },
+        {
+          "id": "blast_doors",
+          "type": "fight",
+          "title": "Blast Doors",
+          "desc": "Break through one last security sweep before the hangar.",
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
           ],
           "enemy": {
-            "name": "Death Star Troopers",
-            "hero_skin": "stormtrooper",
-            "ai_profile": "tempo",
-            "hp": 16,
-            "base": "SOR_023",
+            "name": "ISB Sweep",
+            "hp": 10,
             "deck": [
+              "SEC_184",
+              "SEC_184",
+              "SEC_184",
+              "SHD_114",
+              "SHD_114",
+              "LAW_075",
+              "LAW_075",
+              "LAW_075",
               "SOR_128",
               "SOR_128",
-              "IBH_055",
-              "IBH_055",
-              "LAW_098",
-              "SEC_080",
-              "SEC_132",
-              "SEC_132",
-              "ASH_242",
-              "LOF_133",
               "SOR_128",
-              "ASH_143"
-            ]
+              "LAW_097",
+              "LAW_097",
+              "HMW_107",
+              "HMW_107",
+              "SOR_234",
+              "SOR_139"
+            ],
+            "base": "SOR_023",
+            "hero_skin": "stormtrooper",
+            "ai_profile": "tempo"
+          },
+          "enemy_variants": [
+            {
+              "name": "Blast Door Security",
+              "hp": 10,
+              "deck": [
+                "SEC_184",
+                "SEC_184",
+                "SEC_184",
+                "SHD_114",
+                "SHD_114",
+                "LAW_075",
+                "LAW_075",
+                "LAW_075",
+                "SOR_128",
+                "SOR_128",
+                "SOR_128",
+                "LAW_097",
+                "LAW_097",
+                "HMW_107",
+                "HMW_107",
+                "SOR_234",
+                "SOR_139"
+              ],
+              "base": "SOR_023",
+              "hero_skin": "stormtrooper",
+              "ai_profile": "tempo"
+            },
+            {
+              "name": "Turbolift Checkpoint",
+              "hp": 10,
+              "deck": [
+                "ASH_237",
+                "ASH_237",
+                "ASH_237",
+                "SEC_239",
+                "SEC_239",
+                "SEC_239",
+                "SOR_228",
+                "SOR_228",
+                "LAW_075",
+                "LAW_075",
+                "SEC_259",
+                "SEC_259",
+                "HMW_107",
+                "HMW_107",
+                "HMW_107",
+                "SOR_128",
+                "SOR_128"
+              ],
+              "base": "SOR_023",
+              "hero_skin": "stormtrooper",
+              "ai_profile": "tempo"
+            }
+          ],
+          "objective": {
+            "type": "standard"
           },
           "reward_tier": 2
         },
         {
-          "id": "rest",
+          "id": "repair_station",
           "type": "rest",
-          "title": "Command Room",
-          "desc": "A moment to regroup before the run to the Falcon.",
+          "title": "Service Alcove",
+          "desc": "Repair and regroup before the last run to the Falcon.",
+          "scenes": [
+            "saga_deathstar_superlaser",
+            "saga_deathstar_overlook"
+          ],
           "rest": {
             "options": [
               "heal",
-              "remove_card",
               "upgrade_hp"
             ]
           }
@@ -735,60 +1722,130 @@
         {
           "id": "boss",
           "type": "boss",
-          "title": "Duel on the Death Star",
-          "desc": "Obi-Wan faces Darth Vader. Luke's only task: survive until the Falcon is ready.",
-          "objective": {
-            "type": "survive_n",
-            "params": {
-              "rounds": 4,
-              "reward_mult": 2.0
-            }
-          },
-          "base": "SOR_023",
-          "arenas": [
-            "ground"
-          ],
-          "player_preplaced": [
-            {
-              "id": "SOR_049",
-              "arena": "ground",
-              "ready": true
-            }
-          ],
+          "title": "Escape from Hangar Bay 327",
+          "desc": "Protect the crew in the Hangar and keep Obi-Wan alive in the Duel Arena for eight rounds.",
           "enemy": {
-            "name": "Darth Vader",
-            "hero_skin": "vader",
-            "ai_profile": "aggressive",
+            "name": "Hangar Garrison",
             "hp": 30,
-            "base": "SOR_023",
-            "leader": "SOR_007",
-            "preplaced": [
-              {
-                "id": "ASH_243",
-                "arena": "ground",
-                "ready": false
-              }
-            ],
             "deck": [
               "SOR_128",
               "SOR_128",
               "SOR_128",
-              "ASH_242",
-              "ASH_242",
-              "IBH_055",
-              "IBH_055",
-              "SOR_229",
-              "LOF_133",
-              "LOF_133",
-              "SEC_080",
-              "ASH_048",
               "SOR_128",
-              "SOR_084"
+              "HMW_107",
+              "HMW_107",
+              "HMW_107",
+              "SHD_238",
+              "SHD_238",
+              "LAW_097",
+              "LAW_097",
+              "IBH_062",
+              "IBH_062",
+              "TWI_174",
+              "TWI_174",
+              "SEC_184",
+              "SHD_114",
+              "SEC_184",
+              "SEC_184",
+              "SEC_184",
+              "SHD_114",
+              "SHD_114",
+              "LAW_075",
+              "LAW_075",
+              "LAW_075",
+              "SOR_128",
+              "SOR_128",
+              "SOR_128"
+            ],
+            "base": "SOR_023",
+            "hero_skin": "stormtrooper",
+            "ai_profile": "aggressive",
+            "preplaced": [
+              {
+                "id": "SOR_128",
+                "arena": "ground",
+                "ready": false
+              }
             ]
           },
-          "reward_tier": 4
+          "scenes": [
+            "saga_deathstar_hangar"
+          ],
+          "objective": {
+            "type": "hangar_duel",
+            "params": {
+              "rounds": 8,
+              "obi_wan": "SOR_049",
+              "vader": "ASH_243",
+              "objective_only": true,
+              "reinforcements": [
+                {
+                  "round": 2,
+                  "cards": [
+                    "SOR_128"
+                  ]
+                },
+                {
+                  "round": 4,
+                  "cards": [
+                    "HMW_107"
+                  ]
+                },
+                {
+                  "round": 6,
+                  "cards": [
+                    "SHD_238"
+                  ]
+                }
+              ]
+            }
+          },
+          "reward_tier": 4,
+          "arenas": [
+            "ground",
+            "space"
+          ],
+          "arena_names": {
+            "ground": "Hangar",
+            "space": "Duel"
+          },
+          "player_extra_resources": 1,
+          "first": 0,
+          "ending": "Obi-Wan buys the crew the time they need. The Falcon clears the hangar with Leia and the stolen plans.",
+          "player_preplaced": [
+            {
+              "id": "SOR_189",
+              "arena": "ground",
+              "ready": false
+            }
+          ],
+          "deploy_from_deck": [
+            "SOR_189"
+          ]
         }
-      ]
+      ],
+      "route_version": 1,
+      "arenas": [
+        "ground"
+      ],
+      "battle_rules": {
+        "hero_villain_gate": false
+      },
+      "leader_companions": {
+        "SOR_017": "SOR_196",
+        "SOR_003": "SOR_198"
+      },
+      "background_rewards": [
+        "saga_falcon_halls",
+        "saga_deathstar_superlaser",
+        "saga_deathstar_overlook",
+        "saga_deathstar_cell_block",
+        "saga_deathstar_hangar",
+        "saga_deathstar_lights",
+        "saga_deathstar_schematic"
+      ],
+      "player_extra_resources": 1,
+      "repair_after_win": 8
     },
     {
       "id": "ep4_ch3_yavin",

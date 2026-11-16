@@ -1,0 +1,99 @@
+{
+  "scene_imperial_tactician": {
+    "name": "Imperial Tactician",
+    "art": "res://assets/Backgrounds/0aa68e3c034574d8e0e034f0df00bfef.jpg"
+  },
+  "scene_bounty_confrontation": {
+    "name": "Bounty Confrontation",
+    "art": "res://assets/Backgrounds/2d6fa32650d6567406f86eefb36b1907.jpg"
+  },
+  "scene_ice_ambush": {
+    "name": "Ice Ambush",
+    "art": "res://assets/Backgrounds/77193b378145c73419b3037cef190318.jpg"
+  },
+  "scene_fighter_engagement": {
+    "name": "Fighter Engagement",
+    "art": "res://assets/Backgrounds/ad157cbaab7d379f0554fef428bb592d.jpg"
+  },
+  "scene_tie_pursuit": {
+    "name": "TIE Pursuit",
+    "art": "res://assets/Backgrounds/b59bec690bb13b57b1b73cf1e216d50f.jpg"
+  },
+  "scene_aerial_duel": {
+    "name": "Aerial Duel",
+    "art": "res://assets/Backgrounds/c1abdd5321eff7c3f864b84bc34303ff.jpg"
+  },
+  "scene_falcon_escape": {
+    "name": "Falcon Escape",
+    "art": "res://assets/Backgrounds/f798e01873f788943384e32a5470292e.jpg"
+  },
+  "saga_tatooine_story": {
+    "name": "Tatooine Story",
+    "art": "res://assets/Saga Campaign/1.1/0c40c8291afcffe69f12ddbce14247e0.jpg"
+  },
+  "saga_tatooine_junkyard": {
+    "name": "Tatooine Junkyard",
+    "art": "res://assets/Saga Campaign/1.1/25a1f4e6a96f187470e35fafc6dbca25.jpg"
+  },
+  "saga_tatooine_tower": {
+    "name": "Tatooine Lookout",
+    "art": "res://assets/Saga Campaign/1.1/28ea96bb3d4674b29fc2d426da275c20.jpg"
+  },
+  "saga_tatooine_canyon": {
+    "name": "Jundland Canyon",
+    "art": "res://assets/Saga Campaign/1.1/555627a22e8be65dec7dd852385f85ea.jpg"
+  },
+  "saga_tatooine_sunset": {
+    "name": "Binary Sunset",
+    "art": "res://assets/Saga Campaign/1.1/c7631108806a53b575dc53484729d264.jpg"
+  },
+  "saga_mos_eisley_street": {
+    "name": "Mos Eisley Streets",
+    "art": "res://assets/Saga Campaign/1.1/d2033b3a3caeb1616277548ae5c5487c.jpg"
+  },
+  "saga_mos_eisley_alley": {
+    "name": "Mos Eisley Alleys",
+    "art": "res://assets/Saga Campaign/1.1/d7dfd4e121d6e780bfa7d9603ded7f52.jpg"
+  },
+  "saga_docking_94": {
+    "name": "Docking Bay 94",
+    "art": "res://assets/Saga Campaign/1.1/Docking bay 94 Battle.jpg"
+  },
+  "saga_docking_94_icon": {
+    "name": "Docking Bay 94 Icon",
+    "completion_only": true,
+    "art": "res://assets/Saga Campaign/1.1/Docking bay 94 icon reward.jpg"
+  },
+  "saga_cantina": {
+    "name": "Mos Eisley Cantina",
+    "art": "res://assets/Saga Campaign/1.1/f1f202364398ad6ebd7ae92c6f359354.jpg"
+  },
+  "saga_deathstar_superlaser": {
+    "name": "Superlaser Chamber",
+    "art": "res://assets/Saga Campaign/2.1/1fffba35442b1382ae0d8c87cf0dd08c.jpg"
+  },
+  "saga_deathstar_cell_block": {
+    "name": "Detention Block AA-23",
+    "art": "res://assets/Saga Campaign/2.1/3a5ad875130d58059fc5994312e60924.jpg"
+  },
+  "saga_deathstar_overlook": {
+    "name": "Death Star Overlook",
+    "art": "res://assets/Saga Campaign/2.1/61b37891694b71becf41a45c9d700a61.jpg"
+  },
+  "saga_deathstar_lights": {
+    "name": "Imperial Light Panels",
+    "art": "res://assets/Saga Campaign/2.1/62aa5d9195ae8c7aaca1b10d908f13c4.jpg"
+  },
+  "saga_deathstar_hangar": {
+    "name": "Falcon in the Death Star Hangar",
+    "art": "res://assets/Saga Campaign/2.1/7df160ad2206c7459c7f2b7cd3604bb6.jpg"
+  },
+  "saga_deathstar_schematic": {
+    "name": "Death Star Schematic",
+    "art": "res://assets/Saga Campaign/2.1/a70c8a84525df8c9201179e829da83e1.jpg"
+  },
+  "saga_falcon_halls": {
+    "name": "Millennium Falcon Halls",
+    "art": "res://assets/Saga Campaign/2.1/dd548f81a5a750bfedb1e232f8f971e2.jpg"
+  }
+}

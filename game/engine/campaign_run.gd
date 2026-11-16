@@ -10,7 +10,7 @@ extends RefCounted
 static func start(chapter: Dictionary, leader: String, seed_value: int) -> Dictionary:
 	return {
 		"chapter": chapter["id"], "leader": leader,
-		"deck": chapter.get("starting_deck", []).duplicate(),
+		"deck": starting_deck(chapter, leader),
 		"base_hp_bonus": 0, "base_damage": 0, "credits": 0, "consecutive_clears": 0,
 		"starts_at_chapter_one": int(chapter.get("number", 1)) == 1, "card_upgrades": {},
 		"current": "", "visited": [], "treasures": [],
@@ -18,6 +18,29 @@ static func start(chapter: Dictionary, leader: String, seed_value: int) -> Dicti
 		"route_version": chapter.get("route_version", 0),
 		"reward_id": "%s_%s" % [Time.get_unix_time_from_system(), seed_value],
 	}
+
+
+static func starting_deck(chapter: Dictionary, leader: String) -> Array:
+	var deck: Array = chapter.get("starting_deck", []).duplicate()
+	var companion: String = chapter.get("leader_companions", {}).get(leader, "")
+	if not companion.is_empty():
+		deck.append(companion)
+	return deck
+
+
+static func scene_for(run: Dictionary, chapter: Dictionary, node: Dictionary) -> String:
+	var scenes: Array = node.get("scenes", [])
+	if scenes.is_empty():
+		return chapter.get("board_theme", "space")
+	var seed_value := int(run.get("node_seed", 0)) + str(node["id"]).hash()
+	return scenes[posmod(seed_value, scenes.size())]
+
+
+static func remaining_background(run: Dictionary, chapter: Dictionary, earned: Array) -> String:
+	var choices: Array = chapter.get("background_rewards", []).filter(func(id): return "background:" + id not in earned)
+	if choices.is_empty():
+		return ""
+	return choices[posmod(int(run.get("node_seed", 0)), choices.size())]
 
 
 static func available_nodes(run: Dictionary, chapter: Dictionary) -> Array:
@@ -36,6 +59,10 @@ static func node_by_id(chapter: Dictionary, id: String) -> Dictionary:
 
 static func max_base_hp(run: Dictionary, chapter: Dictionary) -> int:
 	return int(chapter.get("base_hp_override", 18)) + int(run.get("base_hp_bonus", 0))
+
+
+static func damage_after_victory(run: Dictionary, chapter: Dictionary, damage: int) -> int:
+	return clampi(damage - int(chapter.get("repair_after_win", 0)), 0, max_base_hp(run, chapter) - 1)
 
 
 static func treasure_effects(run: Dictionary, treasures: Dictionary) -> Dictionary:
@@ -82,7 +109,7 @@ static func match_config(run: Dictionary, chapter: Dictionary, node: Dictionary,
 				"base_hp": max_base_hp(run, chapter), "base_damage": int(run.get("base_damage", 0)),
 				"preplaced": node.get("player_preplaced", []),
 				"bonus_hand": node.get("player_bonus_hand", []),
-				"extra_resources": te["extra_resources"] + int(node.get("player_extra_resources", 0)),
+				"extra_resources": te["extra_resources"] + int(node.get("player_extra_resources", chapter.get("player_extra_resources", 0))),
 				"first_unit_experience": te["first_unit_experience"],
 				"extra_hand": te["extra_hand"], "card_upgrades": run.get("card_upgrades", {}),
 			},

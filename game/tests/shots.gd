@@ -113,6 +113,8 @@ func _run() -> void:
 		await _anims()
 	if only == "arena_cards":
 		await _arena_cards()
+	if only == "saga_scenes":
+		await _saga_scenes()
 	if only == "new":
 		await _new_screens()
 	if only == "tokens":
@@ -176,6 +178,48 @@ func _arena_cards() -> void:
 	var position := (to_canvas * Vector2(-10, -7)) * pixel_scale
 	var end := (to_canvas * (UnitToken.SIZE + Vector2(10, 7))) * pixel_scale
 	image.get_region(Rect2i(Vector2i(position), Vector2i(end - position))).save_png(out.path_join("arena-attachment-detail.png"))
+
+
+func _saga_scenes() -> void:
+	var death_star := CardDB.chapter("ep4_ch2_deathstar")
+	Save.set_run(CampaignRun.start(death_star, "SOR_017", 717))
+	await _go("chapter", {"chapter_id": death_star["id"]})
+	var route_map := get_tree().current_scene
+	for layout in [[540, 960, "portrait"], [1280, 720, "landscape"]]:
+		await _size(layout[0], layout[1])
+		for tile in route_map._nodes.values():
+			if tile.get_global_rect().intersects(route_map._hud.get_global_rect()):
+				push_error("Death Star map overlaps the run controls in " + layout[2])
+				get_tree().quit(1)
+				return
+		await _shot("death-star-map-" + layout[2])
+	await _size(540, 960)
+	for spec in [["ep4_ch1_tatooine", "cantina_duel"], ["ep4_ch1_tatooine", "docking_bay"],
+		["ep4_ch2_deathstar", "falcon_armor"], ["ep4_ch2_deathstar", "prison_escape"], ["ep4_ch2_deathstar", "boss"]]:
+		var chapter := CardDB.chapter(spec[0])
+		var run := CampaignRun.start(chapter, chapter["leader_options"][0], 717)
+		var node := CampaignRun.node_by_id(chapter, spec[1])
+		for from in chapter["map"]["edges"]:
+			if node["id"] in chapter["map"]["edges"][from]:
+				run["current"] = from
+				break
+		Save.set_run(run)
+		CampaignFlow.start_node(chapter, node)
+		await _wait(1.6)
+		var screen := get_tree().current_scene
+		if not screen.scene_file_path.ends_with("match_screen.tscn") or not screen.theme_bg._film.visible:
+			push_error("Missing Saga artwork or film layer for " + node["id"])
+			get_tree().quit(1)
+			return
+		for _i in 10:
+			if screen.m.phase == "action" and screen.m.pending.is_empty():
+				break
+			_resolve_setup(screen)
+			await _wait(0.25)
+		await _shot(node["id"] + "-portrait")
+		if node["id"] == "boss":
+			await _size(1280, 720)
+			await _shot("hangar-duel-landscape")
 
 
 func _find_card(n: Node) -> CardView:

@@ -20,6 +20,12 @@ func _init() -> void:
 		print("FAIL: no card data. Run tools/import_cards.py first.")
 		quit(1)
 		return
+	if "saga_route" in args:
+		var episode: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/campaign/ep4.json"))
+		simulate_death_star_run(episode["chapters"][1])
+		print("%d passed, %d failed" % [passes, failures])
+		quit(1 if failures else 0)
+		return
 	test_aspect_penalty()
 	test_combat_and_shield()
 	test_attachment_lifetime()
@@ -342,6 +348,49 @@ func test_campaign_content() -> void:
 				if id != "":
 					check(not ("villainy" in lib.get_card(id).get("aspects", [])), "%s/%s: pickup %s is Villainy" % [ch["id"], node["id"], id])
 		simulate_chapter(ch)
+		if ch["id"] == "ep4_ch2_deathstar":
+			simulate_death_star_run(ch)
+
+
+## Play complete routes rather than measuring every fight with an unmodified starter deck.
+func simulate_death_star_run(chapter: Dictionary) -> void:
+	var clears := 0
+	for seed_value in [10, 37, 71, 103, 120, 158]:
+		var run := CampaignRun.start(chapter, chapter["leader_options"][seed_value % 2], seed_value)
+		for row in chapter["map"]["rows"]:
+			var id: String = row[seed_value % row.size()]
+			var node := CampaignRun.node_by_id(chapter, id)
+			if node.has("enemy"):
+				var config := CampaignRun.match_config(run, chapter, node, {})
+				config["players"][0]["ai"] = true
+				var battle := Match.new()
+				battle.setup(lib, config)
+				for _step in 2000:
+					if battle.is_over():
+						break
+					if battle.pending.is_empty():
+						AiBot.act(battle)
+					else:
+						AiBot.choose(battle)
+				check(battle.is_over(), "Seeded Death Star route finishes %s" % id)
+				if battle.winner != 0:
+					print("  Death Star route seed %d fell at %s" % [seed_value, id])
+					break
+				run["base_damage"] = CampaignRun.damage_after_victory(run, chapter, battle.players[0].base.damage)
+				run["fights"] += 1
+				run["deck"].append_array(node.get("pickups", []))
+				var offers := CampaignRun.roll_rewards(run, chapter, node, lib)
+				if not offers.is_empty():
+					run["deck"].append(offers[0])
+				if node["type"] == "boss":
+					clears += 1
+			elif node["type"] == "event":
+				CampaignRun.apply_effect(run, chapter, node["event"]["choices"][0]["effect"])
+			elif node["type"] == "rest":
+				CampaignRun.apply_effect(run, chapter, {"heal": 8})
+			CampaignRun.complete_node(run, id)
+	print("  Death Star full routes: %d clears in 6 runs" % clears)
+	check(clears > 0, "Seeded runs can clear the full Death Star chapter through the Hangar")
 
 
 ## Bot plays both sides of every combat node; reports hero win rate and length.

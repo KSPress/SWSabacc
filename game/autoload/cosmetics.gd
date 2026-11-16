@@ -49,6 +49,10 @@ func all_items() -> Array:
 		items.append({"key": "cardback:" + entry["id"], "id": entry["id"], "kind": "cardback", "name": entry["name"] + " card back"})
 	for entry in catalog.get("scenes", []):
 		items.append({"key": "background:" + entry["id"], "id": entry["id"], "kind": "background", "name": entry["name"] + " scene"})
+	for id in SagaScenes.catalog():
+		var entry: Dictionary = SagaScenes.catalog()[id]
+		items.append({"key": "background:" + id, "id": id, "kind": "background", "name": entry["name"],
+			"saga_art": true, "completion_only": entry.get("completion_only", false)})
 	var art := preload("res://ui/kit/set_art.gd")
 	for code in art.SETS:
 		var id := art.background_id(code)
@@ -57,6 +61,11 @@ func all_items() -> Array:
 
 
 func background_texture(id: String) -> Texture2D:
+	var scene: Dictionary = SagaScenes.catalog().get(id, {})
+	if not scene.is_empty():
+		if not _texture_cache.has(scene["art"]):
+			_texture_cache[scene["art"]] = load(scene["art"])
+		return _texture_cache[scene["art"]]
 	if id.begins_with("set_"):
 		return preload("res://ui/kit/set_art.gd").texture(id.trim_prefix("set_").to_upper(), "background")
 	return Art.ui_texture(id)
@@ -123,7 +132,8 @@ func record_match(won: bool, identity: String, winner := -1, aspects := [], lead
 	var reward: Dictionary = {}
 	if won:
 		if not s["gm"]:
-			var pool: Array = all_items().filter(func(item): return not item.get("starter", false) and not item["key"] in s["earned"])
+			var pool: Array = all_items().filter(func(item):
+				return not item.get("starter", false) and not item.get("saga_art", false) and not item["key"] in s["earned"])
 			if not pool.is_empty():
 				reward = pool.pick_random().duplicate()
 				s["earned"].append(reward["key"])

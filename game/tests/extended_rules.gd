@@ -78,6 +78,7 @@ func _init() -> void:
 	test_upgrade_search_filters()
 	test_spotlight_rules()
 	test_campaign_redesign()
+	test_death_star_saga()
 	print("EXTENDED RULES: %d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
 
@@ -151,6 +152,87 @@ func test_campaign_redesign() -> void:
 	check(SpotlightRun.trade_card(run, starter, offer) and SpotlightRun.deck_size(run) == 50
 		and not SpotlightRun.trade_card(run, offer, offer), "A market trade exchanges one active card without shrinking the deck")
 	check(SpotlightRun.shop_stock(run, lib, "test_market") == stock, "Market stock stays fixed after a trade")
+
+
+func test_death_star_saga() -> void:
+	var episode: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/campaign/ep4.json"))
+	var tatooine: Dictionary = episode["chapters"][0]
+	var chapter: Dictionary = episode["chapters"][1]
+	for leader in ["SOR_017", "SOR_003"]:
+		var run := CampaignRun.start(chapter, leader, 555)
+		var companion := "SOR_196" if leader == "SOR_017" else "SOR_198"
+		check(run["deck"].size() == 20 and companion in run["deck"] and "SOR_189" not in run["deck"],
+			"Death Star starts with 20 cards, the other smuggler, and no Leia")
+	var started := CampaignRun.start(chapter, "SOR_017", 570)
+	check(CampaignRun.scene_for(started, tatooine, CampaignRun.node_by_id(tatooine, "cantina_duel")) == "saga_cantina"
+		and CampaignRun.scene_for(started, tatooine, CampaignRun.node_by_id(tatooine, "docking_bay")) == "saga_docking_94",
+		"The Tatooine story locks the Cantina and Docking Bay backgrounds")
+	check(CampaignRun.scene_for(started, chapter, CampaignRun.node_by_id(chapter, "falcon_armor")) == "saga_falcon_halls"
+		and CampaignRun.scene_for(started, chapter, CampaignRun.node_by_id(chapter, "prison_escape")) == "saga_deathstar_cell_block"
+		and CampaignRun.scene_for(started, chapter, CampaignRun.node_by_id(chapter, "boss")) == "saga_deathstar_hangar",
+		"The Death Star route uses the Falcon, detention and Hangar artwork")
+	var granted: Array = []
+	for _i in chapter["background_rewards"].size():
+		var background := CampaignRun.remaining_background(started, chapter, granted)
+		check(not background.is_empty() and not "background:" + background in granted, "Each replay selects a new unearned chapter background")
+		granted.append("background:" + background)
+	check(CampaignRun.remaining_background(started, chapter, granted).is_empty(), "Completed background pools do not give duplicates")
+
+	for route in ["armory", "droid_reprocessing", "isb_interrogation", "rescue_rebels", "rescue_scum"]:
+		var node := CampaignRun.node_by_id(chapter, route)
+		var effect: Dictionary = node["event"]["choices"][0]["effect"]
+		var run := started.duplicate(true)
+		CampaignRun.apply_effect(run, chapter, effect)
+		check(run["deck"].size() == 20 + effect["add_cards"].size() and effect["add_cards"].size() in [5, 6]
+			and effect["add_cards"].all(func(id): return lib.has(id)), "The %s route recruits all five or six supplied cards" % route)
+	var prison := CampaignRun.node_by_id(chapter, "prison_escape")
+	check(prison["pickups"] == ["SOR_189"] and CampaignRun.available_nodes({"current": "prison_escape"}, chapter) == ["garbage_compactor"],
+		"Leia's mandatory pickup comes immediately before the compactor")
+
+	var compactor := _saga_test_match(started, chapter, "garbage_compactor")
+	check(compactor.objective.target == null and compactor.players[1].units.size() == 1, "Compactor opens with Stormtroopers and no Dianoga")
+	compactor.end_round()
+	check(compactor.objective.target == null and not compactor.is_over(), "Compactor cannot be won by waiting two rounds")
+	compactor.end_round()
+	var dianoga: CardInst = compactor.objective.target
+	check(dianoga != null and dianoga.id == "HMW_155" and dianoga.max_hp() == 8 and dianoga.power() == 7,
+		"The boosted Dianoga appears in round three")
+	if dianoga:
+		compactor.return_to_hand(dianoga)
+		check(dianoga.in_play() and compactor.deal_damage(compactor.players[1].base, 100, null) == 0,
+			"The Dianoga must be defeated rather than removed or bypassed")
+		compactor.deal_damage(dianoga, 8, null)
+		compactor.pump()
+		check(compactor.winner == 0, "Defeating the Dianoga wins the compactor encounter")
+
+	var finale := _saga_test_match(started, chapter, "boss")
+	var obi_wan: CardInst = finale.objective.obi_wan
+	var vader: CardInst = finale.objective.vader
+	check(obi_wan.zone == "space" and vader.zone == "space" and finale.attack_targets(obi_wan).is_empty(),
+		"Finale duel is separate from normal Hangar actions")
+	check(finale.deal_damage(obi_wan, 12, null) == 0 and not Effects.matches(finale, obi_wan, {"kind": "unit"}, {"ctl": 0}),
+		"Hangar card effects cannot interfere with the story duel")
+	for rounds in 7:
+		finale.end_round()
+	check(finale.winner < 0 and finale.round_num == 8 and obi_wan.remaining_hp() == 2,
+		"Obi-Wan survives the first seven rounds")
+	finale.end_round()
+	check(finale.winner == 0 and obi_wan.zone == "discard" and finale.round_num == 8,
+		"Obi-Wan's sacrifice ends the fight exactly on round eight")
+	var loss := _saga_test_match(started, chapter, "boss")
+	loss.deal_damage(loss.players[0].base, loss.players[0].base_remaining(), null)
+	loss.pump()
+	check(loss.winner == 1, "The Hangar finale is lost if the crew's base falls")
+
+
+func _saga_test_match(run: Dictionary, chapter: Dictionary, node_id: String) -> Match:
+	var config := CampaignRun.match_config(run, chapter, CampaignRun.node_by_id(chapter, node_id), {})
+	config["rules"].allow_mulligan = false
+	config["rules"].starting_resources = 0
+	config["players"][0]["extra_resources"] = 0
+	var battle := Match.new()
+	battle.setup(lib, config)
+	return battle
 
 
 func run_card_case(test: Callable, ids: Array[String]) -> void:

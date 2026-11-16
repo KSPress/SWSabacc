@@ -34,12 +34,16 @@ var _side := 0
 var _par := Vector2.ZERO        # smoothed pointer parallax offset (-1..1)
 var _rng := RandomNumberGenerator.new()
 var _datapad: DatapadBackground
+var _film: TextureRect
 
 
 func _ready() -> void:
 	_datapad = DatapadBackground.new()
 	UIKit.fill_rect(_datapad)
 	add_child(_datapad)
+	_film = SagaScenes.film_layer()
+	add_child(_film)
+	UIKit.fill_rect(_film)
 	Appearance.changed.connect(_apply_theme)
 	_apply_theme()
 
@@ -49,6 +53,7 @@ func _apply_theme() -> void:
 	_datapad.visible = _spec["kind"] == "datapad"
 	_planet = _orbit_planet if _spec["kind"] == "space" else null
 	_photo = Cosmetics.background_texture(_spec.get("art", "")) if _spec["kind"] == "planet" else null
+	SagaScenes.set_film_photo(_film, _photo, _spec.get("film", false))
 	queue_redraw()
 
 
@@ -187,7 +192,7 @@ func _vp(p: Vector2, z: float) -> Vector2:
 func _draw() -> void:
 	var s := size
 	draw_rect(Rect2(Vector2.ZERO, s), _spec["base"])
-	if _spec["kind"] == "datapad":
+	if _spec["kind"] == "datapad" or _film.visible:
 		return
 	if _photo:
 		var ts := _photo.get_size()

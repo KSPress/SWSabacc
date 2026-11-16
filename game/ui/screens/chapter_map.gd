@@ -21,6 +21,7 @@ func build() -> void:
 	if not active or CampaignFlow.needs_new_route(run, chapter):
 		_build_start(Router.params.get("failed", false))
 	else:
+		bg.set_location(CampaignRun.scene_for(run, chapter, CampaignRun.node_by_id(chapter, run.get("current", ""))))
 		_build_map()
 
 
@@ -84,11 +85,17 @@ func _build_start(failed: bool) -> void:
 			CampaignFlow.start_run(chapter, lid)
 			Router.go("chapter", {"chapter_id": chapter["id"]}))
 		holder.add_child(b)
+		if chapter.has("leader_companions"):
+			var cards := CampaignRun.starting_deck(chapter, lid)
+			var preview := SabaccButton.make("View deck (%d)" % cards.size(), SabaccButton.Style.GHOST, "deck")
+			preview.pressed.connect(func(): _show_deck(cards))
+			holder.add_child(preview)
 		row.add_child(holder)
 		UIKit.pop_in(holder)
-	var deck := SabaccButton.make("View starting deck (%d)" % chapter.get("starting_deck", []).size(), SabaccButton.Style.GHOST, "deck")
-	deck.pressed.connect(func(): _show_deck(chapter.get("starting_deck", [])))
-	_start_box.add_child(deck)
+	if not chapter.has("leader_companions"):
+		var deck := SabaccButton.make("View starting deck (%d)" % chapter.get("starting_deck", []).size(), SabaccButton.Style.GHOST, "deck")
+		deck.pressed.connect(func(): _show_deck(chapter.get("starting_deck", [])))
+		_start_box.add_child(deck)
 
 
 # ---------------------------------------------------------------- map
@@ -133,6 +140,8 @@ func _build_map() -> void:
 		nb.pressed.connect(func(): _open_node(n))
 		_map.add_child(nb)
 		_nodes[n["id"]] = nb
+	_hud.resized.connect(_on_resize, CONNECT_DEFERRED)
+	_on_resize.call_deferred()
 
 
 func _chip(glyph: String, text: String, col: Color) -> Control:
@@ -173,20 +182,25 @@ func relayout(p: bool, r: Rect2) -> void:
 	if _hud == null:
 		return
 	_hud.position = Vector2.ZERO
-	_hud.size = Vector2(r.size.x, 0)
+	_hud.size.x = r.size.x
 	var top := maxf(_hud.get_combined_minimum_size().y, _hud.size.y) + 14
 	_map.position = Vector2(0, top)
 	_map.size = Vector2(r.size.x, r.size.y - top)
 	var rows: Array = chapter.get("map", {}).get("rows", [])
 	var n := rows.size()
+	if n == 0:
+		return
+	var step_extent := (_map.size.y if p else _map.size.x) / float(n)
 	for ri in n:
 		var row: Array = rows[ri]
 		for ci in row.size():
 			var nb: NodeButton = _nodes.get(row[ci])
 			if nb == null:
 				continue
-			var s := clampf(minf(_map.size.x, _map.size.y) * 0.13, 70, 120)
+			var s := minf(clampf(minf(_map.size.x, _map.size.y) * 0.13, 48, 120), maxf(28, step_extent - 26))
+			nb.label_width = (_map.size.x / float(row.size() + 1) if p else step_extent) - 8
 			nb.size = Vector2(s, s)
+			nb._fit()
 			var along := (ci + 1.0) / (row.size() + 1.0)
 			var step := (ri + 0.5) / float(n)
 			if p:
@@ -207,6 +221,7 @@ func _open_node(n: Dictionary) -> void:
 	var nb: NodeButton = _nodes[n["id"]]
 	if nb.state != "available":
 		return
+	bg.set_location(CampaignRun.scene_for(run, chapter, n))
 	var mp := ModalPanel.open(self, 620.0, Sabacc.C_EMPIRE if n.get("type") == "boss" else Sabacc.C_GOLD)
 	mp.dismiss_on_backdrop = true
 	_panel = mp
@@ -423,6 +438,7 @@ class NodeButton extends Control:
 	var state := "locked"
 	var _t := 0.0
 	var _icon: IconGlyph
+	var label_width := 0.0
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
@@ -436,6 +452,8 @@ class NodeButton extends Control:
 		add_child(_icon)
 		var l := UIKit.label(node_def.get("title", ""), 14, Sabacc.C_TEXT if state != "locked" else Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
 		l.name = "L"
+		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		tooltip_text = l.text
 		add_child(l)
 		resized.connect(_fit)
 		_fit()
@@ -451,8 +469,9 @@ class NodeButton extends Control:
 		pivot_offset = size / 2.0
 		_icon.size = size
 		var l: Label = get_node("L")
-		l.position = Vector2(-40, size.y + 2)
-		l.size = Vector2(size.x + 80, 20)
+		var width := label_width if label_width > 0 else size.x + 80
+		l.position = Vector2((size.x - width) / 2.0, size.y + 2)
+		l.size = Vector2(width, 20)
 
 	func _process(dt: float) -> void:
 		if state == "available":

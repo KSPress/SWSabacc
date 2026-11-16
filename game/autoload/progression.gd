@@ -11,6 +11,7 @@ const BATTLE_LOSS := 50
 const RUN_BATTLE := 50
 const EMBLEM_CHANCE := 0.125
 const BACKGROUND_CHANCE := 0.05
+const SAGA_ART_CHANCE := 0.05
 
 
 func _ready() -> void:
@@ -283,7 +284,8 @@ func finish(id: String) -> bool:
 
 func roll_cosmetic(random: RandomNumberGenerator, set_code := "") -> Dictionary:
 	var roll := random.randf()
-	var kind := "background" if roll < BACKGROUND_CHANCE else ("emblem" if roll < BACKGROUND_CHANCE + EMBLEM_CHANCE else "")
+	var saga_art := roll < SAGA_ART_CHANCE
+	var kind := "background" if roll < SAGA_ART_CHANCE + BACKGROUND_CHANCE else ("emblem" if roll < SAGA_ART_CHANCE + BACKGROUND_CHANCE + EMBLEM_CHANCE else "")
 	if kind.is_empty():
 		return {}
 	var reserved: Array = Cosmetics.state()["earned"].duplicate()
@@ -292,11 +294,13 @@ func roll_cosmetic(random: RandomNumberGenerator, set_code := "") -> Dictionary:
 	for pack in packs():
 		if not pack.get("bonus", {}).is_empty():
 			reserved.append(pack["bonus"]["key"])
-	var choices: Array = Cosmetics.all_items().filter(func(item): return item["kind"] == kind and not item.get("starter", false) and not item["key"] in reserved)
+	var choices: Array = Cosmetics.all_items().filter(func(item):
+		return (item["kind"] == kind and bool(item.get("saga_art", false)) == saga_art
+			and not item.get("completion_only", false) and not item.get("starter", false) and not item["key"] in reserved))
 	if choices.is_empty():
 		return {}
 	var set_background := preload("res://ui/kit/set_art.gd").background_id(set_code)
-	if kind == "background":
+	if kind == "background" and not saga_art:
 		var matching := choices.filter(func(item): return item["id"] == set_background)
 		if not matching.is_empty():
 			choices = matching

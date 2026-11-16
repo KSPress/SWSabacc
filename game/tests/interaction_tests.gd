@@ -205,6 +205,10 @@ func _test_campaign_update() -> void:
 			battle.setup(CardDB.lib, CampaignRun.match_config(saga, chapter, boss, {}))
 			battle.set_winner(0, "test")
 			var result := CampaignFlow.on_match_end({"chapter_id": chapter["id"], "node_id": boss["id"]}, battle)
+			var scenes: Array = result.get("backgrounds", [])
+			check(scenes.size() == (2 if size == 8 else 1) and ("saga_docking_94_icon" in scenes) == (size == 8)
+				and scenes.all(func(id): return Cosmetics.unlocked("background:" + id)),
+				"Each Tatooine victory earns a different scene and only the first grants the Docking Bay icon")
 			rewards[size] = result.get("pack", "")
 			break
 	for size in [8, 12]:

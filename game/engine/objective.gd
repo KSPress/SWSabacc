@@ -18,6 +18,10 @@ static func create(cfg: Dictionary) -> Objective:
 			o = Duel.new()
 		"hunt":
 			o = Hunt.new()
+		"reinforcement_hunt":
+			o = ReinforcementHunt.new()
+		"hangar_duel":
+			o = HangarDuel.new()
 		"attrition":
 			o = Attrition.new()
 		_:
@@ -180,6 +184,72 @@ class Hunt extends Objective:
 
 	func tracker(_m: Match) -> String:
 		return "Hunt: %s" % params.get("target_name", "target")
+
+
+class ReinforcementHunt extends Objective:
+	var target: CardInst
+	var defeated := false
+
+	func on_action_start(m: Match) -> void:
+		if target or m.round_num < int(params["rounds"]):
+			return
+		target = m._new_inst(params["target"], 1)
+		target.flags["objective_target"] = true
+		target.mods.append({"h": int(params["target_hp"]) - target.printed_hp(), "p": int(params["target_power_bonus"]), "dur": "permanent"})
+		m._put_in_play(target, "ground", true)
+		m._log("The Filthy Dianoga surfaces!")
+
+	func on_protected_lost(_m: Match, unit: CardInst) -> void:
+		if unit == target:
+			defeated = true
+
+	func check(_m: Match) -> int:
+		return 0 if defeated else -1
+
+	func describe() -> String:
+		return "Defeat the Filthy Dianoga after it surfaces in round %d." % int(params["rounds"])
+
+	func tracker(m: Match) -> String:
+		return "Defeat the Filthy Dianoga" if target else "Dianoga surfaces in round %d · Round %d" % [params["rounds"], m.round_num]
+
+
+class HangarDuel extends SurviveRounds:
+	var obi_wan: CardInst
+	var vader: CardInst
+
+	func setup(m: Match) -> void:
+		obi_wan = _duelist(m, params["obi_wan"], 0, int(params["rounds"]) * 2)
+		vader = _duelist(m, params["vader"], 1, 18)
+
+	func _duelist(m: Match, id: String, player: int, hp: int) -> CardInst:
+		var card := m._new_inst(id, player)
+		card.flags.merge({"story_duelist": true, "cannot_attack": true, "objective_target": true})
+		card.mods.append({"h": hp - card.printed_hp(), "dur": "permanent"})
+		m._put_in_play(card, "space", false, false)
+		return card
+
+	func on_round_end(m: Match) -> void:
+		if not obi_wan.in_play() or m.players[0].base_remaining() <= 0:
+			return
+		var last := m.round_num >= int(params["rounds"])
+		m.events.append({"t": "attack", "a": vader.uid, "target": obi_wan.uid})
+		m.deal_damage(obi_wan, obi_wan.remaining_hp() if last else 2, vader, true, true)
+		if last:
+			m.defeat(obi_wan)
+			m._log("Obi-Wan sacrifices himself. The Millennium Falcon escapes.")
+			m.set_winner(0, "Millennium Falcon escaped")
+			return
+		m.events.append({"t": "attack", "a": obi_wan.uid, "target": vader.uid})
+		m.deal_damage(vader, 1, obi_wan, true, true)
+
+	func check(_m: Match) -> int:
+		return 1 if not obi_wan.in_play() or obi_wan.remaining_hp() <= 0 else -1
+
+	func describe() -> String:
+		return "Keep the Hangar base standing while Obi-Wan holds Vader off for %d rounds." % int(params["rounds"])
+
+	func tracker(m: Match) -> String:
+		return "Obi-Wan vs Vader · Round %d/%d" % [m.round_num, params["rounds"]]
 
 
 class Attrition extends Objective:

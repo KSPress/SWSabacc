@@ -29,9 +29,13 @@ var _fade: Tween
 
 
 func preset(location := "") -> Dictionary:
+	var scene: String = location if not location.is_empty() else Cosmetics.background()
+	if SagaScenes.catalog().has(scene):
+		return {"name": SagaScenes.catalog()[scene]["name"], "kind": "planet", "art": scene, "film": true,
+			"accent": Color("9fdcff"), "base": Color("08111c")}
 	if not location.is_empty():
 		return PRESETS.get("planet_" + location, PRESETS["space_deep"])
-	var background := Cosmetics.background()
+	var background := scene
 	if PRESETS.has(background):
 		return PRESETS[background]
 	if background in ["datapad", "emblem"]:
