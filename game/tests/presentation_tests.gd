@@ -137,7 +137,7 @@ func _run() -> void:
 		await _size(dimensions[0], dimensions[1])
 		await _go("menu")
 		var scene := get_tree().current_scene
-		check(scene._buttons.get_child_count() == 6, "six main menu entries")
+		check(scene._buttons.get_child_count() == 5 and scene._buttons.get_child(0).text == "PLAY", "PLAY replaces both mode entries")
 		check(scene._title_box.get_node("Logo").texture == Art.ui_texture("sabacc_title"), "custom title artwork")
 		if only == "visuals":
 			await _shot("menu_%dx%d" % dimensions)

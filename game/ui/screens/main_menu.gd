@@ -45,8 +45,7 @@ func build() -> void:
 	_buttons.add_theme_constant_override("v_separation", 6)
 	body.add_child(_buttons)
 	var items := [
-		["Campaigns", "orbit", func(): Router.go("hub", {"section": "campaigns"}), false],
-		["Battles", "crossed_sabers", func(): Router.go("hub", {"section": "battles"}), true],
+		["PLAY", "crossed_sabers", func(): Router.go("play"), false],
 		["Collection Vault", "collection", func(): Router.go("collection"), false],
 		["Customization", "sliders", func(): Router.go("customization"), false],
 		["Settings", "gear", func(): Router.go("settings"), true],

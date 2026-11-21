@@ -88,7 +88,7 @@ func build() -> void:
 		starters = starters.filter(func(deck): return Progression.deck_owned(deck))
 		if not starters.is_empty():
 			_auto = {"leader": starters[0]["leader"], "base": starters[0]["base"]}
-	set_header("Quick Battle" if _format > 0 else "Standard Battle")
+	set_header("Quick Battle" if _format > 0 else "Standard Battle", "play")
 	bg.backdrop = Art.ui_texture("coruscant")
 	bg.backdrop_alpha = 0.25
 	_scroll = ScrollContainer.new()

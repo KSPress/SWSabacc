@@ -4,6 +4,7 @@ extends Node
 signal screen_changed(path: String)
 
 const SCREENS := {
+	"play": "res://ui/screens/play_carousel.tscn",
 	"hub": "res://ui/screens/mode_hub.tscn",
 	"packs": "res://ui/screens/pack_opening.tscn",
 	"customization": "res://ui/screens/customization.tscn",

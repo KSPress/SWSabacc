@@ -4,13 +4,12 @@ var _box: VBoxContainer
 
 func build() -> void:
 	var campaigns: bool = Router.params.get("section", "campaigns") == "campaigns"
-	set_header("Campaigns" if campaigns else "Battles")
+	set_header("Campaigns" if campaigns else "Battles", "play")
 	_box = VBoxContainer.new()
 	_box.add_theme_constant_override("separation", 18)
 	body.add_child(_box)
 	var entries := [
 		["Saga Campaign", "Story episodes, branching encounters and treasures", "episodes", {}],
-		["Spotlight Roguelike", "Build a deck through an endless run of sectors", "spotlight", {}],
 	] if campaigns else [
 		["Traditional Battle", "Standard Star Wars: Unlimited · one pack every two completed games", "quick", {"format": 0}],
 		["Custom Battle", "One Lane, Ground, Space and other quick formats", "quick", {"format": 1}],

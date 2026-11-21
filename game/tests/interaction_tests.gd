@@ -111,7 +111,7 @@ func _run() -> void:
 	await _click(wallet)
 	check(wallet._amount.text == "1m", "Wallet tap collapses the balance")
 	await _go("menu")
-	var routes := [["Campaigns", "mode_hub"], ["Battles", "mode_hub"], ["Collection Vault", "collection"], ["Customization", "customization"], ["Settings", "settings_screen"], ["Profile", "customization"]]
+	var routes := [["PLAY", "play_carousel"], ["Collection Vault", "collection"], ["Customization", "customization"], ["Settings", "settings_screen"], ["Profile", "customization"]]
 	for dims in [[360, 640], [540, 1200], [1280, 720], [2560, 1080]]:
 		await _size(dims[0], dims[1])
 		await _go("menu")
@@ -153,8 +153,15 @@ func _run() -> void:
 			check(is_instance_valid(overlay) and not is_instance_valid(overlay._expanded), "Android Back closes only expanded dossier")
 			await _click(_button(overlay, "Close"))
 			check(scene.find_children("*", "InspectOverlay", true, false).is_empty(), "inspector removed")
-		await _click(_button(scene, "Battles"))
-		check(get_tree().current_scene.scene_file_path.ends_with("mode_hub.tscn"), "menu clickable after inspect close")
+		await _click(_button(scene, "PLAY"))
+		check(get_tree().current_scene.scene_file_path.ends_with("play_carousel.tscn"), "PLAY clickable after inspect close")
+		var carousel := get_tree().current_scene
+		check(carousel._open.text == "Campaigns", "Campaigns is selected first")
+		var center: Vector2 = carousel._stage.get_global_rect().get_center()
+		await _drag(center, center + Vector2(-100, 0))
+		check(carousel._open.text == "Battles", "swiping the cards selects Battles")
+		await _drag(center, center + Vector2(-100, 0))
+		check(carousel._open.text == "Galactic Conquest" and carousel._open.disabled, "Conquest is marked in development")
 		var cancel := InputEventKey.new()
 		cancel.keycode = KEY_ESCAPE
 		cancel.pressed = true

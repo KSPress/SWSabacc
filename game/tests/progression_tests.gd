@@ -98,7 +98,7 @@ func _run() -> void:
 	# UI: landscape/portrait, sealed, exploded cards, individual flips and resume.
 	await _size(1280, 720)
 	await _go("menu")
-	check(get_tree().current_scene._buttons.get_child(0).text == "Campaigns" and get_tree().current_scene._buttons.get_child(1).text == "Battles", "two main mode entries")
+	check(get_tree().current_scene._buttons.get_child(0).text == "PLAY", "single PLAY entry in the main menu")
 	await _shot("menu_groups")
 	await _go("hub", {"section": "campaigns"})
 	await _shot("campaigns_hub")
