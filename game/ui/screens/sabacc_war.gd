@@ -33,6 +33,7 @@ var _rules: Button
 var _manual := false
 var _drag_start := Vector2.ZERO
 var _dragging := false
+var _drag_card: TextureRect
 var _waiting_flip := false
 signal reveal_requested
 
@@ -158,12 +159,12 @@ func relayout(in_portrait: bool, rect: Rect2) -> void:
 	for i in _burned.size():
 		_place_burn(_burned[i], i)
 	_place_label(_house, _point(field, 0.27, 0.075), 210, 34)
-	_wallet.position = _point(field, 0.02, 0.77)
+	_wallet.position = _point(field, 0.16, 0.77)
 	_delta.position = _wallet.position - Vector2(0, 27)
 	_place_label(_status, _point(field, 0.56, 0.81), width * 0.65, 52)
 	var deal_width := minf(width * 0.94, 420.0)
 	_deal.size = Vector2(deal_width, 58)
-	_deal.position = _point(field, 0.5, 1.0) - Vector2(deal_width / 2.0, 63)
+	_deal.position = _point(field, 0.5, 0.94) - Vector2(deal_width / 2.0, 63)
 
 
 func _point(field: Rect2, x: float, y: float) -> Vector2:
@@ -189,15 +190,29 @@ func _layout_decks() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if not _allowed or _dealing or not event is InputEventMouseButton or event.button_index != MOUSE_BUTTON_LEFT:
+	if not _allowed or _dealing or not get_tree().get_nodes_in_group("back_dismissible").is_empty():
+		return
+	if event is InputEventMouseMotion and _dragging:
+		var cursor: Vector2 = body.get_global_transform().affine_inverse() * event.position
+		if _drag_card == null and cursor.distance_to(_drag_start) > 8:
+			_drag_card = _make_card(0, War.BACK)
+			_drag_card.size = _card_size * 0.83
+			_drag_card.rotation = -0.08
+		if _drag_card:
+			_drag_card.position = cursor - _drag_card.size / 2
+		return
+	if not event is InputEventMouseButton or event.button_index != MOUSE_BUTTON_LEFT:
 		return
 	var point: Vector2 = body.get_global_transform().affine_inverse() * event.position
 	if event.pressed:
 		var deck_rect := Rect2(_deck_centers[0] - _card_size * 0.52, _card_size)
-		_dragging = deck_rect.has_point(point)
+		_dragging = deck_rect.has_point(point) and not _deal.disabled
 		_drag_start = point
 	elif _dragging:
 		_dragging = false
+		if _drag_card:
+			_drag_card.queue_free()
+			_drag_card = null
 		if (point - _drag_start).length() >= 26 and _table.get_rect().has_point(point) and _credit_total() >= War.STAKE:
 			_manual = true
 			_play_hand()

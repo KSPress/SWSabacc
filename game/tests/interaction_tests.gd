@@ -264,6 +264,8 @@ func _test_sabacc_war() -> void:
 		var card := chapter_map._panel.find_child(answer + "Card", true, false) as TextureButton
 		check(card != null and not card.disabled, "%s artwork is an active card" % answer)
 		if card:
+			if answer == "Yes":
+				await _shot("sabacc-event-choices")
 			await _click(card)
 			await _wait(1.4)
 			check(Save.run()["current"] == "black_sphere", "%s card resolves the event by pointer input" % answer)
