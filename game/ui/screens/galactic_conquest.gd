@@ -271,7 +271,7 @@ func _refresh() -> void:
 	if not _fleet_picker.get_popup().visible:
 		_fleet_picker.clear()
 		for task in run.fleets(faction):
-			var name: String = CardDB.card(task["leader"]).get("name", "Fleet")
+			var name: String = CardDB.card(task["leader"]).get("name", "Fleet") if task["leader_alive"] else "Defense-only fleet"
 			_fleet_picker.add_item("%s · %d cards" % [name, task["cards"].size()])
 		_fleet_picker.select(_fleet_index)
 	_fleet_picker.visible = _fleet_picker.item_count > 1
@@ -279,7 +279,7 @@ func _refresh() -> void:
 	var route := run.path(faction, fleet["world"], _selected) if run.idle(fleet) else []
 	var pending := run.player_battle()
 	var active: bool = run.state["status"] == "active"
-	_orders.disabled = not active or route.is_empty() or fleet["cards"].is_empty()
+	_orders.disabled = not active or route.is_empty() or not fleet["leader_alive"] or fleet["cards"].is_empty()
 	_orders.text = "Attack planet" if holder != faction else "Move fleet"
 	_production.disabled = not active or holder != faction
 	_scout.visible = active and holder != faction
@@ -289,7 +289,13 @@ func _refresh() -> void:
 		_battle.text = "Battle for " + str(run.state["battles"][pending]["world"])
 	var report: String = run.state["report"]
 	if not fleet["route"].is_empty():
-		report = "Fleet to %s · %ds" % [fleet["route"][0], ceili(maxf(0.0, float(fleet["arrival"]) - float(run.state["time"])))]
+		report = "%s to %s · %ds" % ["Retreating" if fleet["retreating"] else "Fleet",
+			GALAXY.display_name(fleet["route"][0]), ceili(maxf(0.0, float(fleet["arrival"]) - float(run.state["time"])))]
+	elif not fleet["leader_alive"] and not fleet["world"].is_empty() and pending.is_empty():
+		report = "Defense only at %s. Build and send a replacement commander from Production." % GALAXY.display_name(fleet["world"])
+	elif fleet["leader_alive"] and int(fleet["command_damage"]) > 0 and pending.is_empty():
+		var hp := run.command_max_hp(fleet)
+		report = "Commander at %d/%d HP · restores 10 HP every minute outside battle" % [hp - int(fleet["command_damage"]), hp]
 	elif not fleet["world"].is_empty() and route.is_empty() and fleet["world"] != _selected and pending.is_empty():
 		report = "Select a planet connected through friendly territory."
 	elif fleet["world"].is_empty() and pending.is_empty():
@@ -320,7 +326,11 @@ func _show_fleet() -> void:
 	var modal := ModalPanel.open(self, 500, Sabacc.C_GOLD)
 	modal.text("Fleet deck · %d cards" % fleet["cards"].size(), 26)
 	var leader := CardDB.card(fleet["leader"])
-	modal.text(leader.get("name", "Fleet") if fleet["leader_alive"] else "Leader lost in battle", 19)
+	if fleet["leader_alive"]:
+		var hp := run.command_max_hp(fleet)
+		modal.text("%s · %d/%d HP" % [leader["name"], hp - int(fleet["command_damage"]), hp], 19)
+	else:
+		modal.text("Defense only until a replacement commander arrives", 19)
 	for id in _counts(fleet["cards"]):
 		modal.text("%d× %s" % [fleet["cards"].count(id), CardDB.card(id)["name"]], 18, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_LEFT)
 	modal.add_action(SabaccButton.make("Back", SabaccButton.Style.GHOST)).pressed.connect(modal.close)
@@ -341,9 +351,12 @@ func _show_production() -> void:
 	var world := _selected
 	var planet: Dictionary = run.state["worlds"][world]
 	var modal := ModalPanel.open(self, 550, Sabacc.C_GOLD)
-	modal.text(world + " · Production", 26)
+	modal.text(GALAXY.display_name(world) + " · Production", 26)
 	var info := modal.text("", 19)
 	var items := {}
+	var local_recruits: Dictionary = GALAXY.NATIVE_RECRUITS.get(world, {})
+	for id in local_recruits:
+		items[id] = "Recruit " + str(local_recruits[id])
 	for id in ConquestRun.FACILITIES:
 		if not id in planet["facilities"]:
 			items[id] = "Build " + str(ConquestRun.FACILITIES[id][0]).to_lower()
@@ -356,6 +369,12 @@ func _show_production() -> void:
 	items["probe"] = "Build probe droid"
 	if run.fleet(faction)["world"].is_empty():
 		items["commission"] = "Recommission primary fleet"
+	var replacement := _button(modal.box, "Build replacement commander · %d credits" % run.price("commission"), func():
+		modal.close()
+		_show_commanders(world, true))
+	var training := _button(modal.box, "Train selected fleet", func():
+		modal.close()
+		_show_training(world))
 	var milestone := run.available_milestone(faction)
 	if milestone > 0:
 		var hire := _button(modal.box, "%d planets · commission leader" % milestone, func():
@@ -386,6 +405,10 @@ func _show_production() -> void:
 		for item in options:
 			options[item].disabled = not run.can_buy(faction, world, item)
 		var task := run.fleet(faction, _fleet_index)
+		replacement.visible = not task["leader_alive"] and not task["world"].is_empty()
+		replacement.disabled = not run.can_send_replacement(faction, world, _fleet_index)
+		training.visible = "training" in planet["facilities"]
+		training.disabled = not run.idle(task) or task["world"] != world or int(planet["owner"]) != faction or run._contested(world)
 		var reachable: bool = run.idle(task) and (task["world"] == world or not run.path(faction, world, task["world"], true).is_empty())
 		for button in transfers.get_children():
 			button.disabled = not reachable or task["cards"].size() >= ConquestRun.FLEET_LIMIT or int(planet["owner"]) != faction or run._contested(world)
@@ -397,16 +420,75 @@ func _show_production() -> void:
 	modal.add_action(SabaccButton.make("Back", SabaccButton.Style.GHOST)).pressed.connect(modal.close)
 
 
-func _show_commanders(world: String) -> void:
+func _show_training(world: String, perk := "", unit_id := "") -> void:
+	var run := Conquest.run
+	var faction := int(run.state["player"])
+	var task := run.fleet(faction, _fleet_index)
+	var modal := ModalPanel.open(self, 550, Sabacc.C_GOLD)
+	modal.text("Training Center · " + GALAXY.display_name(world), 26)
+	modal.text("%d credits available" % run.state["factions"][faction]["credits"], 18)
+	if perk.is_empty():
+		for key in ConquestRun.TRAINING:
+			var item: Array = ConquestRun.TRAINING[key]
+			var cost := run.price(key)
+			if key in ["experience", "shield", "opening", "equipment"]:
+				_button(modal.box, "%s · %d credits" % [item[0], cost], func():
+					modal.close()
+					_show_training(world, key)).disabled = run.training_rank(task, key) >= int(item[2])
+			else:
+				_button(modal.box, "%s · %d/%d · %d credits" % [item[0], run.training_rank(task, key), item[2], cost], func():
+					if run.train(faction, world, _fleet_index, key):
+						Conquest.persist()
+						modal.close()
+						_show_training(world)).disabled = not run.can_train(faction, world, _fleet_index, key)
+	elif perk == "equipment" and not unit_id.is_empty():
+		modal.text("Equipment for " + str(CardDB.card(unit_id)["name"]), 19)
+		for id in run.equipment_for(unit_id):
+			var equipment := CardDB.card(id)
+			_button(modal.box, "%s · %+d power · %+d HP" % [equipment["name"], equipment.get("power", 0), equipment.get("hp", 0)], func():
+				if run.train(faction, world, _fleet_index, perk, unit_id, id):
+					Conquest.persist()
+					modal.close()
+					_show_training(world)).disabled = not run.can_train(faction, world, _fleet_index, perk, unit_id)
+	else:
+		modal.text(str(ConquestRun.TRAINING[perk][0]), 19)
+		for id in _counts(task["cards"]):
+			var card := CardDB.card(id)
+			if card.get("type") != "unit":
+				continue
+			_button(modal.box, str(card["name"]) + " · " + str(card.get("subtitle", card.get("arena", ""))), func():
+				if perk == "equipment":
+					modal.close()
+					_show_training(world, perk, id)
+				elif run.train(faction, world, _fleet_index, perk, id):
+					Conquest.persist()
+					modal.close()
+					_show_training(world)).disabled = not run.can_train(faction, world, _fleet_index, perk, id)
+	modal.add_action(SabaccButton.make("Back", SabaccButton.Style.GHOST)).pressed.connect(func():
+		modal.close()
+		if perk.is_empty():
+			_show_production()
+		elif not unit_id.is_empty():
+			_show_training(world, perk)
+		else:
+			_show_training(world))
+
+
+func _show_commanders(world: String, replacing := false) -> void:
 	var run := Conquest.run
 	var faction := int(run.state["player"])
 	var modal := ModalPanel.open(self, 620, Sabacc.C_GOLD)
-	modal.text("Commission a fleet at " + GALAXY.display_name(world), 26)
+	modal.text(("Build a replacement at " if replacing else "Commission a fleet at ") + GALAXY.display_name(world), 26)
 	for id in run.eligible_commanders(faction, world):
 		var leader := CardDB.card(id)
-		var button := _button(modal.box, "%s · %s" % [leader["name"], leader.get("subtitle", "")], func():
-			if run.build_commander(faction, world, id):
-				_fleet_index = run.fleets(faction).size() - 1
+		var label := "%s · %s" % [leader["name"], leader.get("subtitle", "")]
+		if leader.get("custom", false):
+			label += " (Conquest)"
+		var button := _button(modal.box, label, func():
+			var built := run.send_replacement(faction, world, _fleet_index, id) if replacing else run.build_commander(faction, world, id)
+			if built:
+				if not replacing:
+					_fleet_index = run.fleets(faction).size() - 1
 				_map.fleet_index = _fleet_index
 				Conquest.persist()
 				modal.close())

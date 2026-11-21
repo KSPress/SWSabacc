@@ -48,6 +48,7 @@ var attacked_with := [[], []]
 var actions_taken_this_phase := [0, 0]
 var cards_drawn_this_phase := [0, 0]
 var enemy_base_damage_dealt := [0, 0]
+var training_equipment := [{}, {}]
 var base_attacked_this_phase := [false, false]
 var played_aspect_counts := [{}, {}]
 var played_this_phase := [[], []]         # CardInst played this phase, per player
@@ -101,7 +102,16 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 			ps.support_leader.zone = "leader"
 		for leader in ps.leaders():
 			_apply_leader_mods(leader, pc.get("leader_mods", {}).get(leader.id, []))
-		ps.base = _new_inst(pc.get("base", ""), i)
+		if rules.name == "conquest":
+			var command_id := "CONQUEST_COMMAND_%d" % i
+			ps.base = _register_inst(command_id, {"name": pc.get("command_name", "Local command"), "type": "base",
+				"hp": int(pc["command_hp"]), "conquest_command": true}, i)
+			ps.base.command_hp = int(pc["command_hp"])
+			ps.base.command_shields = int(pc.get("command_shields", 0))
+			if ps.leader:
+				ps.leader.command_hp = ps.base.command_hp
+		else:
+			ps.base = _new_inst(pc.get("base", ""), i)
 		ps.base.zone = "base"
 		var hp_target := rules.base_hp_override if rules.base_hp_override > 0 else ps.base.printed_hp()
 		if int(pc.get("base_hp", 0)) > 0:
@@ -124,14 +134,19 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 			ps.deck.append(c)
 		_shuffle(ps.deck)
 		ps.base.damage = int(pc.get("base_damage", 0))
+		if ps.leader and rules.name == "conquest":
+			ps.leader.damage = ps.base.damage
 		ps.first_unit_experience = int(pc.get("first_unit_experience", 0))
 		ps.first_unit_shield = int(pc.get("first_unit_shield", 0))
 		ps.card_upgrades = pc.get("card_upgrades", {})
+		training_equipment[i] = pc.get("training_equipment", {})
 		ps.force_token = int(pc.get("start_force", 0)) > 0
 		for pre in pc.get("preplaced", []):
 			if not lib.has(pre["id"]):
 				continue
 			var u := _new_inst(pre["id"], i)
+			if track_roster and pre.get("roster", false):
+				_tracked_roster[u.uid] = true
 			_put_in_play(u, pre.get("arena", u.arena()), not pre.get("ready", true), false)
 			u.flags.merge(pre.get("flags", {}), true)
 			if pre.has("hp"):
@@ -185,6 +200,10 @@ func _new_inst(cid: String, owner_idx: int) -> CardInst:
 	var data := lib.get_card(cid)
 	if data.is_empty():
 		data = {"id": cid, "name": cid, "type": "unit", "power": 1, "hp": 1, "cost": 1, "text": "MISSING CARD DATA", "implemented": "manual"}
+	return _register_inst(cid, data, owner_idx)
+
+
+func _register_inst(cid: String, data: Dictionary, owner_idx: int) -> CardInst:
 	var c := CardInst.new(_next_uid, cid, data, owner_idx)
 	c.battle = weakref(self)
 	_next_uid += 1
@@ -227,7 +246,10 @@ func card(uid: int) -> CardInst:
 
 
 func all_units() -> Array:
-	return players[0].units + players[1].units
+	var units: Array = []
+	for ps in players:
+		units.append_array(ps.units)
+	return units
 
 
 func trigger_sources() -> Array:
@@ -896,7 +918,11 @@ func _state_based() -> bool:
 			acted = true
 	var dead := [players[0].base_remaining() <= 0, players[1].base_remaining() <= 0]
 	if dead[0] or dead[1]:
-		set_winner(2 if dead[0] and dead[1] else (1 if dead[0] else 0), "base destroyed")
+		if rules.name == "conquest":
+			for p in 2:
+				if dead[p] and players[p].leader:
+					_record_roster_loss(players[p].leader)
+		set_winner(2 if dead[0] and dead[1] else (1 if dead[0] else 0), "command defeated" if rules.name == "conquest" else "base destroyed")
 		return true
 	var w := objective.check(self)
 	if w >= 0:
@@ -1243,6 +1269,8 @@ func attach_upgrade(up: CardInst, target: CardInst, play_ctx := {}) -> void:
 	var ctx := {"ctl": play_ctx.get("ctl", up.controller), "subject": target.uid, "it": target.uid}
 	for ab in up.abilities_with("when_attached"):
 		push_ability(up, ab, ctx)
+	if play_ctx.get("pre_equipped", false):
+		return
 	var trigger := "when_played_upgrade" if up.is_pilot_upgrade() else "when_played"
 	if play_ctx.get("deployed", false):
 		trigger = "when_deployed_upgrade"
@@ -1298,6 +1326,13 @@ func create_unit_token(p: int, key: String) -> CardInst:
 func _apply_card_upgrades(u: CardInst) -> void:
 	for kind in players[u.controller].card_upgrades.get(u.id, []):
 		attach_token(u, kind)
+	var equipment: String = training_equipment[u.controller].get(u.id, "")
+	if lib.has(equipment):
+		var attachment := _new_inst(equipment, u.controller)
+		if u in Effects.upgrade_targets(self, u.controller, attachment):
+			attach_upgrade(attachment, u, {"pre_equipped": true})
+		else:
+			by_uid.erase(attachment.uid)
 	if u.flags.get("campaign_oil_bath", false):
 		attach_token(u, "experience")
 		attach_token(u, "experience")
@@ -1319,6 +1354,11 @@ func deal_damage(target: CardInst, n: int, source: CardInst, unpreventable := fa
 		return 0
 	if not combat and source and source.controller != target.controller and target.has_constant("enemy_damage_immune"):
 		return 0
+	var command := _command_for(target)
+	if command and not unpreventable and command.command_shields > 0:
+		command.command_shields -= 1
+		events.append({"t": "shield_break", "uid": target.uid, "remaining": command.command_shields})
+		return 0
 	if target.in_play():
 		for up in target.upgrades:
 			if not unpreventable and (up.is_token and up.name() == "Shield" or up.abilities_with("constant").any(func(a): return a.get("flag") == "shield_token")):
@@ -1334,6 +1374,7 @@ func deal_damage(target: CardInst, n: int, source: CardInst, unpreventable := fa
 				events.append({"t": "shield_break", "uid": target.uid, "remaining": 0})
 				return 0
 	target.damage += n
+	_sync_command_damage(target)
 	if target.in_play() and target.remaining_hp() <= 0:
 		target.flags["lethal_source"] = source.uid if source and source.controller != target.controller else 0
 	target.flags["last_damaged_phase"] = phase_serial
@@ -1352,6 +1393,21 @@ func deal_damage(target: CardInst, n: int, source: CardInst, unpreventable := fa
 	return n
 
 
+func _command_for(target: CardInst) -> CardInst:
+	if rules.name != "conquest" or target.command_hp == 0:
+		return null
+	return players[target.owner].base
+
+
+func _sync_command_damage(target: CardInst) -> void:
+	var command := _command_for(target)
+	if command:
+		command.damage = target.damage
+		var commander: CardInst = players[target.owner].leader
+		if commander:
+			commander.damage = target.damage
+
+
 func heal(target: CardInst, n: int) -> int:
 	if target.zone == "base" and (target.mods.any(func(modifier): return modifier.get("cannot_heal", false)) \
 		or all_units().any(func(unit): return unit.has_constant("prevent_base_heal"))):
@@ -1359,6 +1415,7 @@ func heal(target: CardInst, n: int) -> int:
 	var h := mini(n, target.damage)
 	if h > 0:
 		target.damage -= h
+		_sync_command_damage(target)
 		if target.remaining_hp() > 0:
 			target.flags.erase("lethal_source")
 		target.flags["last_healed_phase"] = phase_serial
@@ -1468,6 +1525,9 @@ func _record_roster_loss(unit: CardInst) -> void:
 		return
 	if unit.is_leader():
 		roster_leader_lost[unit.owner] = true
+		var command := _command_for(unit)
+		if command:
+			command.damage = maxi(command.damage, command.max_hp())
 	else:
 		roster_losses[unit.owner].append(unit.id)
 

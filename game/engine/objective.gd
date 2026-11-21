@@ -58,11 +58,11 @@ func enemy_base_damage_allowed() -> bool:
 
 
 func describe() -> String:
-	return "Destroy the enemy base."
+	return tracker(null) + "."
 
 
 func tracker(_m: Match) -> String:
-	return "Destroy the enemy base"
+	return "Defeat the enemy command" if type == "conquest" else "Destroy the enemy base"
 
 
 func reward_multiplier() -> float:

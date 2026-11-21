@@ -13,15 +13,40 @@ const MIN_TRAVEL := 3.0
 const SPEED := 25.0
 const BOT_ORDER_PERIOD := 16.0
 const BOT_REBUILD_TIME := 28.0
+const COMMAND_HP := 30
+const RECOVERY_PERIOD := 60.0
+const RECOVERY_HP := 10
+const TRAINING := {
+	"health": ["Command endurance (+5 maximum HP)", 55, 2],
+	"resources": ["Logistics (+1 starting resource)", 60, 2],
+	"command_shield": ["Command shield (blocks one hit)", 45, 1],
+	"experience": ["Experience token on each copy", 30, 1],
+	"shield": ["Shield token on each copy", 30, 1],
+	"equipment": ["Fit permanent equipment to each copy", 45, 1],
+	"opening": ["Start with this unit in play", 55, 1],
+}
+const TRAINING_EQUIPMENT := ["SOR_069", "SEC_070", "SHD_174", "SOR_121"]
 const PRICES := {"garrison": 65, "dockyard": 55, "troops": 25, "ships": 35, "commission": 40}
 const MILESTONES := [4, 8, 12]
 const FACILITIES := {
 	"vehicles": ["Vehicle Depot", 55], "fighters": ["Hangar Bay", 55], "troopers": ["Barracks", 50],
 	"droids": ["Droid Depot", 50], "frigates": ["Dockyard", 65], "capital": ["Space Station", 80],
+	"officers": ["Officers' Quarters", 55], "government": ["Government HQ", 55], "armory": ["Armory", 50],
 	"fortification": ["Base Fortification", 65], "garrison": ["Garrison", 65],
-	"orbital": ["Defense Fleet", 80], "satellite": ["Satellite Network", 45],
+	"orbital": ["Defense Fleet", 80], "satellite": ["Satellite Network", 45], "training": ["Training Center", 65],
 }
-const FACTORIES := ["vehicles", "fighters", "troopers", "droids", "frigates", "capital"]
+const FACTORIES := ["vehicles", "fighters", "troopers", "droids", "frigates", "capital", "officers", "government", "armory"]
+const FACTORY_TRAITS := {
+	"vehicles": "vehicle", "fighters": "fighter", "troopers": "trooper", "droids": "droid",
+	"capital": "capital ship", "government": "official",
+}
+const OFFICER_RANKS := [
+	"admiral ", "captain ", "colonel ", "commander ", "general ", "lieutenant ", "major ", "moff ",
+]
+const ARMORY_EXCLUDED := [
+	"Darth Revan's Lightsabers", "Darth Maul's Lightsaber", "Qui-Gon Jinn's Lightsaber",
+	"Ahsoka's Padawan Lightsaber", "Master's Lightsaber", "Mace Windu's Lightsaber",
+]
 const PROBE_PRICE := 20
 
 var state: Dictionary
@@ -58,7 +83,8 @@ static func start(library: CardLibrary, player: int, size: int, seed_value: int,
 
 func _new_fleet(world: String, cards: Array, leader := "") -> Dictionary:
 	return {"world": world, "cards": cards, "leader": leader, "leader_alive": not leader.is_empty(),
-		"route": [], "arrival": 0.0, "departed": 0.0, "engagement": ""}
+		"route": [], "arrival": 0.0, "departed": 0.0, "engagement": "", "retreating": false,
+		"command_damage": 0, "recovery": 0.0, "training": {}}
 
 
 func _upgrade_save() -> void:
@@ -83,6 +109,11 @@ func _upgrade_save() -> void:
 			side["fleet"]["leader_alive"] = side.get("leader_alive", true)
 		# JSON loads numbers as floats and Array membership is type-sensitive.
 		side["milestones"] = side["milestones"].map(func(value): return int(value))
+		side["retired_leaders"] = side.get("retired_leaders", [])
+		for task in fleets(i):
+			task.merge({"retreating": false, "command_damage": 0, "recovery": 0.0, "training": {}})
+			if not task["leader_alive"]:
+				_retire_leader(i, task["leader"])
 
 
 func _next_seed() -> int:
@@ -92,32 +123,56 @@ func _next_seed() -> int:
 
 func _recruit(world: String, faction: int, ships: bool, amount: int) -> Array:
 	var specialty: String = GALAXY.SPECIALTIES.get(world, GALAXY.FACTIONS[faction]["trait"] if faction >= 0 else "")
-	var key := "%s/%s" % [specialty, ships]
+	var key := "militia/%s/%s/%s" % [world, faction, ships]
 	if not _pools.has(key):
 		var pool: Array = []
 		var fallback: Array = []
 		for id in lib.cards:
 			var card: Dictionary = lib.cards[id]
-			if card.get("type") != "unit" or card.get("custom", false) or card.get("implemented") not in ["full", "vanilla"]:
+			if not _production_card(card) or not GALAXY.era_unit(card):
 				continue
 			if (card.get("arena") == "space") != ships or int(card.get("cost", 0)) > (6 if ships else 4):
 				continue
-			if card.get("set") not in CardLibrary.BOOSTER_SETS:
-				continue
-			if specialty in card.get("traits", []):
+			if _local_match(card, world, specialty):
 				pool.append(id)
 			if not ("heroism" in card.get("aspects", []) or "villainy" in card.get("aspects", [])):
 				fallback.append(id)
 		_pools[key] = pool if not pool.is_empty() else fallback
-	var choices: Array = _pools[key]
-	if choices.is_empty():
+	return _draw_production(_pools[key], amount)
+
+
+func _local_match(card: Dictionary, world: String, specialty: String) -> bool:
+	var native: Dictionary = GALAXY.NATIVE_RECRUITS.get(world, {})
+	if not native.is_empty():
+		return native.keys().any(func(roster): return GALAXY.native_match(card, roster))
+	return specialty in card["traits"]
+
+
+func _production_card(card: Dictionary) -> bool:
+	return (not card.get("custom", false) and card.get("set") in CardLibrary.BOOSTER_SETS
+		and card.get("implemented") in ["full", "vanilla"])
+
+
+func _draw_production(pool: Array, amount: int) -> Array:
+	if pool.is_empty() or amount <= 0:
 		return []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _next_seed()
-	var result: Array = []
+	var result := []
 	for i in amount:
-		result.append(choices[rng.randi_range(0, choices.size() - 1)])
+		result.append(pool[rng.randi_range(0, pool.size() - 1)])
 	return result
+
+
+func _native_pool(roster: String) -> Array:
+	if not _pools.has(roster):
+		var candidates := []
+		for id in lib.cards:
+			var card := lib.get_card(id)
+			if _production_card(card) and GALAXY.era_unit(card) and GALAXY.native_match(card, roster):
+				candidates.append(id)
+		_pools[roster] = candidates
+	return _pools[roster]
 
 
 func fleet(faction: int, index := 0) -> Dictionary:
@@ -177,7 +232,7 @@ func travel_progress(traveler: Dictionary) -> float:
 
 func order(faction: int, to: String, index := 0) -> bool:
 	var task := fleet(faction, index)
-	if state["status"] != "active" or not idle(task) or task["cards"].is_empty():
+	if state["status"] != "active" or not idle(task) or not task["leader_alive"] or task["cards"].is_empty():
 		return false
 	var route := path(faction, task["world"], to)
 	if route.is_empty():
@@ -205,6 +260,8 @@ func _can_manage(faction: int, world: String) -> bool:
 func price(item: String) -> int:
 	if item in FACILITIES:
 		return FACILITIES[item][1]
+	if item in TRAINING:
+		return TRAINING[item][1]
 	if item == "probe":
 		return PROBE_PRICE
 	return PRICES.get(item, 25)
@@ -216,6 +273,8 @@ func can_buy(faction: int, world: String, item: String) -> bool:
 		return false
 	if item in FACILITIES:
 		return site["facilities"].size() < 2 and not item in site["facilities"] and (not item in FACTORIES or _factory(world).is_empty())
+	if item in GALAXY.NATIVE_RECRUITS.get(world, {}):
+		return site["cards"].size() < RESERVE_LIMIT and not _native_pool(item).is_empty()
 	match item:
 		"produce": return not _factory(world).is_empty() and site["cards"].size() < RESERVE_LIMIT
 		"troops": return "garrison" in site["facilities"] and site["cards"].size() < 12
@@ -235,6 +294,8 @@ func buy(faction: int, world: String, item: String) -> bool:
 		if cards.is_empty():
 			return false
 		site["cards"].append_array(cards)
+	if item in GALAXY.NATIVE_RECRUITS.get(world, {}):
+		site["cards"].append_array(_draw_production(_native_pool(item), mini(4, RESERVE_LIMIT - site["cards"].size())))
 	funds["credits"] = int(funds["credits"]) - price(item)
 	if item in FACILITIES:
 		site["facilities"].append(item)
@@ -253,39 +314,110 @@ func buy(faction: int, world: String, item: String) -> bool:
 	return true
 
 
+func training_rank(task: Dictionary, perk: String, card_id := "") -> int:
+	var training: Dictionary = task["training"]
+	match perk:
+		"opening": return int(not training.get("opening", "").is_empty())
+		"experience", "shield": return int(perk in training.get("units", {}).get(card_id, []))
+		"equipment": return int(training.get("equipment", {}).has(card_id))
+	return int(training.get(perk, 0))
+
+
+func can_train(faction: int, world: String, index: int, perk: String, card_id := "") -> bool:
+	var task := fleet(faction, index)
+	if not perk in TRAINING or not _can_manage(faction, world) or task["world"] != world or not idle(task):
+		return false
+	if not "training" in state["worlds"][world]["facilities"] or int(state["factions"][faction]["credits"]) < price(perk):
+		return false
+	if perk in ["opening", "experience", "shield", "equipment"]:
+		if not card_id in task["cards"] or lib.get_card(card_id).get("type") != "unit":
+			return false
+	else:
+		if perk in ["health", "command_shield"] and not task["leader_alive"]:
+			return false
+	return training_rank(task, perk, card_id) < TRAINING[perk][2]
+
+
+func equipment_for(card_id: String) -> Array:
+	var vehicle: bool = "vehicle" in lib.get_card(card_id).get("traits", [])
+	return TRAINING_EQUIPMENT.filter(func(id): return id != "SHD_174" if vehicle else id != "SOR_121")
+
+
+func train(faction: int, world: String, index: int, perk: String, card_id := "", equipment := "") -> bool:
+	if not can_train(faction, world, index, perk, card_id):
+		return false
+	if perk == "equipment" and not equipment in equipment_for(card_id):
+		return false
+	var task := fleet(faction, index)
+	var training: Dictionary = task["training"]
+	match perk:
+		"opening":
+			training["opening"] = card_id
+		"equipment":
+			if not training.has("equipment"):
+				training["equipment"] = {}
+			training["equipment"][card_id] = equipment
+		"experience", "shield":
+			if not training.has("units"):
+				training["units"] = {}
+			if not training["units"].has(card_id):
+				training["units"][card_id] = []
+			training["units"][card_id].append(perk)
+		_:
+			training[perk] = training_rank(task, perk) + 1
+	state["factions"][faction]["credits"] = int(state["factions"][faction]["credits"]) - price(perk)
+	return true
+
+
+func command_max_hp(task: Dictionary) -> int:
+	return COMMAND_HP + 5 * training_rank(task, "health")
+
+
 func _produce(world: String, faction: int, factory: String, amount: int) -> Array:
-	var tags: Array = {"vehicles": ["vehicle"], "fighters": ["fighter"], "troopers": ["trooper"],
-		"droids": ["droid"], "frigates": ["frigate", "transport", "capital ship"], "capital": ["capital ship"]}[factory]
-	var ships := factory in ["fighters", "frigates", "capital"]
+	var key := "factory/%s/%d/%s" % [world, faction, factory]
+	if not _pools.has(key):
+		_pools[key] = _factory_pool(world, faction, factory)
+	return _draw_production(_pools[key], amount)
+
+
+func _factory_pool(world: String, faction: int, factory: String) -> Array:
 	var specialty: String = GALAXY.SPECIALTIES.get(world, GALAXY.FACTIONS[faction]["trait"])
 	var pool := []
 	var local := []
 	var thematic := []
 	for id in lib.cards:
 		var data := lib.get_card(id)
-		if data.get("type") != "unit" or data.get("set") not in CardLibrary.BOOSTER_SETS or data.get("implemented") not in ["full", "vanilla"]:
-			continue
-		if (data.get("arena") == "space") != ships:
-			continue
-		var traits: Array = data["traits"]
-		if not tags.any(func(tag): return tag in traits):
-			continue
-		if factory == "frigates" and not ("frigate" in traits or "frigate" in data["name"].to_lower()):
+		if not _production_card(data) or not _fits_factory(data, factory):
 			continue
 		pool.append(id)
-		if specialty in traits:
+		if factory == "armory":
+			continue
+		if _local_match(data, world, specialty):
 			local.append(id)
-		elif GALAXY.FACTIONS[faction]["trait"] in traits:
+		elif GALAXY.FACTIONS[faction]["trait"] in data["traits"]:
 			thematic.append(id)
-	var choices := local if not local.is_empty() else (thematic if not thematic.is_empty() else pool)
-	if choices.is_empty():
-		return []
-	var rng := RandomNumberGenerator.new()
-	rng.seed = _next_seed()
-	var cards := []
-	for i in amount:
-		cards.append(choices[rng.randi_range(0, choices.size() - 1)])
-	return cards
+	return local if not local.is_empty() else (thematic if not thematic.is_empty() else pool)
+
+
+func _fits_factory(card: Dictionary, factory: String) -> bool:
+	var traits: Array = card["traits"]
+	if factory == "armory":
+		return (card.get("type") == "upgrade" and not card["name"] in ARMORY_EXCLUDED
+			and traits.any(func(tag): return tag in ["item", "armor", "weapon", "modification"])
+			and not traits.any(func(tag): return tag in GALAXY.LATER_OR_EARLIER_TRAITS))
+	if not GALAXY.era_unit(card):
+		return false
+	if factory == "officers":
+		var full_name: String = card["name"].to_lower()
+		return "officer" in traits or OFFICER_RANKS.any(func(rank): return full_name.begins_with(rank))
+	if factory == "government":
+		return "official" in traits
+	var ships := factory in ["fighters", "frigates", "capital"]
+	if (card.get("arena") == "space") != ships:
+		return false
+	if factory == "frigates":
+		return "frigate" in traits or "frigate" in card["name"].to_lower()
+	return FACTORY_TRAITS.get(factory, "") in traits
 
 
 func available_milestone(faction: int) -> int:
@@ -301,7 +433,54 @@ func available_milestone(faction: int) -> int:
 
 func eligible_commanders(faction: int, world: String) -> Array:
 	var existing := fleets(faction).map(func(task): return lib.get_card(task["leader"]).get("name", ""))
+	existing.append_array(state["factions"][faction].get("retired_leaders", []))
+	for delivery in state["shipments"]:
+		if int(delivery["faction"]) == faction and delivery.has("leader"):
+			existing.append(lib.get_card(delivery["leader"]).get("name", ""))
 	return GALAXY.leader_variants(lib, faction, world).filter(func(id): return not lib.get_card(id)["name"] in existing)
+
+
+func _retire_leader(faction: int, leader: String) -> void:
+	var side: Dictionary = state["factions"][faction]
+	var retired: Array = side.get("retired_leaders", [])
+	var name: String = lib.get_card(leader).get("name", "")
+	if not name.is_empty() and not name in retired:
+		retired.append(name)
+	side["retired_leaders"] = retired
+
+
+func can_send_replacement(faction: int, origin: String, index: int) -> bool:
+	var task := fleet(faction, index)
+	if not _can_manage(faction, origin) or not idle(task) or task["leader_alive"]:
+		return false
+	if int(state["factions"][faction]["credits"]) < price("commission") or eligible_commanders(faction, origin).is_empty():
+		return false
+	if state["shipments"].any(func(delivery): return delivery.has("leader") and int(delivery["faction"]) == faction and int(delivery["fleet"]) == index):
+		return false
+	return origin == task["world"] or not path(faction, origin, task["world"], true).is_empty()
+
+
+func send_replacement(faction: int, origin: String, index: int, leader: String) -> bool:
+	if not can_send_replacement(faction, origin, index) or not leader in eligible_commanders(faction, origin):
+		return false
+	var task := fleet(faction, index)
+	var side: Dictionary = state["factions"][faction]
+	side["credits"] = int(side["credits"]) - price("commission")
+	var delivery := {"faction": faction, "fleet": index, "world": origin, "leader": leader,
+		"route": path(faction, origin, task["world"], true)}
+	if delivery["route"].is_empty():
+		_assign_commander(task, leader)
+	else:
+		_depart(delivery)
+		state["shipments"].append(delivery)
+	return true
+
+
+func _assign_commander(task: Dictionary, leader: String) -> void:
+	task["leader"] = leader
+	task["leader_alive"] = true
+	task["command_damage"] = 0
+	task["recovery"] = 0.0
 
 
 func build_commander(faction: int, world: String, leader: String) -> bool:
@@ -403,6 +582,45 @@ func _deliver(shipment: Dictionary) -> void:
 	state["shipments"].erase(shipment)
 
 
+func _move_replacement(delivery: Dictionary) -> bool:
+	var faction := int(delivery["faction"])
+	var task := fleet(faction, int(delivery["fleet"]))
+	var origin: String = delivery["world"]
+	if int(state["worlds"][origin]["owner"]) != faction:
+		var refuge := _retreat_route(faction, origin)
+		if refuge.is_empty():
+			state["shipments"].erase(delivery)
+			return true
+		origin = refuge.back()
+		delivery["world"] = origin
+		delivery["route"] = []
+	if not delivery["route"].is_empty():
+		var next: String = delivery["route"][0]
+		if _contested(next):
+			return false
+		delivery["route"].clear()
+		if int(state["worlds"][next]["owner"]) == faction:
+			origin = next
+			delivery["world"] = origin
+	if task["leader_alive"] or task["world"].is_empty():
+		state["factions"][faction]["credits"] = int(state["factions"][faction]["credits"]) + price("commission")
+		state["shipments"].erase(delivery)
+		return true
+	if not idle(task):
+		return false
+	if origin == task["world"] and not _contested(origin):
+		_assign_commander(task, delivery["leader"])
+		state["shipments"].erase(delivery)
+		return true
+	delivery["route"] = path(faction, origin, task["world"], true)
+	if delivery["route"].is_empty():
+		state["factions"][faction]["credits"] = int(state["factions"][faction]["credits"]) + price("commission")
+		state["shipments"].erase(delivery)
+		return true
+	_depart(delivery)
+	return true
+
+
 func _contested(world: String) -> bool:
 	return state["battles"].values().any(func(battle): return battle["world"] == world)
 
@@ -423,13 +641,26 @@ func tick(delta: float) -> bool:
 	for faction in GALAXY.FACTIONS.size():
 		for index in fleets(faction).size():
 			var task := fleet(faction, index)
+			if task["leader_alive"] and task["engagement"].is_empty() and int(task["command_damage"]) > 0:
+				task["recovery"] = float(task["recovery"]) + delta
+				var intervals := floori(float(task["recovery"]) / RECOVERY_PERIOD)
+				if intervals > 0:
+					task["command_damage"] = maxi(0, int(task["command_damage"]) - intervals * RECOVERY_HP)
+					task["recovery"] = fmod(float(task["recovery"]), RECOVERY_PERIOD)
+					changed = true
 			if task["route"].is_empty() or float(task["arrival"]) > float(state["time"]):
 				continue
 			var next: String = task["route"][0]
 			if _contested(next):
 				continue
 			task["route"].pop_front()
-			if int(state["worlds"][next]["owner"]) != faction:
+			if task["retreating"]:
+				task["world"] = next
+				if task["route"].is_empty():
+					_retreat(faction, task, next)
+				else:
+					_depart(task)
+			elif int(state["worlds"][next]["owner"]) != faction:
 				task["route"].clear()
 				_begin_battle(faction, next, index)
 			else:
@@ -439,6 +670,9 @@ func tick(delta: float) -> bool:
 			changed = true
 	for shipment in state["shipments"].duplicate():
 		if float(shipment["arrival"]) > float(state["time"]):
+			continue
+		if shipment.has("leader"):
+			changed = _move_replacement(shipment) or changed
 			continue
 		if _contested(shipment["route"][0]):
 			continue
@@ -484,6 +718,39 @@ func _owned_world(faction: int) -> String:
 	return ""
 
 
+func _retreat_route(faction: int, origin: String) -> Array:
+	var pending := [origin]
+	var costs := {origin: 0.0}
+	var previous := {}
+	while not pending.is_empty():
+		pending.sort_custom(func(a, b): return costs[a] < costs[b])
+		var from: String = pending.pop_front()
+		if int(state["worlds"][from]["owner"]) == faction:
+			var route := []
+			while from != origin:
+				route.push_front(from)
+				from = previous[from]
+			return route
+		for next in neighbors(from):
+			var cost := float(costs[from]) + travel_duration(from, next)
+			if cost < float(costs.get(next, INF)):
+				costs[next] = cost
+				previous[next] = from
+				if not next in pending:
+					pending.append(next)
+	return []
+
+
+func _retreat(faction: int, task: Dictionary, from: String) -> void:
+	task["route"] = _retreat_route(faction, from)
+	task["retreating"] = not task["route"].is_empty()
+	if task["retreating"]:
+		task["world"] = from
+		_depart(task)
+	else:
+		task["world"] = from if int(state["worlds"][from]["owner"]) == faction else ""
+
+
 func _bot_order(faction: int, index: int) -> void:
 	var task := fleet(faction, index)
 	if task["world"].is_empty():
@@ -498,6 +765,12 @@ func _bot_order(faction: int, index: int) -> void:
 	if not idle(task):
 		return
 	var origin: String = task["world"]
+	if not task["leader_alive"]:
+		for world in state["worlds"]:
+			if can_send_replacement(faction, world, index):
+				send_replacement(faction, world, index, eligible_commanders(faction, world)[0])
+				break
+		return
 	if int(state["worlds"][origin]["owner"]) == faction and task["cards"].size() < 18:
 		var reserve: Array = state["worlds"][origin]["cards"]
 		if reserve.size() < 8:
@@ -505,6 +778,8 @@ func _bot_order(faction: int, index: int) -> void:
 			buy(faction, origin, "troops")
 			buy(faction, origin, "produce")
 		transfer(faction, origin, reserve.slice(0, mini(18 - task["cards"].size(), maxi(0, reserve.size() - 3))), index)
+	if int(task["command_damage"]) >= RECOVERY_HP:
+		return
 	var goal := ""
 	var best := INF
 	for world in state["worlds"]:
@@ -544,6 +819,8 @@ func _begin_battle(attacker: int, world: String, index := 0) -> void:
 
 
 func player_battle() -> String:
+	if state["status"] != "active":
+		return ""
 	for key in state["battles"]:
 		var battle: Dictionary = state["battles"][key]
 		if int(state["player"]) in [int(battle["attacker"]), int(battle["defender"])]:
@@ -564,37 +841,49 @@ func battle_config(key: String, human: bool) -> Dictionary:
 	if orbit:
 		attack_cards = attack_cards.filter(func(id):
 			var card := lib.get_card(id)
-			return card.get("arena") == "space" or card.has("pilot"))
-	var attacker_spec := _battle_side(attacker, attack_cards, assault, 20)
+			return card.get("arena") == "space" or card.has("pilot") or card.get("type") != "unit")
+	var attacker_spec := _battle_side(attacker, attack_cards, assault, 20, orbit)
 	var defender_hp := 20 if battle["fleet_defense"] or orbit else (18 if "garrison" in planet["facilities"] else 12)
-	if "fortification" in planet["facilities"]:
-		defender_hp += 6
-	var defender_spec := _battle_side(defender, defense_cards, defending, defender_hp)
+	var defender_spec := _battle_side(defender, defense_cards, defending, defender_hp, orbit)
+	defender_spec["command_shields"] += int("fortification" in planet["facilities"])
 	var human_is_defender := human and defender == int(state["player"])
 	var players := [defender_spec, attacker_spec] if human_is_defender else [attacker_spec, defender_spec]
 	players[0]["ai"] = not human
-	var rules := RuleSet.campaign()
+	var rules := RuleSet.new()
 	rules.name = "conquest"
+	rules.aspect_penalties = false
+	rules.hero_villain_gate = false
 	rules.starting_hand = 4
 	rules.allow_mulligan = false
 	rules.deck_out_damage = 2
 	if orbit:
 		rules.arenas = ["space"]
 	return {"rules": rules, "players": players, "seed": int(battle["seed"]),
-		"first": 1 if human_is_defender else 0, "track_roster_losses": true}
+		"first": 1 if human_is_defender else 0, "track_roster_losses": true, "objective": {"type": "conquest"}}
 
 
-func _battle_side(faction: int, cards: Array, task: Dictionary, hp: int) -> Dictionary:
+func _battle_side(faction: int, cards: Array, task: Dictionary, local_hp: int, orbit: bool) -> Dictionary:
 	var side: Dictionary = GALAXY.FACTIONS[faction] if faction >= 0 else {}
-	var leader := ""
-	if task.get("leader_alive", false):
-		leader = task["leader"]
-	return {"name": side.get("name", "Local militia"), "leader": leader, "base": side.get("base", "SOR_025"),
-		"deck": cards.duplicate(), "ai": true, "base_hp": hp, "profile": "defensive" if task.is_empty() else "tempo"}
+	var leader: String = task["leader"] if task.get("leader_alive", false) else ""
+	var training: Dictionary = task.get("training", {})
+	var queue := cards.duplicate()
+	var preplaced := []
+	var opening: String = training.get("opening", "")
+	if opening in queue and (not orbit or lib.get_card(opening).get("arena") == "space"):
+		queue.erase(opening)
+		preplaced.append({"id": opening, "roster": true, "ready": true})
+	return {"name": side.get("name", "Local militia"), "leader": leader, "deck": queue, "ai": true,
+		"command_name": lib.get_card(leader).get("name", "Local command" if task.is_empty() else "Acting command"),
+		"command_hp": local_hp if leader.is_empty() else command_max_hp(task),
+		"base_damage": 0 if leader.is_empty() else int(task["command_damage"]),
+		"command_shields": 0 if leader.is_empty() else int(training.get("command_shield", 0)),
+		"extra_resources": int(training.get("resources", 0)), "card_upgrades": training.get("units", {}),
+		"training_equipment": training.get("equipment", {}),
+		"preplaced": preplaced, "profile": "defensive" if task.is_empty() else "tempo"}
 
 
 func finish_battle(key: String, match_game: Match, human: bool) -> Dictionary:
-	if not state["battles"].has(key) or match_game.winner < 0:
+	if state["status"] != "active" or not state["battles"].has(key) or match_game.winner < 0:
 		return {}
 	var battle: Dictionary = state["battles"][key]
 	var attacker := int(battle["attacker"])
@@ -606,17 +895,21 @@ func finish_battle(key: String, match_game: Match, human: bool) -> Dictionary:
 	var defense := fleet(defender, int(battle.get("defense_index", 0))) if battle["fleet_defense"] else planet
 	_apply_losses(attacker_fleet, match_game, attacker_side)
 	_apply_losses(defense, match_game, 1 - attacker_side, "orbital_cards" if battle.get("orbital", false) else "cards")
+	_update_command(attacker, attacker_fleet, match_game, attacker_side)
+	if battle["fleet_defense"]:
+		_update_command(defender, defense, match_game, 1 - attacker_side)
 	var captured := match_game.winner == attacker_side
 	var victor := attacker if captured else (defender if match_game.winner == 1 - attacker_side else -1)
 	if captured:
 		planet["owner"] = attacker
-		var refuge := _owned_world(defender) if defender >= 0 else ""
+		var retreat := _retreat_route(defender, world) if defender >= 0 else []
+		var refuge: String = retreat.back() if not retreat.is_empty() else ""
 		if battle["fleet_defense"]:
-			defense["world"] = refuge
+			_retreat(defender, defense, world)
 		if defender >= 0:
 			for task in fleets(defender):
 				if idle(task) and task["world"] == world:
-					task["world"] = refuge
+					_retreat(defender, task, world)
 		if not refuge.is_empty():
 			state["worlds"][refuge]["cards"].append_array(planet["cards"] + planet["orbital_cards"])
 		planet["cards"] = []
@@ -624,8 +917,8 @@ func finish_battle(key: String, match_game: Match, human: bool) -> Dictionary:
 		planet["facilities"] = []
 		planet["probes"] = 0
 		attacker_fleet["world"] = world
-	elif int(state["worlds"][attacker_fleet["world"]]["owner"]) != attacker:
-		attacker_fleet["world"] = _owned_world(attacker)
+	elif not attacker_fleet["leader_alive"] or int(state["worlds"][attacker_fleet["world"]]["owner"]) != attacker:
+		_retreat(attacker, attacker_fleet, world)
 	if victor >= 0:
 		var side: Dictionary = state["factions"][victor]
 		side["credits"] = int(side["credits"]) + WIN_REWARD
@@ -634,14 +927,20 @@ func finish_battle(key: String, match_game: Match, human: bool) -> Dictionary:
 		rival["next_order"] = maxf(float(rival["next_order"]), float(state["time"]) + BOT_REBUILD_TIME)
 	for task in [attacker_fleet, defense] if battle["fleet_defense"] else [attacker_fleet]:
 		task["engagement"] = ""
-		if task["cards"].is_empty():
+		if task["cards"].is_empty() and not task["leader_alive"]:
 			task["world"] = ""
+			task["route"].clear()
+			task["retreating"] = false
 	state["battles"].erase(key)
 	var player := int(state["player"])
 	var losses: int = match_game.roster_losses[0].size() if human else 0
-	var reply := {"world": world, "captured": captured, "losses": losses, "credits": WIN_REWARD if victor == player else 0}
+	var leader_lost: bool = human and match_game.roster_leader_lost[0]
+	var reply := {"world": world, "captured": captured, "losses": losses, "leader_lost": leader_lost,
+		"credits": WIN_REWARD if victor == player else 0}
 	if human:
 		state["report"] = "%s · %d cards lost%s" % [world, losses, " · +%d credits" % reply["credits"] if reply["credits"] else ""]
+		if leader_lost:
+			state["report"] += " · Commander lost"
 	var held: int = state["worlds"].values().filter(func(site): return int(site["owner"]) == player).size()
 	if held == state["worlds"].size():
 		state["status"] = "won"
@@ -653,5 +952,14 @@ func finish_battle(key: String, match_game: Match, human: bool) -> Dictionary:
 func _apply_losses(force: Dictionary, match_game: Match, side: int, roster := "cards") -> void:
 	for id in match_game.roster_losses[side]:
 		force[roster].erase(id)
-	if force.has("leader_alive") and match_game.roster_leader_lost[side]:
-		force["leader_alive"] = false
+
+
+func _update_command(faction: int, task: Dictionary, match_game: Match, side: int) -> void:
+	if match_game.roster_leader_lost[side]:
+		_retire_leader(faction, task["leader"])
+		task["leader_alive"] = false
+	task["command_damage"] = maxi(0, match_game.players[side].base.damage) if task["leader_alive"] else 0
+	task["recovery"] = 0.0
+	var opening: String = task["training"].get("opening", "")
+	if not opening in task["cards"]:
+		task["training"].erase("opening")

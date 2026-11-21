@@ -41,7 +41,10 @@ func _ready() -> void:
 	base_view = BaseView.new()
 	base_view.friendly = friendly
 	base_view.pressed.connect(func(): base_pressed.emit(self))
-	base_view.inspect.connect(func(): inspect.emit(_ps.base.id, base_view.get_global_rect(), _ps.base))
+	base_view.inspect.connect(func():
+		var subject := _ps.leader if _ps.base.data.get("conquest_command", false) else _ps.base
+		if subject:
+			inspect.emit(subject.id, base_view.get_global_rect(), subject))
 	add_child(base_view)
 	fortification_tab = Button.new()
 	fortification_tab.hide()
@@ -177,9 +180,10 @@ class BaseView extends Control:
 	func set_base(b: CardInst) -> void:
 		inst = b
 		var art: String = b.data.get("art", b.id)
-		var t := Art.request(art, func(tx): _tex = tx; queue_redraw())
-		if t:
-			_tex = t
+		if not b.data.get("conquest_command", false):
+			var t := Art.request(art, func(tx): _tex = tx; queue_redraw())
+			if t:
+				_tex = t
 		_shown_hp = b.remaining_hp()
 
 	func _process(dt: float) -> void:
@@ -256,6 +260,8 @@ class BaseView extends Control:
 		# name gets only the space to the right of the HP readout
 		var name_x := 24.0 + hp_w + max_w
 		var nm: String = inst.data.get("name", "")
+		if inst.command_shields > 0:
+			nm += " · %d SH" % inst.command_shields
 		UIKit.draw_fit(self, Sabacc.font_title, Vector2(name_x, r.size.y - 22), nm.to_upper(), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - name_x - 8, int(clampf(r.size.y * 0.16, 12, 20)), Sabacc.C_TEXT)
 		_light_overlay()
 

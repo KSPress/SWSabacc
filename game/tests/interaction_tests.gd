@@ -228,6 +228,8 @@ func _test_conquest() -> void:
 	check(match_screen.params.get("mode") == "conquest" and match_screen.m.players[1].leader == null,
 		"Militia battle opens in the actual match scene with a leaderless defender")
 	check(match_screen.params.get("battle_world") == "Mandalore", "Battle loads the selected planet backdrop")
+	check(match_screen.m.players[0].base.max_hp() == 30 and match_screen.m.players[0].base.name() == "Luke Skywalker",
+		"The match HUD uses 30 HP command instead of a base card")
 	await _shot("conquest-battle-background")
 	match_screen.m.set_winner(0, "Conquest smoke test")
 	match_screen._game_over()
@@ -249,6 +251,28 @@ func _test_conquest() -> void:
 			await _wait(0.2)
 		await _click(garrison)
 	check("garrison" in Conquest.run.state["worlds"]["Mandalore"]["facilities"], "Garrison build persists through the real UI")
+	Conquest.run.state["factions"][1]["credits"] = 300
+	Conquest.persist()
+	var training_center := _button(screen, "Build training center")
+	check(training_center != null and not training_center.disabled, "Planet production offers a Training Center")
+	if training_center:
+		var training_scroll: Node = training_center
+		while training_scroll and not training_scroll is ScrollContainer:
+			training_scroll = training_scroll.get_parent()
+		if training_scroll:
+			training_scroll.ensure_control_visible(training_center)
+			await _wait(0.2)
+		await _click(training_center)
+	var training_button := _button(screen, "Train selected fleet")
+	check(training_button != null and not training_button.disabled, "Stationed fleets can use the Training Center")
+	if training_button:
+		await _click(training_button)
+		var health := _button(screen, "Command endurance")
+		check(health != null and not health.disabled, "The Training Center offers command endurance")
+		if health:
+			await _click(health)
+	check(Conquest.run.command_max_hp(Conquest.run.fleet(1)) == 35, "A UI training purchase adds five command HP")
+	await _shot("conquest-training")
 	check(Conquest.save_slot(1, "Mandalore captured"), "Write a named slot")
 	check(Conquest.save_slot(1, "Mandalore checkpoint"), "Overwrite a named slot")
 	Conquest.run.state["worlds"]["Mandalore"]["owner"] = -1

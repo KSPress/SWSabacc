@@ -25,10 +25,52 @@ const WORLDS := {
 
 const SPECIALTIES := {
 	"Geonosis": "separatist", "Kamino": "clone", "Mandalore": "mandalorian",
-	"Kuat": "imperial", "Kessel": "underworld", "Dathomir": "nightsister",
+	"Tatooine": "tusken", "Kashyyyk": "wookiee", "Kuat": "imperial", "Kessel": "underworld", "Dathomir": "night",
 }
 
-const LOCAL_LEADERS := {"Mandalore": "mandalorian", "Geonosis": "separatist", "Kamino": "clone"}
+const NATIVE_RECRUITS := {
+	"Tatooine": {"native_tusken": "Tusken Raiders", "native_jawa": "Jawas and sandcrawlers"},
+	"Kashyyyk": {"native_wookiee": "Wookiees", "native_wookiee_vehicle": "Wookiee vehicles"},
+	"Geonosis": {"native_battle_droid": "Separatist battle droids"},
+	"Kamino": {"native_clone": "Clone veterans", "native_republic_vehicle": "Republic vehicles"},
+}
+
+# Additional commanders are curated by printing. Traits alone also include
+# Republic generals, pre-war rulers, and post-Endor remnant commanders.
+const ERA_COMMANDERS := [
+	["SOR_001", "SOR_002", "SOR_006", "SOR_007", "SOR_011", "SOR_016", "LAW_008", "LOF_014",
+		"SEC_006", "SEC_010", "SEC_011", "SEC_014", "JTL_002", "JTL_005", "HMW_004", "SHD_001"],
+	["SOR_008", "SOR_009", "SOR_013", "SOR_014", "SOR_018", "LOF_004", "LAW_001", "LAW_005",
+		"LAW_006", "LAW_009", "LAW_010", "JTL_003", "JTL_008", "JTL_016", "JTL_017", "SEC_012",
+		"SEC_013", "SEC_015", "HMW_009", "IBH_001"],
+	["SOR_003", "SOR_012", "SOR_015", "SOR_017", "LAW_007", "LAW_013", "LAW_014", "LAW_017",
+		"LAW_018", "SHD_005", "SHD_010", "SHD_013", "SHD_015", "SHD_017", "JTL_009", "JTL_015", "SEC_007", "HMW_015"],
+]
+const LOCAL_COMMANDERS := {
+	"Tatooine": ["HMW_018"], "Kashyyyk": ["HMW_009", "SOR_003", "LAW_013", "HMW_010"],
+	"Mandalore": ["SOR_014", "SHD_001"], "Geonosis": ["KYB_005"], "Kamino": ["TS26_006"],
+}
+const LATER_OR_EARLIER_TRAITS := ["first order", "resistance", "new republic", "high republic", "old republic", "sith eternal"]
+const ERA_NAMED_UNITS := [
+	"0-0-0", "2-1B Surgical Droid", "4-LOM", "A'Koba", "Admiral Ackbar", "Admiral Motti", "Admiral Ozzel",
+	"Admiral Piett", "Alexsandr Kallus", "Bail Organa", "Ben Kenobi", "Bib Fortuna", "Biggs Darklighter",
+	"Boba Fett", "Bodhi Rook", "Bossk", "BT-1", "C-3PO", "Cassian Andor", "Cham Syndulla", "Chewbacca",
+	"Chirrut Îmwe", "Chopper", "Colonel Yularen", "Crix Madine", "Darth Vader", "Dedra Meero", "Dengar",
+	"Director Krennic", "Doctor Aphra", "Dryden Vos", "Eighth Brother", "Emperor Palpatine", "Enfys Nest",
+	"Ezra Bridger", "Fenn Rau", "Fifth Brother", "Gar Saxon", "General Dodonna", "General Draven",
+	"General Rieekan", "General Tagge", "General Veers", "Grand Admiral Thrawn", "Grand Inquisitor",
+	"Grand Moff Tarkin", "Greedo", "Han Solo", "Hera Syndulla", "Highsinger", "Hondo Ohnaka", "IG-88",
+	"Iden Versio", "Jabba the Hutt", "Jyn Erso", "K-2SO", "K-2S0", "Kanan Jarrus", "Ketsu Onyo",
+	"King Grakchawwaa", "Krrsantan", "L3-37", "Lando Calrissian", "Leia Organa", "Lieutenant Childsen",
+	"Luke Skywalker", "Luthen Rael", "Major Partagaz", "Mas Amedda", "Max Rebo", "Moff Jerjerrod",
+	"Mon Mothma", "Owen Lars", "Qi'ra", "R2-D2", "R5-D4", "Rex", "Rio Durant", "Ryder Azadi",
+	"Sabine Wren", "Salacious Crumb", "Saw Gerrera", "Seventh Sister", "Sly Moore", "Syril Karn",
+	"Tarfful", "Teeka", "The Chieftain", "Third Sister", "Tobias Beckett", "Urrr'k", "Vaneé", "Vel Sartha",
+	"Wedge Antilles", "Wicket", "Wolffe", "Yanna", "Zeb Orrelios",
+]
+const ERA_EXCLUDED_PRINTS := [
+	"HMW_225", "TWI_211", "ASH_033", "ASH_060", "ASH_158",
+]
 const HOME_NAMES := {"Yavin": "Yavin 4"}
 
 
@@ -38,22 +80,46 @@ static func display_name(world: String) -> String:
 
 static func leader_variants(lib: CardLibrary, faction: int, world := "", starters := false) -> Array:
 	var original := lib.get_card(FACTIONS[faction]["leader"])
-	var local: String = LOCAL_LEADERS.get(world, "")
+	var local: Array = LOCAL_COMMANDERS.get(world, [])
 	var found := []
 	for id in lib.cards:
 		var card := lib.get_card(id)
-		if card.get("type") != "leader" or card.get("custom", false):
+		if card.get("type") != "leader":
 			continue
-		var traits: Array = card.get("traits", [])
-		var eligible: bool = card["name"] == original["name"]
+		var eligible: bool = not card.get("custom", false) and card["name"] == original["name"]
 		if not starters:
-			eligible = eligible or FACTIONS[faction]["trait"] in traits or (not local.is_empty() and local in traits)
+			eligible = eligible or id in ERA_COMMANDERS[faction] or id in local
 		if eligible:
 			found.append(id)
 	found.sort_custom(func(a, b):
 		return "%s %s" % [lib.get_card(a)["name"], lib.get_card(a).get("subtitle", "")] \
 			< "%s %s" % [lib.get_card(b)["name"], lib.get_card(b).get("subtitle", "")])
 	return found
+
+
+static func era_unit(card: Dictionary) -> bool:
+	if card.get("type") != "unit" or card["id"] in ERA_EXCLUDED_PRINTS:
+		return false
+	var traits: Array = card["traits"]
+	if traits.any(func(tag): return tag in LATER_OR_EARLIER_TRAITS):
+		return false
+	# Unnamed troops, ships and droids may be in service after their original war.
+	if not card.get("unique", false) or card.get("subtitle", "").is_empty():
+		return true
+	return card["name"] in ERA_NAMED_UNITS or card["id"] in ["TWI_085", "TWI_097", "SEC_048", "IC27_041"]
+
+
+static func native_match(card: Dictionary, roster: String) -> bool:
+	var traits: Array = card["traits"]
+	match roster:
+		"native_tusken": return "tusken" in traits
+		"native_jawa": return "jawa" in traits or card["id"] == "LAW_238"
+		"native_wookiee": return "wookiee" in traits
+		"native_wookiee_vehicle": return card["id"] in ["HMW_093", "SOR_195"]
+		"native_battle_droid": return "droid" in traits and "separatist" in traits
+		"native_clone": return "clone" in traits and "trooper" in traits and not "imperial" in traits
+		"native_republic_vehicle": return "republic" in traits and "vehicle" in traits
+	return false
 
 # Long routes connect through intervening junctions on the map.
 const LANES := [

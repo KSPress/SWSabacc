@@ -11,6 +11,8 @@ var controller := 0
 var zone := "deck"          # deck hand discard resource ground space base leader upgrade removed
 var exhausted := false
 var damage := 0
+var command_hp := 0         # Conquest leaders share this fixed HP pool with their command target.
+var command_shields := 0
 var upgrades: Array = []    # CardInst attached to this unit
 # The unit owns its upgrades. A strong reference back to the unit forms a
 # RefCounted cycle and leaks the whole attachment group after every match.
@@ -330,6 +332,8 @@ func _attack_power_modifier(defender: CardInst) -> int:
 
 
 func max_hp() -> int:
+	if command_hp > 0:
+		return command_hp
 	var h := printed_hp()
 	h += _continuous("h")
 	for u in upgrades:

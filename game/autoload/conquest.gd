@@ -67,7 +67,7 @@ func persist() -> void:
 
 
 func play_battle(key: String) -> void:
-	if not run or not run.state["battles"].has(key):
+	if not run or run.state["status"] != "active" or not run.state["battles"].has(key):
 		return
 	var battle: Dictionary = run.state["battles"][key]
 	var world: String = battle["world"]

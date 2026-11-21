@@ -7,11 +7,17 @@ var lib := CardLibrary.new()
 
 func _init() -> void:
 	lib.load_file("res://ip/data/cards.json")
+	lib.load_file("res://data/custom_cards.json", true)
 	var successes := 0
+	var attempted := 0
+	var sizes := OS.get_cmdline_user_args()
 	for scenario in [[8, 2, 119, "SEC_002"], [16, 1, 72, "JTL_012"], [32, 0, 85, "JTL_006"]]:
+		if not sizes.is_empty() and not str(scenario[0]) in sizes:
+			continue
 		successes += int(play(scenario[0], scenario[1], scenario[2], scenario[3]))
-	print("FULL CONQUEST: %d/3 campaigns reached victory" % successes)
-	quit(0 if successes == 3 else 1)
+		attempted += 1
+	print("FULL CONQUEST: %d/%d campaigns reached victory" % [successes, attempted])
+	quit(0 if attempted > 0 and successes == attempted else 1)
 
 
 func play(size: int, player: int, seed_value: int, leader: String) -> bool:
@@ -29,6 +35,8 @@ func play(size: int, player: int, seed_value: int, leader: String) -> bool:
 		run.tick(1)
 		income_intervals += int(float(run.state["next_income"]) > old_income)
 		for key in run.state["battles"].keys():
+			if run.state["status"] != "active":
+				break
 			var encounter: Dictionary = run.state["battles"][key]
 			var human := player in [int(encounter["attacker"]), int(encounter["defender"])]
 			var config := run.battle_config(key, human)
@@ -79,6 +87,13 @@ func owned(run: ConquestRun, player: int) -> Array:
 func give_orders(run: ConquestRun, player: int) -> void:
 	var planets := owned(run, player)
 	var fleets := run.fleets(player)
+	var threatened := []
+	for faction in ConquestGalaxy.FACTIONS.size():
+		if faction == player:
+			continue
+		for rival in run.fleets(faction):
+			if not rival["route"].is_empty() and rival["route"].back() in planets:
+				threatened.append(rival["route"].back())
 	for world in planets:
 		if not run.available_milestone(player):
 			break
@@ -99,7 +114,13 @@ func give_orders(run: ConquestRun, player: int) -> void:
 		if origin in planets:
 			var site: Dictionary = run.state["worlds"][origin]
 			run.buy(player, origin, "garrison")
-			run.buy(player, origin, "fighters")
+			run.buy(player, origin, "training")
+			if not fleet["leader_alive"]:
+				for source in planets:
+					if run.can_send_replacement(player, source, index):
+						run.send_replacement(player, source, index, run.eligible_commanders(player, source)[0])
+						break
+				continue
 			var ships: int = fleet["cards"].filter(func(id): return lib.get_card(id).get("arena") == "space").size()
 			if ships < 9:
 				run.buy(player, origin, "produce")
@@ -108,6 +129,28 @@ func give_orders(run: ConquestRun, player: int) -> void:
 			var take_count := mini(ConquestRun.FLEET_LIMIT - int(fleet["cards"].size()), maxi(0, int(site["cards"].size()) - 6))
 			var take: Array = site["cards"].slice(0, take_count)
 			run.transfer(player, origin, take, index)
+			var best_unit := ""
+			for id in fleet["cards"]:
+				var card := lib.get_card(id)
+				if card.get("type") == "unit" and (best_unit.is_empty() or int(card["cost"]) > int(lib.get_card(best_unit)["cost"])):
+					best_unit = id
+			run.train(player, origin, index, "opening", best_unit)
+			run.train(player, origin, index, "health")
+			run.train(player, origin, index, "command_shield")
+			run.train(player, origin, index, "resources")
+			if int(fleet["command_damage"]) >= 10:
+				continue
+		if origin in threatened:
+			continue
+		var reinforce := false
+		for target in threatened:
+			var route := run.path(player, origin, target, true)
+			if route.size() == 1 and run._defender_index(player, target) < 0:
+				reinforce = run.order(player, target, index)
+				if reinforce:
+					break
+		if reinforce:
+			continue
 		var goal := ""
 		var best := INF
 		for name in run.state["worlds"]:
