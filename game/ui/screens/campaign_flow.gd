@@ -21,9 +21,23 @@ static func chapter_unlocked(chapter: Dictionary) -> bool:
 	return false
 
 
-static func start_run(chapter: Dictionary, leader: String) -> void:
+static func eligible_leaders(chapter: Dictionary) -> Array:
+	var options: Array = chapter.get("leader_options", []).duplicate()
+	var chapters: Array = episode_data(int(chapter["episode"])).get("chapters", [])
+	if chapters.size() == 3 and chapters.all(func(entry): return Save.is_cleared(entry["id"])):
+		for id in Progression.owned_ids():
+			var data := CardDB.card(id)
+			if data.get("type") == "leader" and id not in options and (
+				not chapter.get("deploy_leader_at_start", false) or int(data.get("leader_unit", {}).get("hp", 0)) > 0):
+				options.append(id)
+	return options
+
+
+static func start_run(chapter: Dictionary, leader: String, support := "") -> void:
 	var previous := Save.run()
 	var run := CampaignRun.start(chapter, leader, randi())
+	if not support.is_empty():
+		run["support_leader"] = support
 	if can_continue(previous, chapter["id"]):
 		for key in ["credits", "consecutive_clears", "starts_at_chapter_one", "reward_id", "card_upgrades"]:
 			if previous.has(key):
@@ -77,15 +91,16 @@ static func start_node(chapter: Dictionary, node: Dictionary) -> void:
 	Router.go("match", {
 		"mode": "campaign", "cfg": cfg, "theme": theme, "title": node.get("title", "Battle"),
 		"chapter_id": chapter["id"], "node_id": node["id"], "run_id": run.get("reward_id", ""),
-		"arena_names": node.get("arena_names", {}),
+		"arena_names": node.get("arena_names", chapter.get("arena_names", {})),
+		"reveal_enemy_hand": run.get("revealed_hand", false),
 	})
 
 
 ## Called once when a campaign match ends. Mutates and saves the run.
 static func on_match_end(params: Dictionary, m: Match) -> Dictionary:
-	var chapter := CardDB.chapter(params["chapter_id"])
-	var node := CampaignRun.node_by_id(chapter, params["node_id"])
 	var run := Save.run()
+	var chapter := CampaignRun.route(CardDB.chapter(params["chapter_id"]), run)
+	var node := CampaignRun.node_by_id(chapter, params["node_id"])
 	var won := m.winner == 0
 	var res := {"won": won, "chapter_id": params["chapter_id"], "node_id": params["node_id"], "boss": node.get("type", "") == "boss"}
 	if run.get("chapter") != chapter["id"] or run.get("status") != "active" or node.is_empty() \
@@ -94,6 +109,9 @@ static func on_match_end(params: Dictionary, m: Match) -> Dictionary:
 	if params.get("run_id", run.get("reward_id", "")) != run.get("reward_id", ""):
 		return res
 	run["fights"] = int(run.get("fights", 0)) + 1
+	run.erase("next_enemy_card")
+	run.erase("pending_event_battle")
+	run["disabled_battles"] = maxi(0, int(run.get("disabled_battles", 0)) - 1)
 	run["credits"] = int(run.get("credits", 0)) + Progression.RUN_BATTLE
 	res["run_credits"] = Progression.RUN_BATTLE
 	if won:

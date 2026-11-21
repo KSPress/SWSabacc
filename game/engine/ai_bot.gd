@@ -88,10 +88,10 @@ static func score_action(m: Match, p: int, a: Dictionary) -> float:
 			var pilot := m.card(a["uid"])
 			var data: Dictionary = pilot.data["pilot"]
 			return 2.5 + int(data["power"]) * 0.8 + int(data["hp"]) * 0.65
-		"play", "smuggle":
+		"play", "smuggle", "play_alt":
 			var c := m.card(a["uid"])
 			var cost := m.play_cost(p, c, a["a"] == "smuggle")
-			var s := 2.0 + cost * 0.9
+			var s := 2.0 + (0.0 if a["a"] == "play_alt" else cost * 0.9)
 			match c.card_type():
 				"unit":
 					s += c.printed_power() * 0.4 + c.printed_hp() * 0.3 + c.keyword_list().size() * 0.4

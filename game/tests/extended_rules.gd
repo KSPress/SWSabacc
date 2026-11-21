@@ -79,6 +79,11 @@ func _init() -> void:
 	test_spotlight_rules()
 	test_campaign_redesign()
 	test_death_star_saga()
+	test_saga_choice_and_leader_state()
+	run_card_case(test_death_star_chewbacca, ["SOR_003", "SOR_196"])
+	test_cantina_war()
+	test_campaign_rule_fixes()
+	run_card_case(test_additional_campaign_rules, ["ASH_229", "HMW_180", "LAW_088", "LAW_200", "LOF_197", "LOF_222", "SHD_017", "SOR_088", "SOR_199", "SOR_234"])
 	print("EXTENDED RULES: %d passed, %d failed" % [passes, failures])
 	quit(1 if failures else 0)
 
@@ -198,13 +203,18 @@ func test_death_star_saga() -> void:
 		granted.append("background:" + background)
 	check(CampaignRun.remaining_background(started, chapter, granted).is_empty(), "Completed background pools do not give duplicates")
 
-	for route in ["armory", "droid_reprocessing", "isb_interrogation", "rescue_rebels", "rescue_scum"]:
+	for route in ["rescue_choices", "isb_choices"]:
 		var node := CampaignRun.node_by_id(chapter, route)
-		var effect: Dictionary = node["event"]["choices"][0]["effect"]
-		var run := started.duplicate(true)
-		CampaignRun.apply_effect(run, chapter, effect)
-		check(run["deck"].size() == 20 + effect["add_cards"].size() and effect["add_cards"].size() in [5, 6]
-			and effect["add_cards"].all(func(id): return lib.has(id)), "The %s route recruits all five or six supplied cards" % route)
+		for choice in node["event"]["choices"]:
+			var effect: Dictionary = choice["effect"]
+			var run := started.duplicate(true)
+			CampaignRun.apply_effect(run, chapter, effect)
+			check(run["deck"].size() == 20 + effect["add_cards"].size() and effect["add_cards"].size() in [5, 6]
+				and effect["add_cards"].all(func(id): return lib.has(id)), "The %s route recruits all five or six supplied cards" % route)
+		var combined := started.duplicate(true)
+		combined["deck"].append("TWI_168")
+		CampaignRun.apply_effect(combined, chapter, {"remove_id": "TWI_168", "add_cards": node["combined_recruit"]})
+		check("TWI_168" not in combined["deck"] and combined["deck"].size() == 31, "Old Access Codes recruits both groups once")
 	var prison := CampaignRun.node_by_id(chapter, "prison_escape")
 	check(prison["pickups"] == ["SOR_189"] and CampaignRun.available_nodes({"current": "prison_escape"}, chapter) == ["garbage_compactor"],
 		"Leia's mandatory pickup comes immediately before the compactor")
@@ -243,6 +253,210 @@ func test_death_star_saga() -> void:
 	loss.deal_damage(loss.players[0].base, loss.players[0].base_remaining(), null)
 	loss.pump()
 	check(loss.winner == 1, "The Hangar finale is lost if the crew's base falls")
+
+
+func test_saga_choice_and_leader_state() -> void:
+	var episode_iv: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/campaign/ep4.json"))
+	for chapter in episode_iv["chapters"].slice(0, 2):
+		var run := CampaignRun.start(chapter, chapter["leader_options"][0], 103)
+		var map := CampaignRun.route(chapter, run)
+		var choices: Array = map["nodes"].filter(func(node): return node.get("optional_choice", false))
+		check(choices.size() == 3 and map == CampaignRun.route(chapter, run.duplicate(true)),
+			"Three random events and their places survive a save reload")
+		check(choices.all(func(node): return map["map"]["edges"].has("bypass_" + node["id"])),
+			"Every optional event has an alternate route")
+	var death_star: Dictionary = episode_iv["chapters"][1]
+	var run := CampaignRun.start(death_star, "SOR_017", 17)
+	CampaignRun.apply_effect(run, death_star, {"disabled_cards": ["SOR_236"], "disabled_battles": 3, "next_enemy_card": "ASH_237"})
+	var config := CampaignRun.match_config(run, death_star, CampaignRun.node_by_id(death_star, "inner_patrol"), {})
+	check("SOR_236" in run["deck"] and "SOR_236" not in config["players"][0]["deck"]
+		and config["players"][1]["preplaced"].back()["id"] == "ASH_237",
+		"Event effects change the next match without removing R2-D2 from the run")
+
+	var vi: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/campaign/ep6.json"))
+	var endor: Dictionary = vi["chapters"][1]
+	run = CampaignRun.start(endor, "SOR_017", 53)
+	run["support_leader"] = "HMW_014"
+	run["leader_mods"] = {"HMW_014": ["early_deploy", "leader_armor", "leader_weapon"]}
+	var battle := _saga_test_match(run, endor, "forest")
+	var support: CardInst = battle.players[0].support_leader
+	check(battle.trigger_sources().has(support) and not battle.rules.aspect_penalties,
+		"Two leaders are active in Saga and retain campaign cost rules")
+	check(int(support.data["epic_cost"]) == int(lib.get_card(support.id)["epic_cost"]) - 1, "Shop threshold remains local to the chosen leader")
+	battle.active = 0
+	for _resource in maxi(0, int(support.data["epic_cost"])):
+		var card := battle._new_inst("SOR_237", 0)
+		card.zone = "resource"
+		battle.players[0].resources.append(card)
+	check(battle.do_action({"a": "deploy", "uid": support.uid}) and support.in_play()
+		and not battle.players[0].leader.deployed and support.max_hp() == int(lib.get_card(support.id)["leader_unit"]["hp"]) + 2,
+		"The supporting leader deploys independently with the purchased stats")
+
+
+func test_death_star_chewbacca() -> void:
+	var episode: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/campaign/ep4.json"))
+	var chapter: Dictionary = episode["chapters"][1]
+	for leader in chapter["leader_options"]:
+		var deck := CampaignRun.starting_deck(chapter, leader)
+		check(deck.size() == 20 and deck.all(func(id): return deck.count(id) == 1) and not "SOR_067" in deck,
+			"Death Star starters contain 20 distinct cards without Rugged Survivors")
+	var m := funded_match()
+	var leader := m._new_inst("SOR_003", 0)
+	m.players[0].leader = leader
+	leader.zone = "leader"
+	m.players[0].hand.clear()
+	var recruit := put_in_hand(m, "SOR_095")
+	var expensive := put_in_hand(m, "SOR_067")
+	var action := {"a": "ability", "uid": leader.uid, "idx": 0}
+	for resource in m.players[0].resources:
+		resource.exhausted = true
+	check(action not in m.legal_actions(0) and not leader.exhausted, "Chewbacca cannot waste the action on an unaffordable hand")
+	for resource in m.players[0].resources:
+		resource.exhausted = false
+	var funds: int = m.players[0].ready_resources()
+	check(m.do_action(action) and m.pending.get("options") == [recruit.uid] and not m.submit_choice([expensive.uid]),
+		"Chewbacca offers only legal units of printed cost three or less")
+	check(m.submit_choice([recruit.uid]) and recruit.in_play() and recruit.has_kw("sentinel") and leader.exhausted
+		and m.players[0].ready_resources() == funds - m.play_cost(0, recruit), "Chewbacca pays for and grants Sentinel to the played unit")
+	var companion := add_unit(m, 0, "SOR_196")
+	companion.exhausted = true
+	var enemy := add_unit(m, 1, "SOR_095")
+	m.begin_attack(enemy, companion)
+	m.pump()
+	check(companion.in_play() and not companion.exhausted, "Loyal Companion readies on defense")
+
+
+func test_cantina_war() -> void:
+	var rules := preload("res://engine/cantina_war.gd")
+	check(rules.resolve([5], [3])["delta"] == 10 and rules.resolve([2], [4])["delta"] == -10
+		and rules.resolve([4], [4])["delta"] == 0, "Number cards settle the fixed ten-credit stake")
+	check(rules.resolve([8], [6])["delta"] == 10, "Circle trumps the highest number")
+	var boost: Dictionary = rules.resolve([7, 4], [6])
+	check(boost["delta"] == 10 and boost["reveals"][1]["cards"] == [4, 0], "Lines reveal a second card and add three")
+	var war: Dictionary = rules.resolve([8, 4, 5, 6, 1], [7, 1, 2, 3, 6])
+	check(war["delta"] == -10 and war["reveals"].size() == 5 and war["reveals"][3]["cards"] == [9, 9]
+		and war["reveals"][4]["cards"] == [1, 6], "Face-card War burns three cards and the fourth determines who wins")
+	check(rules.deal(103) == rules.deal(103), "Cantina hands are reproducible across save reloads")
+
+
+func test_campaign_rule_fixes() -> void:
+	var m := funded_match()
+	var resource_event := put_in_hand(m, "LAW_171")
+	var before: int = m.players[0].resources.size()
+	check(m.do_action({"a": "play", "uid": resource_event.uid}) and resource_event.zone == "resource"
+		and m.players[0].resources.size() == before + 2, "Stockpile resources itself and the top card")
+	m = funded_match()
+	var resupply := put_in_hand(m, "JTL_092")
+	check(m.do_action({"a": "play", "uid": resupply.uid}) and m.players[0].units.size() == 8,
+		"Scramble Fighters creates all eight TIEs")
+	check(m.players[0].units.all(func(unit): return (
+		not unit.exhausted and unit.is_token and m.players[1].base.uid not in m.attack_targets(unit))),
+		"Scrambled fighters enter ready and cannot attack a base")
+	m = funded_match()
+	var target := add_unit(m, 1, "SOR_095")
+	var target_power := target.power()
+	var removal := put_in_hand(m, "TWI_041")
+	check(m.do_action({"a": "play", "uid": removal.uid}) and m.submit_choice([target.uid])
+		and not target.in_play() and m.players[0].base.damage == target_power, "Lethal Crackdown deals the defeated unit's power to the friendly base")
+
+
+func test_additional_campaign_rules() -> void:
+	var m := funded_match()
+	var host := add_unit(m, 0, "SOR_095")
+	m.attach_upgrade(m._new_inst("ASH_229", 0), host, {"ctl": 0})
+	var top := m._new_inst("SOR_095", 0)
+	top.zone = "deck"
+	m.players[0].deck.push_front(top)
+	var funds: int = m.players[0].ready_resources()
+	check(m.do_action({"a": "attack", "uid": host.uid, "target": m.players[1].base.uid})
+		and m.pending.get("options") == [top.uid] and m.submit_choice([top.uid]) and top.in_play()
+		and top not in m.players[0].deck and m.players[0].ready_resources() == funds, "Camtono can play an eligible top card for free")
+
+	m = funded_match()
+	var disaster := put_in_hand(m, "HMW_240")
+	var storm := put_in_hand(m, "HMW_180")
+	check(m.do_action({"a": "play", "uid": storm.uid}) and m.pending.get("options") == [disaster.uid]
+		and m.submit_choice([disaster.uid]) and disaster.zone == "hand"
+		and m.cards_drawn_this_phase[0] == 1, "Stormchaser reveals a Disaster without discarding it and draws")
+
+	m = funded_match()
+	add_unit(m, 0, "LAW_088")
+	host = add_unit(m, 0, "SOR_095")
+	m.players[0].base.damage = 4
+	check(m.do_action({"a": "attack", "uid": host.uid, "target": m.players[1].base.uid})
+		and m.submit_choice([1]) and host.zone == "hand" and m.players[0].base.damage == 2,
+		"Anakin returns the first attacker to hand and heals the player base")
+
+	m = funded_match()
+	host = add_unit(m, 0, "SOR_095")
+	var blaster := put_in_hand(m, "LAW_200")
+	m.discard_from_hand_or_deck(0, blaster)
+	check(m.do_action({"a": "play", "uid": blaster.uid}) and m.submit_choice([host.uid])
+		and blaster.attached_to == host, "Salvaged Blaster can be paid for and attached from discard this phase")
+
+	m = funded_match()
+	var sprite := add_unit(m, 0, "LOF_197")
+	check(m.do_action({"a": "attack", "uid": sprite.uid, "target": m.players[1].base.uid}),
+		"Aethersprite schedules one repeat")
+	m.active = 0
+	var cache := put_in_hand(m, "TWI_107")
+	check(m.do_action({"a": "play", "uid": cache.uid}) and m.pending.get("kind") == "yesno"
+		and m.submit_choice([1]) and m.cards_drawn_this_phase[0] == 2
+		and m.players[0].repeat_when_played_count == 0, "Aethersprite repeats and consumes the next When Played trigger")
+
+	m = funded_match()
+	var target := add_unit(m, 1, "SOR_095")
+	var worse := m._new_inst("LOF_264", 0)
+	m.move_to_resources(0, worse)
+	var event := put_in_hand(m, "LOF_222")
+	check(m.do_action({"a": "play", "uid": event.uid}) and m.submit_choice([target.uid])
+		and m.pending.get("player") == 1 and m.submit_choice([1]) and m.submit_choice([worse.uid])
+		and m.submit_choice([target.uid]) and target.zone == "discard" and worse not in m.players[0].resources,
+		"Predicament lets the defender speak, then plays It's Worse from resources for free")
+
+	m = funded_match()
+	var lando := m._new_inst("SHD_017", 0)
+	lando.zone = "leader"
+	m.players[0].leader = lando
+	var smuggled := m._new_inst("SHD_097", 0)
+	m.move_to_resources(0, smuggled)
+	var sacrifice: CardInst = m.players[0].resources[0]
+	var cost := m.play_cost(0, smuggled, true, {"discount": 2})
+	funds = m.players[0].ready_resources()
+	check(m.do_action({"a": "ability", "uid": lando.uid, "idx": 0}) and m.submit_choice([smuggled.uid])
+		and m.submit_choice([sacrifice.uid]) and smuggled.in_play() and sacrifice.zone == "discard"
+		and m.players[0].ready_resources() == funds - maxi(1, cost) - int(not sacrifice.exhausted),
+		"Lando discounts Smuggle and defeats a resource he owns")
+
+	m = funded_match()
+	var walker := add_unit(m, 0, "SOR_088")
+	var defender := add_unit(m, 1, "SOR_095")
+	target = add_unit(m, 1, "SOR_087")
+	var excess := walker.power(true) - defender.remaining_hp()
+	check(m.do_action({"a": "attack", "uid": walker.uid, "target": defender.uid})
+		and defender.zone == "discard" and m.submit_choice([target.uid]) and target.damage == excess,
+		"Blizzard Assault AT-AT deals excess damage to a second enemy ground unit")
+
+	m = funded_match()
+	target = add_unit(m, 1, "SOR_095")
+	var upgrade := m._new_inst("SHD_174", 1)
+	m.attach_upgrade(upgrade, target, {"ctl": 1})
+	event = put_in_hand(m, "SOR_199")
+	var payment := put_in_hand(m, "SOR_205")
+	funds = m.players[0].ready_resources()
+	check(m.do_action({"a": "play_alt", "uid": event.uid}) and m.pending.get("options") == [payment.uid]
+		and m.submit_choice([payment.uid]) and m.submit_choice([target.uid]) and target.exhausted
+		and upgrade.zone == "hand" and m.players[0].ready_resources() == funds,
+		"Bamboozle can discard a Cunning card instead of resources and returns the upgrades")
+
+	m = funded_match()
+	var first := add_unit(m, 0, "SOR_128")
+	var second := add_unit(m, 0, "SOR_083")
+	target = add_unit(m, 1, "SOR_088")
+	event = put_in_hand(m, "SOR_234")
+	check(m.do_action({"a": "play", "uid": event.uid}) and m.submit_choice([first.uid])
+		and m.submit_choice([target.uid]) and m.pending.get("options") == [second.uid] and m.submit_choice([second.uid])
+		and target.damage == first.power() + second.power(), "Maximum Firepower requires two distinct Imperials and damages the same unit twice")
 
 
 func _saga_test_match(run: Dictionary, chapter: Dictionary, node_id: String) -> Match:

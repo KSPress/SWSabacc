@@ -1,15 +1,17 @@
 extends ScreenBase
 
-const MODES := ["Campaigns", "Battles", "Galactic Conquest"]
+const MODES := ["Campaigns", "Battles", "Galactic Conquest", "Mini Games"]
 const DESCRIPTIONS := [
 	"Story episodes and branching Saga encounters",
 	"Traditional SWU and Quick Match variants",
 	"Work in progress",
+	"Play Sabacc War for credits",
 ]
 const ART := [
 	preload("res://assets/branding/play_campaigns.png"),
 	preload("res://assets/branding/play_battles.png"),
 	preload("res://assets/branding/play_conquest.png"),
+	preload("res://assets/branding/play_mini_games.png"),
 ]
 const HOLOGRAM := preload("res://ui/screens/play_hologram.gdshader")
 
@@ -27,6 +29,7 @@ var _motion: Tween
 
 func build() -> void:
 	set_header("Play")
+	selected = clampi(int(Router.params.get("selected", 0)), 0, MODES.size() - 1)
 	_stage = Control.new()
 	_stage.mouse_filter = Control.MOUSE_FILTER_STOP
 	_stage.gui_input.connect(_on_stage_input)
@@ -102,6 +105,7 @@ func _layout_cards(animate: bool) -> void:
 		var target_size := Vector2(height * 0.78, height)
 		var target_position := _stage.size * Vector2(0.5 + slot * 0.30, 0.5) - target_size / 2.0
 		card.material = null if slot == 0 else _hologram
+		card.visible = abs(slot) <= 1
 		card.z_index = 1 if slot == 0 else 0
 		if _motion:
 			_motion.tween_property(card, "position", target_position, 0.24).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -135,3 +139,4 @@ func _activate() -> void:
 	match selected:
 		0: Router.go("episodes")
 		1: Router.go("hub", {"section": "battles"})
+		3: Router.go("mini_games")

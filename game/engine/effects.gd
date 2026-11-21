@@ -72,6 +72,18 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		return _split_unit_damage(m, e, ctx)
 	if op == "heal_up_to":
 		return _heal_up_to(m, e, ctx)
+	if op == "guess_top_cost":
+		return _guess_top_cost(m, e, ctx)
+	if op == "cocky_reveal":
+		return _cocky_reveal(m, e, ctx)
+	if op in ["scan_resources", "childsen_reveal", "reveal_disaster"]:
+		return _campaign_zone_reveal(m, e, ctx)
+	if op in ["return_resources", "defeat_owned_resource"]:
+		return _return_resources(m, e, ctx)
+	if op == "transfer_attacked_upgrade":
+		return _transfer_attacked_upgrade(m, e, ctx)
+	if op == "name_enemy_trait":
+		return _name_enemy_trait(m, e, ctx)
 	if op == "use_force" and not m.players[ctx.get("ctl", 0)].force_token:
 		ctx["did"] = false
 		return DONE
@@ -121,6 +133,8 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			match e.get("amount", ""):
 				"healed": n = int(ctx.get("healed_amount", 0))
 				"discarded_cost": n = int(ctx.get("discarded_cost", 0))
+				"defeated_power": n = int(ctx.get("defeated_power", 0))
+				"combat_excess": n = int(ctx.get("combat", {}).get("excess_damage", 0))
 				"attached_power": n = src.attached_to.power() if src and src.attached_to else 0
 				"selected_printed_power":
 					var selected := m.card(ctx.get("it", 0))
@@ -129,14 +143,31 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 				ctx["it_arena"] = targets[0].arena()
 			for t in targets:
 				m.deal_damage(t, t.remaining_hp() - 1 if e.get("leave_at_one", false) else n, damage_source)
+			if e.get("resolve_defeat", false):
+				m._state_based()
 		"select":
 			pass
+		"remember_target":
+			ctx[e["key"]] = ctx.get("it", 0)
+		"capture_selected_friendly":
+			var guard := m.card(ctx.get("capture_guard", 0))
+			var captive := m.card(ctx.get("it", 0))
+			ctx["did"] = guard != null and captive != null and m.capture(guard, captive, guard.controller, false)
+			return DONE
+		"set_printed_hp":
+			for t in targets:
+				t.mods.append({"printed_hp": n, "dur": e.get("dur", "phase")})
 		"damage_from_it":
 			var dealer := m.card(ctx.get("it", 0))
 			if dealer and dealer.in_play():
 				var damage := dealer.damage + 1 if e.get("amount") == "damage_plus_one" else dealer.power()
+				if e.get("amount") == "raid":
+					damage = dealer.kw("raid")
 				for t in targets:
-					m.deal_damage(t, damage, dealer)
+					var remaining: int = t.remaining_hp()
+					var applied := m.deal_damage(t, damage, dealer)
+					if e.get("overwhelm", false) and t.controller != dealer.controller and dealer.has_kw("overwhelm") and applied > remaining:
+						m.deal_damage(m.players[t.controller].base, applied - remaining, dealer)
 		"heal":
 			for t in targets:
 				m.heal(t, t.damage if e.get("all_damage", false) else n)
@@ -152,6 +183,12 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		"discount_next":
 			m.players[ctl].next_play_discounts.append({"phase": m.phase_serial,
 				"filter": e["filter"], "n": n, "uses": e.get("uses", 1), "plot_only": e.get("plot_only", false)})
+		"repeat_next_when_played":
+			var player: PlayerState = m.players[ctl]
+			if player.repeat_when_played_phase != m.phase_serial:
+				player.repeat_when_played_phase = m.phase_serial
+				player.repeat_when_played_count = 0
+			player.repeat_when_played_count += 1
 		"modify_next_unit":
 			var modifier := e.duplicate()
 			modifier["phase"] = m.phase_serial
@@ -162,13 +199,14 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			var player := _effect_player(m, e.get("who", "self"), ctx)
 			var deck: Array = m.players[player].deck
 			ctx.erase("discarded_kind")
+			ctx.erase("discarded_cost")
 			ctx["did"] = not deck.is_empty()
 			for i in mini(n, deck.size()):
 				var discarded: CardInst = deck.pop_front()
 				ctx["discarded_kind"] = discarded.card_type()
-				discarded.zone = "discard"
-				m.players[player].discard.append(discarded)
-				m.events.append({"t": "discard", "uid": discarded.uid, "p": player})
+				ctx["discarded_cost"] = discarded.cost()
+				ctx["discarded_uid"] = discarded.uid
+				m.discard_from_hand_or_deck(player, discarded)
 			return DONE
 		"exhaust_defender_resource":
 			var ps: PlayerState = m.players[_effect_player(m, "defending_player", ctx)]
@@ -223,10 +261,12 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 					m.attach_token(t, token)
 		"exhaust":
 			ctx["did"] = false
+			ctx["exhausted_count"] = 0
 			for t in targets:
 				if not t.exhausted and not _enemy_effect_immune(t, ctl, op):
 					m.exhaust(t, true)
 					ctx["did"] = true
+					ctx["exhausted_count"] += 1
 			if not targets.is_empty():
 				ctx["it"] = targets[0].uid
 			return DONE
@@ -243,21 +283,36 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			for player in m.players:
 				player.base.mods.append({"cannot_heal": true, "dur": "phase"})
 		"defeat":
+			ctx.erase("defeated_power")
 			for t in targets:
 				if not _enemy_effect_immune(t, ctl, op):
+					ctx["defeated_power"] = t.power()
 					if t.zone == "base":
 						m.deal_damage(t, t.remaining_hp(), src, true)
 					else:
 						if t.in_play():
 							t.flags["lethal_source"] = src.uid if src and src.controller != t.controller else 0
 						m.defeat(t)
+		"defeat_target_upgrades":
+			for t in targets:
+				for upgrade in t.upgrades.duplicate():
+					m.defeat(upgrade)
+		"return_target_upgrades":
+			for t in targets:
+				for upgrade in t.upgrades.duplicate():
+					m.return_to_hand(upgrade)
 		"bounce":
+			ctx["did"] = false
 			for t in targets:
 				if not _enemy_effect_immune(t, ctl, op):
 					m.return_to_hand(t)
+					ctx["did"] = not t.in_play()
+			if not targets.is_empty():
+				ctx["it"] = targets[0].uid
+			return DONE
 		"bottom_unit":
 			for t in targets:
-				m.put_unit_on_bottom(t)
+				m.put_unit_on_bottom(t, e.get("top", false))
 		"move_arena":
 			ctx["did"] = false
 			for t in targets:
@@ -316,17 +371,22 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			for t in targets:
 				t.mods.append({"lose_kw": e["kw"], "dur": e.get("dur", "phase")})
 		"token":
+			var recipient := _effect_player(m, e.get("who", "self"), ctx)
+			if recipient < 0:
+				return DONE
 			if e.get("name", "") == "credit":
-				m.players[ctl].credits += n
-				m.events.append({"t": "credits", "p": ctl, "n": n})
+				m.players[recipient].credits += n
+				m.events.append({"t": "credits", "p": recipient, "n": n})
 			else:
 				ctx.erase("it")
 				ctx["did"] = false
 				for _i in n:
-					var created := m.create_unit_token(ctl, e.get("name", "battle_droid"))
+					var created := m.create_unit_token(recipient, e.get("name", "battle_droid"))
 					if created:
 						if e.get("ready", false):
 							m.exhaust(created, false)
+						if e.get("no_base_attack", false):
+							created.mods.append({"no_base_attack": true, "dur": "phase"})
 						ctx["it"] = created.uid
 						ctx["did"] = true
 				return DONE
@@ -391,6 +451,13 @@ static func _effect_count(m: Match, e: Dictionary, ctx: Dictionary, src: CardIns
 		"friendly_target_arena": return ps.units_in(targets[0].arena()).size() if not targets.is_empty() else 0
 		"source_damage": return int(ctx.get("lki_damage", src.damage)) if src else 0
 		"source_power": return int(ctx["lki_power"]) if ctx.has("lki_power") else (src.power(m.attack.get("a", 0) == src.uid) if src else 0)
+		"exhausted_count": return int(ctx.get("exhausted_count", 0))
+		"target_aspects":
+			var icons := {}
+			if not targets.is_empty():
+				for aspect in targets[0].aspects():
+					icons[aspect] = true
+			return icons.size()
 		"cards_drawn": return m.cards_drawn_this_phase[p]
 		"other_cards_played": return m.played_this_phase[p].filter(func(card): return card != src).size()
 		"enemy_defeated": return m.defeated_this_phase[m.opp(p)]
@@ -529,6 +596,9 @@ static func _targets(m: Match, e: Dictionary, ctx: Dictionary):
 		"subject":
 			var subject := m.card(ctx.get("subject", 0))
 			return [subject] if subject and subject.in_play() else []
+		"remembered":
+			var remembered := m.card(ctx.get(t["key"], 0))
+			return [remembered] if remembered and remembered.in_play() else []
 		"subject_base":
 			var subject_player: int = ctx.get("subject_player", -1)
 			return [m.players[subject_player].base] if subject_player >= 0 else []
@@ -592,9 +662,10 @@ static func _targets(m: Match, e: Dictionary, ctx: Dictionary):
 	var uids: Array = []
 	for c in cands:
 		uids.append(c.uid)
-	if not optional and cands.size() == mx and m.players[ctl].is_ai:
+	var chooser := _effect_player(m, e.get("chooser", "self"), ctx)
+	if not optional and cands.size() == mx and m.players[chooser].is_ai:
 		return cands
-	_ask(m, ctx, "target", e.get("prompt", _label(ctx, e)), uids, mn, mx, e)
+	_ask(m, ctx, "target", e.get("prompt", _label(ctx, e)), uids, mn, mx, e, chooser)
 	return null
 
 
@@ -654,8 +725,9 @@ static func candidates(m: Match, t: Dictionary, ctx: Dictionary) -> Array:
 		pool.append(m.players[1].base)
 	if kind == "leader":
 		for player in m.players:
-			if player.leader and not player.leader.deployed and player.leader.zone == "leader":
-				pool.append(player.leader)
+			for leader in player.leaders():
+				if not leader.deployed and leader.zone == "leader":
+					pool.append(leader)
 	if kind == "upgrade":
 		for instance in m.by_uid.values():
 			if instance.zone == "upgrade":
@@ -688,10 +760,14 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 		return false
 	if t.get("not_it", false) and c.uid == int(ctx.get("it", 0)):
 		return false
+	if t.has("exclude_remembered") and c.uid == int(ctx.get(t["exclude_remembered"], 0)):
+		return false
 	if t.get("attached_to_defender", false) and (c.attached_to == null or c.attached_to.uid != m.attack.get("t", 0)):
 		return false
-	if t.has("arena") and c.zone != t["arena"]:
-		return false
+	if t.has("arena"):
+		var physical_arena := "ground" if not m.linked_duel_cards.is_empty() and c.in_play() else c.zone
+		if physical_arena != t["arena"]:
+			return false
 	if t.get("arena_of_it", false):
 		var previous := m.card(ctx.get("it", 0))
 		if not previous or c.arena() != ctx.get("it_arena", previous.arena()):
@@ -699,7 +775,8 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 	if t.get("same_arena", false) and src and c.arena() != src.arena():
 		return false
 	if t.get("different_arena", false) and src and c.arena() == src.arena():
-		return false
+		if not (m.lando_space_campaign and src.id == "JTL_003" and c.zone == "space"):
+			return false
 	if t.get("nonleader", false) and c.is_leader() and c.zone == "upgrade":
 		return false
 	if t.get("nonleader", false) and c.is_leader_unit():
@@ -707,6 +784,8 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 	if t.get("leader", false) and not c.is_leader_unit():
 		return false
 	if t.get("damaged", false) and c.damage <= 0:
+		return false
+	if t.get("undamaged", false) and c.damage > 0:
 		return false
 	if t.get("damaged_this_phase", false) and c.flags.get("last_damaged_phase", -1) != m.phase_serial:
 		return false
@@ -740,6 +819,13 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 	if t.get("healed_this_phase", false) and int(c.flags.get("last_healed_phase", -1)) != m.phase_serial:
 		return false
 	if t.has("trait") and not c.has_trait(t["trait"]):
+		return false
+	if t.has("attached_trait") and (not c.attached_to or not c.attached_to.has_trait(t["attached_trait"])):
+		return false
+	if t.get("shares_leader_trait", false) and not m.players[ctl].leaders().any(
+			func(leader): return leader.traits().any(func(trait_name): return c.has_trait(trait_name))):
+		return false
+	if t.get("pilot_or_piloted", false) and not c.has_trait("pilot") and not c.upgrades.any(func(upgrade): return upgrade.has_trait("pilot")):
 		return false
 	if t.has("keyword") and not c.has_kw(t["keyword"]):
 		return false
@@ -792,6 +878,17 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 
 static func condition(m: Match, cond: Dictionary, ctx: Dictionary) -> bool:
 	var ctl: int = ctx.get("ctl", 0)
+	if cond.has("selected_keyword"):
+		var selected := m.card(ctx.get("it", 0))
+		return selected != null and selected.has_kw(cond["selected_keyword"])
+	if cond.get("friendly_defeated_this_phase", false):
+		return m.defeated_this_phase[ctl] > 0
+	if cond.get("was_ready_when_defeated", false):
+		return ctx.get("lki_ready", false)
+	if cond.has("available_resources"):
+		return m.players[ctl].available() >= int(cond["available_resources"])
+	if cond.get("discarded_odd_cost", false):
+		return ctx.has("discarded_cost") and int(ctx["discarded_cost"]) % 2 == 1
 	if cond.has("combat_result") and not ctx.get("combat", {}).get(cond["combat_result"], false):
 		return false
 	if cond.has("discarded_max_cost"):
@@ -914,6 +1011,8 @@ static func condition(m: Match, cond: Dictionary, ctx: Dictionary) -> bool:
 	if cond.get("fewer_hand_cards", false):
 		return m.players[ctl].hand.size() < m.players[m.opp(ctl)].hand.size()
 	if cond.get("both_arenas", false):
+		if m.lando_space_campaign and m.card(int(ctx.get("src", 0))) and m.card(int(ctx["src"])).id == "JTL_003":
+			return not m.players[ctl].units_in("space").is_empty()
 		return m.players[ctl].units.any(func(u): return u.zone == "ground") and m.players[ctl].units.any(func(u): return u.zone == "space")
 	if cond.has("sole_arena_control"):
 		var arena: String = cond["sole_arena_control"]
@@ -1150,9 +1249,7 @@ static func _discard(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			var card: CardInst = ps.hand.pop_at(m.rng.randi_range(0, ps.hand.size() - 1))
 			ctx["discarded_kind"] = card.card_type()
 			ctx["discarded_uid"] = card.uid
-			card.zone = "discard"
-			ps.discard.append(card)
-			m.events.append({"t": "discard", "uid": card.uid, "p": who})
+			m.discard_from_hand_or_deck(who, card)
 		if ctx["did"]:
 			m.player_trigger(who, "hand_revealed_or_discarded")
 		return DONE
@@ -1163,10 +1260,7 @@ static func _discard(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			ctx["discarded_cost"] = c.cost()
 			ctx["discarded_kind"] = c.card_type()
 			ctx["discarded_uid"] = c.uid
-			ps.hand.erase(c)
-			c.zone = "discard"
-			ps.discard.append(c)
-			m.events.append({"t": "discard", "uid": uid, "p": who})
+			m.discard_from_hand_or_deck(who, c)
 		ctx.erase("_choice")
 		ctx["did"] = not selected.is_empty()
 		if ctx["did"]:
@@ -1178,6 +1272,10 @@ static func _discard(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 	var uids: Array = []
 	var kind: String = e.get("kind", "card")
 	for c in ps.hand:
+		if e.get("exclude_source", false) and c.uid == ctx.get("src", 0):
+			continue
+		if e.has("aspect") and not e["aspect"] in c.aspects():
+			continue
 		if kind == "non-unit" and c.card_type() == "unit":
 			continue
 		if kind not in ["card", "non-unit"] and c.card_type() != kind:
@@ -1217,6 +1315,9 @@ static func _effect_player(m: Match, who: String, ctx: Dictionary) -> int:
 		"selected_controller":
 			var selected := m.card(ctx.get("it", 0))
 			return selected.controller if selected else -1
+		"selected_owner":
+			var selected := m.card(ctx.get("it", 0))
+			return selected.owner if selected else -1
 	return ctl
 
 
@@ -1430,6 +1531,21 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		return SUSPEND
 	var op: String = e["op"]
 	match op:
+		"_play_without_cost":
+			m._play_card(ctx["ctl"], m.card(ctx["src"]), false, {"free": true, "direct_action": true})
+		"_repeat_when_played":
+			if not ctx.has("_choice"):
+				_ask(m, ctx, "yesno", "Use this When Played ability again?", [1, 0], 1, 1, e)
+				return SUSPEND
+			var repeat: bool = ctx["_choice"] == [1]
+			ctx.erase("_choice")
+			if int(e["count"]) > 1:
+				var next := e.duplicate()
+				next["count"] -= 1
+				m.push_frame([next], ctx)
+			if repeat:
+				m.push_frame(e["effects"], e["original_context"].duplicate())
+			return DONE
 		"_ordered_triggers":
 			return _resolve_ordered_triggers(m, e, ctx)
 		"_saboteur_shields":
@@ -1555,10 +1671,8 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			else:
 				for i in mini(ps.deck.size(), int(e["n"])):
 					var c: CardInst = ps.deck.pop_front()
-					c.zone = "discard"
-					ps.discard.append(c)
+					m.discard_from_hand_or_deck(ps.index, c)
 					options.append(c.uid)
-					m.events.append({"t": "discard", "uid": c.uid, "p": ps.index})
 			if options.is_empty():
 				return DONE
 			_ask(m, ctx, "search", "Choose a card to draw" if op == "_search_named" else "You may return a discarded card to the top of your deck", options, 0, 1)
@@ -1594,9 +1708,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			var from: PlayerState = m.players[who]
 			for i in mini(int(e.get("n", 1)), from.deck.size()):
 				var c: CardInst = from.deck.pop_front()
-				c.zone = "discard"
-				from.discard.append(c)
-				m.events.append({"t": "discard", "uid": c.uid, "p": who})
+				m.discard_from_hand_or_deck(who, c)
 				if op == "_mill_return_odd" and c.cost() % 2 == 1:
 					m.return_to_hand(c)
 				elif op == "_mill_defender_draw" and c.cost() <= 3:
@@ -1784,8 +1896,9 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 						u.exhausted = false
 				for r in ps.resources:
 					r.exhausted = false
-				if ps.leader and ps.leader.zone == "leader" and ps.leader.can_ready():
-					ps.leader.exhausted = false
+				for leader in ps.leaders():
+					if leader.zone == "leader" and leader.can_ready():
+						leader.exhausted = false
 			m.events.append({"t": "ready_all"})
 		"_new_round":
 			m.end_round()
@@ -1815,7 +1928,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 				var host := m.card(int(ctx["_choice"][0]))
 				ctx.erase("_choice")
 				if op == "_deploy_pilot":
-					m._deploy_pilot(p, host)
+					m._deploy_pilot(p, host, leader)
 				else:
 					var old := leader.attached_to
 					old.upgrades.erase(leader)
@@ -1977,6 +2090,8 @@ static func _choose_one(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 	for i in opts.size():
 		if i in selected or (opts[i].has("arena") and not opts[i]["arena"] in m.rules.arenas):
 			continue
+		if not condition(m, opts[i].get("if", {}), ctx):
+			continue
 		idx.append(i)
 		labels.append(opts[i].get("label", "Option %d" % (i + 1)))
 	if idx.is_empty():
@@ -2024,12 +2139,15 @@ static func _effect_play_pool(m: Match, p: int, effect: Dictionary) -> Array:
 	match effect.get("source_zone", "hand"):
 		"discard": return ps.discard
 		"hand_or_discard": return ps.hand + ps.discard + m.players[m.opp(p)].discard
+		"hand_or_resource": return ps.hand + ps.resources
 		"resource": return ps.resources
+		"deck_top": return [ps.deck[0]] if not ps.deck.is_empty() else []
 	return ps.hand
 
 
-static func has_hand_play(m: Match, p: int, effect: Dictionary) -> bool:
+static func has_hand_play(m: Match, p: int, effect: Dictionary, reserved_resources := 0) -> bool:
 	var opts := _hand_play_options(effect)
+	opts["reserved_resources"] = reserved_resources
 	if effect.get("discount_by_leaders", false):
 		opts["discount"] = m.players[p].units.filter(func(u): return u.is_leader_unit()).size()
 	var pool := _effect_play_pool(m, p, effect)
@@ -2071,6 +2189,8 @@ static func _play_from_hand(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			return SUSPEND
 		opts["piloting"] = true in modes
 	if selected:
+		if selected.zone == "resource":
+			opts["from_resource"] = true
 		if e.has("force_discount") and selected.has_trait("force"):
 			opts["discount"] = int(e["force_discount"])
 		ctx["did"] = true
@@ -2086,7 +2206,7 @@ static func _play_from_hand(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			var next := e.duplicate()
 			next["count"] = left
 			m.push_frame([next], ctx.duplicate())
-		m._play_card(p, selected, false, opts)
+		m._play_card(p, selected, e.get("smuggle", false), opts)
 		return DONE
 	var cands: Array = []
 	for c in _effect_play_pool(m, p, e):
@@ -2095,20 +2215,200 @@ static func _play_from_hand(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		if not _hand_play_modes(m, p, c, e, opts).is_empty():
 			cands.append(c.uid)
 	if cands.is_empty():
+		if e.get("source_zone") == "deck_top" and not ctx.has("_looked_at_deck"):
+			var deck: Array = m.players[p].deck
+			if not deck.is_empty():
+				ctx["_looked_at_deck"] = true
+				_ask(m, ctx, "search", "Look at the top card of your deck", [deck[0].uid], 0, 0, e)
+				return SUSPEND
 		ctx["did"] = false
 		return DONE
 	var prompt: String = {
 		"discard": "Choose a card from your discard pile to play",
 		"hand_or_discard": "Choose an upgrade from your hand or a discard pile",
+		"hand_or_resource": "Choose a card from your hand or resources",
 		"resource": "Choose a card from your resources to play",
+		"deck_top": "Look at the top card of your deck. You may play it for free.",
 	}.get(e.get("source_zone", "hand"), "Choose a card to play")
 	_ask(m, ctx, "hand", _label(ctx, e) + "\n" + prompt, cands, 0 if e.get("optional", false) else 1, 1, e)
 	return SUSPEND
 
 
+static func _name_enemy_trait(m: Match, e: Dictionary, ctx: Dictionary) -> int:
+	var traits := {}
+	for card in m.lib.cards.values():
+		for trait_name in card.get("traits", []):
+			traits[trait_name] = true
+	var choices := traits.keys()
+	choices.sort()
+	if choices.is_empty():
+		return DONE
+	if ctx.has("_choice"):
+		var chosen: String = choices[int(ctx["_choice"][0])]
+		ctx.erase("_choice")
+		m.removed_enemy_traits[m.opp(ctx["ctl"])][chosen] = m.phase_serial
+		m._log("Enemy cards lose the %s trait for this phase." % chosen.capitalize())
+		return DONE
+	_ask(m, ctx, "option", "Name a trait", range(choices.size()), 1, 1, e)
+	m.pending["labels"] = choices.map(func(name): return name.capitalize())
+	return SUSPEND
+
+
+static func _transfer_attacked_upgrade(m: Match, e: Dictionary, ctx: Dictionary) -> int:
+	var upgrade := m.card(ctx.get("grant_source", 0))
+	var attacker := m.card(ctx.get("it", 0))
+	if not upgrade or not upgrade.attached_to or not attacker:
+		return DONE
+	var controller := attacker.controller
+	if ctx.has("_choice"):
+		var host := m.card(ctx["_choice"][0])
+		ctx.erase("_choice")
+		upgrade.attached_to.upgrades.erase(upgrade)
+		m.attach_upgrade(upgrade, host, {"ctl": controller})
+		return DONE
+	var options := upgrade_targets(m, controller, upgrade).filter(func(unit): return unit.controller == controller)
+	if options.is_empty():
+		return DONE
+	_ask(m, ctx, "target", "Attach the captured upgrade to one of your units", options.map(func(unit): return unit.uid),
+		1, 1, e, controller)
+	return SUSPEND
+
+
+static func _return_resources(m: Match, e: Dictionary, ctx: Dictionary) -> int:
+	var defeat: bool = e["op"] == "defeat_owned_resource"
+	var player: int = ctx["ctl"]
+	if ctx.has("_choice"):
+		for uid in ctx["_choice"]:
+			var card := m.card(uid)
+			if defeat:
+				m._remove_from_zones(card)
+				card.zone = "discard"
+				m.players[card.owner].discard.append(card)
+				m.events.append({"t": "resource", "p": player, "uid": card.uid})
+			else:
+				m.return_to_hand(card)
+		ctx.erase("_choice")
+		return DONE
+	var resources: Array = m.players[player].resources
+	if defeat:
+		resources = resources.filter(func(card): return card.owner == player)
+	if resources.is_empty():
+		return DONE
+	_ask(m, ctx, "resource", "Choose a resource to defeat" if defeat else "Choose up to two resources to return",
+		resources.map(func(card): return card.uid), 1 if defeat else 0, 1 if defeat else mini(2, resources.size()), e)
+	return SUSPEND
+
+
+static func _campaign_zone_reveal(m: Match, e: Dictionary, ctx: Dictionary) -> int:
+	var player: int = ctx["ctl"]
+	var scanner: bool = e["op"] == "scan_resources"
+	var disaster: bool = e["op"] == "reveal_disaster"
+	var zone: Array = m.players[m.opp(player)].resources if scanner else m.players[player].hand
+	if ctx.has("_choice"):
+		var picked: Array = ctx["_choice"]
+		ctx.erase("_choice")
+		var src := m.card(ctx["src"])
+		for uid in picked:
+			var card := m.card(uid)
+			m.events.append({"t": "reveal_top", "uid": uid, "p": card.controller})
+			if not scanner and not disaster:
+				if src and src.in_play():
+					m.attach_token(src, "experience")
+			elif scanner and card.has_kw("smuggle"):
+				var state: PlayerState = m.players[card.controller]
+				state.resources.erase(card)
+				card.zone = "discard"
+				m.players[card.owner].discard.append(card)
+				m.events.append({"t": "resource", "p": state.index, "uid": card.uid})
+				if not state.deck.is_empty():
+					m.move_to_resources(state.index, state.deck[0], true)
+		if disaster and (not picked.is_empty() or m.players[player].discard.any(func(card): return card.has_trait("disaster"))):
+			m.draw(player, 1)
+		return DONE
+	var options: Array = zone.filter(func(card):
+		return scanner or (card.has_trait("disaster") if disaster else "vigilance" in card.aspects())
+	).map(func(card): return card.uid)
+	var count := mini(options.size(), 1 if disaster else (3 if scanner else 4))
+	if count == 0:
+		if disaster and m.players[player].discard.any(func(card): return card.has_trait("disaster")):
+			m.draw(player, 1)
+		return DONE
+	var prompt := "Reveal a Disaster card" if disaster else ("Choose enemy resources to reveal" if scanner else "Reveal up to four Vigilance cards")
+	_ask(m, ctx, "search" if not scanner else "resource", prompt,
+		options, count if scanner else 0, count, e)
+	if scanner:
+		m.pending["hidden_cards"] = true
+	return SUSPEND
+
+
+static func _cocky_reveal(m: Match, e: Dictionary, ctx: Dictionary) -> int:
+	var deck: Array = m.players[ctx["ctl"]].deck
+	var seen: Array = ctx.get("cocky_cards", [])
+	var total := int(ctx.get("cocky_cost", 0))
+	var finished := false
+	if ctx.has("_choice"):
+		finished = ctx["_choice"][0] == 0
+		ctx.erase("_choice")
+	if not finished and seen.size() < mini(7, deck.size()):
+		var revealed: CardInst = deck[seen.size()]
+		seen.append(revealed)
+		total += revealed.cost()
+		ctx["cocky_cards"] = seen
+		ctx["cocky_cost"] = total
+		m.events.append({"t": "reveal_top", "uid": revealed.uid, "p": ctx["ctl"]})
+		if seen.size() < mini(7, deck.size()):
+			_ask(m, ctx, "option", "Total cost %d · Keep revealing?" % total, [0, 1], 1, 1, e)
+			m.pending["labels"] = ["Stop", "Reveal the next card"]
+			return SUSPEND
+	var unit := m.card(ctx.get("it", 0))
+	if unit and unit.in_play() and total <= 7:
+		m.deal_damage(unit, total, m.card(ctx["src"]))
+	for revealed in seen:
+		deck.erase(revealed)
+	m._shuffle(seen)
+	deck.append_array(seen)
+	ctx.erase("cocky_cards")
+	ctx.erase("cocky_cost")
+	return DONE
+
+
+static func _guess_top_cost(m: Match, e: Dictionary, ctx: Dictionary) -> int:
+	var player: int = ctx["ctl"]
+	var deck: Array = m.players[player].deck
+	if deck.is_empty():
+		return DONE
+	if not ctx.has("guessed_cost"):
+		if not ctx.has("_choice"):
+			var values := range(0, 16)
+			_ask(m, ctx, "option", "Name the top card’s cost", values, 1, 1, e)
+			m.pending["labels"] = values.map(func(value): return str(value))
+			return SUSPEND
+		ctx["guessed_cost"] = int(ctx["_choice"][0])
+		ctx.erase("_choice")
+	var top: CardInst = deck[0]
+	if top.cost() != int(ctx["guessed_cost"]):
+		if not ctx.has("_choice"):
+			_ask(m, ctx, "search", "The cost did not match · Continue", [top.uid], 0, 0, e)
+			m.pending["reveal"] = [top.uid]
+			return SUSPEND
+	elif not ctx.has("_choice"):
+		_ask(m, ctx, "search", "The cost matched · Reveal and draw?", [top.uid], 0, 1, e)
+		m.pending["reveal"] = [top.uid]
+		return SUSPEND
+	elif not ctx["_choice"].is_empty():
+		m.events.append({"t": "reveal_top", "uid": top.uid, "p": player})
+		m.draw(player, 1)
+	ctx.erase("guessed_cost")
+	ctx.erase("_choice")
+	return DONE
+
+
 static func _hand_play_modes(m: Match, p: int, card: CardInst, e: Dictionary, opts: Dictionary) -> Array:
 	var modes: Array = []
+	var smuggle: bool = e.get("smuggle", false)
 	if card == null or card.has_constant("first_action_only"):
+		return modes
+	if e.has("name") and card.name().to_lower() != e["name"]:
 		return modes
 	if e.has("trait") and not card.has_trait(e["trait"]):
 		return modes
@@ -2123,7 +2423,7 @@ static func _hand_play_modes(m: Match, p: int, card: CardInst, e: Dictionary, op
 	for piloting in [false, true]:
 		if not piloting and e.get("pilot_only", false):
 			continue
-		if piloting and not card.data.has("pilot"):
+		if piloting and (smuggle or not card.data.has("pilot")):
 			continue
 		var t := "upgrade" if piloting else card.card_type()
 		var kind: String = e.get("kind", "card")
@@ -2153,7 +2453,7 @@ static func _hand_play_modes(m: Match, p: int, card: CardInst, e: Dictionary, op
 		play_opts["piloting"] = piloting
 		if e.has("force_discount") and card.has_trait("force"):
 			play_opts["discount"] = int(e["force_discount"])
-		if m.play_cost(p, card, false, play_opts) <= m.players[p].available():
+		if m.play_cost(p, card, smuggle, play_opts) + int(opts.get("reserved_resources", 0)) <= m.players[p].available():
 			modes.append(piloting)
 	return modes
 

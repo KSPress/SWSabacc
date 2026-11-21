@@ -22,7 +22,7 @@ var fx_layer: Control
 var ui_layer: Control
 var hud: Array = []                  # SideHud x2 (index = player)
 var hand: HandView
-var enemy_hand_label: Label
+var enemy_hand_label
 var pass_btn: SabaccButton
 var tray: BoxContainer
 var coin: TableTokens.InitiativeCoin
@@ -121,7 +121,12 @@ func _build() -> void:
 		board_layer.add_child(l)
 		board_layer.add_child(l2)
 		_arena_labels[a] = [l, l2]
-	enemy_hand_label = UIKit.fit_label(UIKit.label("", 16, Sabacc.C_DIM))
+	if params.get("reveal_enemy_hand", false):
+		var surveillance := SabaccButton.make("Enemy hand", SabaccButton.Style.GHOST)
+		surveillance.pressed.connect(_show_surveillance)
+		enemy_hand_label = surveillance
+	else:
+		enemy_hand_label = UIKit.fit_label(UIKit.label("", 16, Sabacc.C_DIM))
 	ui_layer.add_child(enemy_hand_label)
 	tracker = UIKit.fit_label(UIKit.label("", 18, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 	tracker.add_theme_constant_override("outline_size", 6)
@@ -589,6 +594,20 @@ func _card_center(c: CardInst) -> Vector2:
 	return get_viewport_rect().get_center()
 
 
+func _show_surveillance() -> void:
+	var panel := ModalPanel.open(self, 640.0)
+	panel.text("Imperial surveillance", 27, Sabacc.C_GOLD)
+	if m.players[1].hand.is_empty():
+		panel.text("The enemy hand is empty.")
+	for card in m.players[1].hand:
+		var entry := SabaccButton.make(card.title(), SabaccButton.Style.GHOST)
+		entry.pressed.connect(func(): InspectOverlay.open(self, card.id, entry.get_global_rect()))
+		panel.add(entry)
+	var done := SabaccButton.make("Close")
+	done.pressed.connect(panel.close)
+	panel.add(done)
+
+
 func _anim_play(e: Dictionary) -> void:
 	var c := m.card(e["uid"])
 	if c == null:
@@ -786,7 +805,7 @@ func _sync() -> void:
 	var costs := {}
 	var legal := m.legal_actions(HUMAN)
 	for a in legal:
-		if a["a"] in ["play", "pilot"]:
+		if a["a"] in ["play", "pilot", "play_alt"]:
 			playable[a["uid"]] = true
 		if a["a"] == "play":
 			unit_play[a["uid"]] = true
@@ -839,6 +858,11 @@ func _sync() -> void:
 			can_claim = true
 	coin.claimable = can_claim
 	enemy_hand_label.text = "Enemy hand: %d" % m.players[1].hand.size()
+	if params.get("reveal_enemy_hand", false):
+		var names := PackedStringArray()
+		for card in m.players[1].hand:
+			names.append(card.title())
+		enemy_hand_label.tooltip_text = "\n".join(names)
 	tracker.text = "%s   ·   Round %d   ·   Initiative: %s" % [m.objective.tracker(m), m.round_num, "You" if m.initiative == HUMAN else "Enemy"]
 
 
@@ -945,8 +969,25 @@ func _on_leader_dropped(h: SideHud, at: Vector2) -> void:
 
 
 func _on_hand_tapped(card: CardView) -> void:
-	if not _show_pilot_options(card):
+	if not _show_alt_payment(card) and not _show_pilot_options(card):
 		InspectOverlay.open(self, card.card_id, card.get_global_rect(), card.inst)
+
+
+func _show_alt_payment(card: CardView) -> bool:
+	if card.inst == null:
+		return false
+	var uid := card.inst.uid
+	var alternate := _legal_for(uid, "play_alt")
+	if alternate.is_empty():
+		return false
+	var options: Array = []
+	var normal := _legal_for(uid, "play")
+	if not normal.is_empty():
+		options.append(["Pay %d resources" % m.play_cost(HUMAN, card.inst), normal[0]])
+	options.append(["Discard a Cunning card", alternate[0]])
+	options.append(["Inspect", {"inspect": uid}])
+	_popup_menu(card.get_global_rect(), options)
+	return true
 
 
 func _show_pilot_options(card: CardView) -> bool:
@@ -982,7 +1023,7 @@ func _on_hand_drop(card: CardView, at: Vector2) -> void:
 			_act({"a": "play", "uid": uid, "target": m.players[HUMAN].base.uid})
 		return
 	if at.y < _hand_top - 30 and card.playable and m.can_act(HUMAN):
-		if _show_pilot_options(card):
+		if _show_alt_payment(card) or _show_pilot_options(card):
 			card.spring_home()
 			return
 		var removed := hand.remove_card(uid)
@@ -1160,7 +1201,13 @@ func _on_leader_pressed(h: SideHud) -> void:
 	if h.player_idx != HUMAN:
 		InspectOverlay.open(self, l.id, h.leader_view.get_global_rect(), l)
 		return
-	_popup_menu(h.leader_view.get_global_rect(), _leader_options(l))
+	var options := _leader_options(l)
+	var support: CardInst = m.players[HUMAN].support_leader
+	if support:
+		for option in _leader_options(support):
+			option[0] = "%s · %s" % [support.name(), option[0]]
+			options.append(option)
+	_popup_menu(h.leader_view.get_global_rect(), options)
 
 
 ## Every leader ability, usable ones first; others greyed with the reason.
@@ -1196,10 +1243,8 @@ func _leader_options(l: CardInst) -> Array:
 			if line.strip_edges().begins_with("Action [") and not _has_compiled(acts, line):
 				opts.append([line.strip_edges(), {}, "not automated yet"])
 		var epic := int(l.data.get("epic_cost", 0))
-		var deploy_ok := false
-		for la in legal:
-			if la["a"] == "deploy":
-				deploy_ok = true
+		var deployment := {"a": "deploy"} if l == ps.leader else {"a": "deploy", "uid": l.uid}
+		var deploy_ok := deployment in legal
 		var dwhy := ""
 		if not deploy_ok:
 			if l.epic_used:
@@ -1208,7 +1253,7 @@ func _leader_options(l: CardInst) -> Array:
 				dwhy = "wait for your action"
 			else:
 				dwhy = "needs %d resources (you have %d)" % [epic, ps.resources.size()]
-		opts.append(["Epic Action: deploy %s" % l.name(), {"a": "deploy"}, dwhy])
+		opts.append(["Epic Action: deploy %s" % l.name(), deployment, dwhy])
 		if l.data.has("pilot"):
 			var pilot := {"a": "deploy_pilot", "uid": l.uid}
 			var flip: bool = l.data["pilot"].has("flip_cost")
@@ -1226,8 +1271,9 @@ func _leader_options(l: CardInst) -> Array:
 
 
 func _has_compiled(acts: Array, line: String) -> bool:
+	var printed := line.replace(" (paying its cost)", "").strip_edges()
 	for ab in acts:
-		if str(ab.get("text", "")).strip_edges() == line.strip_edges():
+		if str(ab.get("text", "")).replace(" (paying its cost)", "").strip_edges() == printed:
 			return true
 	return false
 
@@ -1240,6 +1286,9 @@ func _on_resources_pressed(h: SideHud) -> void:
 		if a["a"] == "smuggle":
 			var c := m.card(a["uid"])
 			opts.append(["Smuggle %s (%d)" % [c.name(), m.play_cost(HUMAN, c, true)], a])
+		elif a["a"] == "play" and m.card(a["uid"]).zone == "discard":
+			var c := m.card(a["uid"])
+			opts.append(["Play %s from discard (%d)" % [c.name(), m.play_cost(HUMAN, c)], a])
 	if opts.is_empty():
 		Fx.float_text(fx_layer, h.res_view.get_global_rect().get_center(), "%d ready / %d resources" % [m.players[HUMAN].ready_resources(), m.players[HUMAN].resources.size()], Sabacc.C_COST, 22)
 		return

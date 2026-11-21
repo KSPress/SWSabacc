@@ -52,7 +52,7 @@ func set_header(text: String, back_to := "menu") -> void:
 	if back_to != "":
 		var b := SabaccButton.make("", SabaccButton.Style.GHOST, "back")
 		b.custom_minimum_size = Vector2(60, 56)
-		b.pressed.connect(func(): Router.go(_back_target))
+		b.pressed.connect(request_screen_back)
 		header.add_child(b)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", -4)
@@ -64,6 +64,13 @@ func set_header(text: String, back_to := "menu") -> void:
 	au.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	v.add_child(au)
 	header.add_child(v)
+
+
+func request_screen_back() -> bool:
+	if _back_target.is_empty():
+		return false
+	Router.go(_back_target)
+	return true
 
 
 func safe_rect() -> Rect2:

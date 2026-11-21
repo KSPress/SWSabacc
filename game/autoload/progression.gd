@@ -164,6 +164,25 @@ func _account_credits() -> int:
 	return maxi(0, int(Save.data.get("credits", 0)))
 
 
+func settle_sabacc_war(delta: int, table: Dictionary) -> void:
+	var progress := state()
+	if Cosmetics.state()["gm"]:
+		progress["gm_sabacc_war"] = table
+		progress["gm_credits"] = credits() + delta
+	else:
+		progress["sabacc_war"] = table
+		Save.data["credits"] = _account_credits() + delta
+		if delta > 0:
+			var stats := account_stats()
+			stats["credits_earned"] = int(stats["credits_earned"]) + delta
+	Save.write()
+	changed.emit()
+
+
+func sabacc_war_table() -> Dictionary:
+	return state().get("gm_sabacc_war" if Cosmetics.state()["gm"] else "sabacc_war", {})
+
+
 func award_credits(identity: String, amount: int) -> int:
 	var claimed: Dictionary = state()["claimed"]
 	var key := "credits:" + identity

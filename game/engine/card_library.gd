@@ -48,9 +48,14 @@ func load_file(path: String, custom := false) -> int:
 		push_error("CardLibrary: bad json in %s" % path)
 		return 0
 	var src: Dictionary = parsed.get("cards", parsed)
+	var fixes: Dictionary = {}
+	if not custom and FileAccess.file_exists("res://data/card_rule_fixes.json"):
+		fixes = JSON.parse_string(FileAccess.get_file_as_string("res://data/card_rule_fixes.json"))
 	var n := 0
 	for id in src:
 		var c: Dictionary = src[id]
+		if fixes.has(id):
+			c.merge(fixes[id], true)
 		if custom:
 			c["custom"] = true
 			c["implemented"] = c.get("implemented", "full")

@@ -104,10 +104,16 @@ func unique() -> bool:
 
 func traits() -> Array:
 	var printed: Array = data.get("traits", [])
-	if upgrades.is_empty():
+	var match_game: Match = battle.get_ref() if battle else null
+	var removed: Array = []
+	if match_game:
+		var suppressed: Dictionary = match_game.removed_enemy_traits[controller]
+		for trait_name in suppressed:
+			if suppressed[trait_name] == match_game.phase_serial:
+				removed.append(trait_name)
+	if upgrades.is_empty() and removed.is_empty():
 		return printed
 	var result := printed.duplicate()
-	var removed: Array = []
 	for upgrade in upgrades:
 		for ability in upgrade.upgrade_abilities():
 			if ability.get("trigger") != "attached_traits" or upgrades.size() < int(ability.get("host_requires", {}).get("upgrades_min", 0)):
@@ -171,6 +177,9 @@ func printed_power() -> int:
 
 
 func printed_hp() -> int:
+	for modifier in mods:
+		if modifier.has("printed_hp") and modifier_active(modifier):
+			return int(modifier["printed_hp"])
 	for upgrade in upgrades:
 		for ability in upgrade.upgrade_abilities():
 			if ability.get("trigger") == "printed_stats" and ability.has("hp"):

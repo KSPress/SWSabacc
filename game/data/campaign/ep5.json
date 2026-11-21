@@ -1,0 +1,1105 @@
+{
+  "episode": 5,
+  "roman": "V",
+  "title": "The Empire Strikes Back",
+  "crawl": "The Empire has driven the Rebel Alliance to the remote ice world of Hoth.",
+  "alignment": "heroism",
+  "chapters": [
+    {
+      "id": "ep5_ch1_hoth",
+      "episode": 5,
+      "number": 1,
+      "title": "Battle of Hoth",
+      "intro": "Luke must survive the snow. Then hold Echo Base until the Rebel transports escape.",
+      "leader_options": [
+        "SOR_009"
+      ],
+      "base_sequence": [
+        "IBH_002"
+      ],
+      "starting_deck": [
+        "SOR_059",
+        "IBH_019",
+        "IBH_003",
+        "SOR_098",
+        "JTL_044",
+        "IBH_007",
+        "IBH_023",
+        "IBH_010",
+        "IBH_020",
+        "IBH_011",
+        "IBH_004",
+        "SOR_244",
+        "IBH_008",
+        "IBH_037",
+        "IBH_015",
+        "IBH_018",
+        "IBH_005",
+        "TWI_174",
+        "JTL_075",
+        "TWI_256"
+      ],
+      "reward_pool": [
+        "SEC_110",
+        "SHD_103",
+        "SOR_242",
+        "LAW_180",
+        "SOR_101",
+        "LOF_064",
+        "IBH_021",
+        "SOR_106",
+        "LAW_171",
+        "LAW_126",
+        "HMW_081",
+        "HMW_127",
+        "ASH_085",
+        "HMW_172",
+        "SHD_174",
+        "SOR_053",
+        "LAW_201",
+        "ASH_210",
+        "JTL_057",
+        "JTL_094",
+        "JTL_097",
+        "JTL_246",
+        "LAW_200",
+        "LOF_171",
+        "SEC_070",
+        "SEC_160",
+        "SEC_221",
+        "SOR_075",
+        "SOR_143"
+      ],
+      "arenas": [
+        "ground"
+      ],
+      "ruleset": "campaign",
+      "alignment": "heroism",
+      "base_hp_override": 30,
+      "repair_after_win": 5,
+      "unlocks_on_clear": [
+        "SOR_009"
+      ],
+      "player_extra_resources": 1,
+      "board_theme": "ice",
+      "nodes": [
+        {
+          "id": "wampa",
+          "title": "Wampa Attack",
+          "desc": "Keep Luke alive through three rounds.",
+          "type": "objective",
+          "enemy": {
+            "name": "Wampa Cave",
+            "hp": 20,
+            "deck": [
+              "HMW_229",
+              "IBH_076",
+              "SOR_164",
+              "HMW_229",
+              "IBH_076",
+              "SOR_164"
+            ],
+            "preplaced": [
+              {
+                "id": "SOR_164",
+                "ready": false
+              }
+            ]
+          },
+          "objective": {
+            "type": "defend_unit",
+            "params": {
+              "protect_unit": "IBH_020",
+              "protect_hp": 11,
+              "name": "Luke",
+              "rounds": 3,
+              "objective_only": true
+            }
+          },
+          "first": 0,
+          "deploy_from_deck": [
+            "IBH_020"
+          ],
+          "player_preplaced": [
+            {
+              "id": "IBH_020",
+              "ready": false,
+              "shield": true
+            },
+            {
+              "id": "IBH_015",
+              "ready": true
+            }
+          ],
+          "battle_rules": {
+            "deck_out_damage": 0
+          }
+        },
+        {
+          "id": "echo_recruit",
+          "type": "event",
+          "title": "Defense of Echo Base",
+          "desc": "Prepare the trench line or ready the speeders.",
+          "event": {
+            "choices": [
+              {
+                "label": "Recruit trench defenders",
+                "effect": {
+                  "add_cards": [
+                    "IBH_008",
+                    "IBH_037",
+                    "SOR_098",
+                    "IBH_005"
+                  ]
+                }
+              },
+              {
+                "label": "Ready the speeders",
+                "effect": {
+                  "add_cards": [
+                    "SOR_244",
+                    "IBH_004",
+                    "IBH_018",
+                    "SOR_106"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "probe",
+          "title": "Imperial Probes",
+          "desc": "Stop the scout units before they locate the transport lanes.",
+          "type": "fight",
+          "enemy": {
+            "name": "Imperial Scouts",
+            "hp": 12,
+            "deck": [
+              "SEC_239",
+              "ASH_176",
+              "IBH_063",
+              "IBH_062",
+              "SEC_239",
+              "ASH_176",
+              "IBH_063",
+              "IBH_062"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "trenches",
+          "title": "Trench Line",
+          "desc": "Delay the first wave of snowtroopers.",
+          "type": "fight",
+          "enemy": {
+            "name": "First Legion",
+            "hp": 13,
+            "deck": [
+              "SOR_130",
+              "IBH_055",
+              "IBH_069",
+              "IBH_057",
+              "HMW_107",
+              "SOR_130",
+              "IBH_055",
+              "IBH_069",
+              "IBH_057",
+              "HMW_107",
+              "IBH_064",
+              "IBH_104"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "echo_shop",
+          "type": "rest",
+          "title": "Echo Base Supply Depot",
+          "desc": "Repair your base or upgrade equipment before the evacuation.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit Experience",
+              "cost": 20
+            }
+          ]
+        },
+        {
+          "id": "boss",
+          "title": "Veers' Assault",
+          "desc": "Keep Echo Caverns standing for six rounds while the transports escape.",
+          "type": "boss",
+          "enemy": {
+            "name": "Blizzard Force",
+            "hp": 30,
+            "deck": [
+              "SOR_130",
+              "IBH_070",
+              "IBH_063",
+              "IBH_069",
+              "IBH_057",
+              "HMW_108",
+              "SOR_227",
+              "SOR_130",
+              "IBH_070",
+              "IBH_063",
+              "IBH_069",
+              "IBH_057",
+              "HMW_108",
+              "SOR_227",
+              "IBH_068",
+              "SOR_087",
+              "SOR_088",
+              "SOR_136",
+              "SOR_230",
+              "SOR_234"
+            ],
+            "preplaced": [
+              {
+                "id": "IBH_099",
+                "ready": false
+              }
+            ]
+          },
+          "objective": {
+            "type": "survive_n",
+            "params": {
+              "rounds": 6,
+              "text": "Hold off General Veers until evacuation is complete.",
+              "objective_only": true,
+              "reinforcements": [
+                {
+                  "round": 4,
+                  "cards": [
+                    "IBH_056"
+                  ],
+                  "ready": false
+                }
+              ]
+            }
+          },
+          "battle_rules": {
+            "deck_out_damage": 0
+          },
+          "ending": "The last Rebel transport clears the Imperial blockade."
+        }
+      ],
+      "map": {
+        "rows": [
+          [
+            "wampa"
+          ],
+          [
+            "echo_recruit"
+          ],
+          [
+            "probe",
+            "trenches"
+          ],
+          [
+            "echo_shop"
+          ],
+          [
+            "boss"
+          ]
+        ],
+        "edges": {
+          "wampa": [
+            "echo_recruit"
+          ],
+          "echo_recruit": [
+            "probe",
+            "trenches"
+          ],
+          "probe": [
+            "echo_shop"
+          ],
+          "trenches": [
+            "echo_shop"
+          ],
+          "echo_shop": [
+            "boss"
+          ]
+        }
+      },
+      "chapter_card_pool": {
+        "Leader": [
+          "SOR_009"
+        ],
+        "Base": [
+          "IBH_002"
+        ],
+        "Units": [
+          "SOR_059",
+          "JTL_057",
+          "SOR_088",
+          "IBH_070",
+          "IBH_099",
+          "IBH_019",
+          "IBH_003",
+          "SOR_087",
+          "IBH_069",
+          "SOR_098",
+          "JTL_044",
+          "IBH_007",
+          "SOR_143",
+          "SOR_130",
+          "IBH_055",
+          "SOR_242",
+          "IBH_023",
+          "SHD_103",
+          "SOR_230",
+          "IBH_068",
+          "SEC_110",
+          "IBH_056",
+          "IBH_010",
+          "JTL_246",
+          "IBH_064",
+          "IBH_037",
+          "IBH_062",
+          "ASH_176",
+          "LAW_180",
+          "JTL_097",
+          "IBH_020",
+          "JTL_094",
+          "HMW_229",
+          "IBH_011",
+          "IBH_076",
+          "SEC_160",
+          "JTL_259",
+          "SOR_101",
+          "IBH_004",
+          "IBH_075",
+          "SOR_244",
+          "IBH_063",
+          "SOR_227",
+          "IBH_057",
+          "HMW_107",
+          "LOF_064",
+          "IBH_015",
+          "HMW_108",
+          "IBH_008",
+          "SEC_221",
+          "SEC_239",
+          "SOR_164"
+        ],
+        "Events": [
+          "SOR_106",
+          "IBH_018",
+          "IBH_005",
+          "IBH_021",
+          "SOR_075",
+          "SOR_234",
+          "TWI_174",
+          "JTL_075",
+          "LAW_171",
+          "IBH_104"
+        ],
+        "Upgrades": [
+          "LAW_126",
+          "HMW_081",
+          "SEC_070",
+          "HMW_127",
+          "ASH_210",
+          "ASH_085",
+          "LOF_171",
+          "HMW_172",
+          "TWI_256",
+          "SHD_174",
+          "SOR_053",
+          "LAW_200",
+          "LAW_201",
+          "SOR_136"
+        ]
+      },
+      "unavailable_source_printings": [
+        "General Veers - Prepared (IC27)"
+      ],
+      "next_chapter": "ep5_ch2_falcon",
+      "arena_reserves": [
+        "IBH_075",
+        "JTL_259"
+      ]
+    },
+    {
+      "id": "ep5_ch2_falcon",
+      "episode": 5,
+      "number": 2,
+      "title": "Flight of the Millennium Falcon",
+      "intro": "Find a way through the Imperial fleet, the asteroid field, and Boba Fett's pursuit.",
+      "leader_options": [
+        "JTL_017"
+      ],
+      "base_sequence": [
+        "JTL_019"
+      ],
+      "starting_deck": [
+        "SOR_193",
+        "LAW_068",
+        "JTL_249",
+        "JTL_103",
+        "JTL_245",
+        "JTL_095",
+        "SOR_237",
+        "JTL_051",
+        "IBH_006",
+        "SHD_246",
+        "SOR_060",
+        "JTL_205",
+        "JTL_076",
+        "JTL_075",
+        "JTL_123",
+        "JTL_171",
+        "JTL_172",
+        "LAW_225"
+      ],
+      "reward_pool": [
+        "JTL_203",
+        "JTL_103",
+        "SEC_213",
+        "ASH_078",
+        "SOR_125",
+        "SOR_219",
+        "SOR_214",
+        "JTL_120"
+      ],
+      "arenas": [
+        "space"
+      ],
+      "ruleset": "campaign",
+      "alignment": "heroism",
+      "base_hp_override": 30,
+      "repair_after_win": 8,
+      "unlocks_on_clear": [
+        "JTL_017"
+      ],
+      "board_theme": "space",
+      "player_extra_resources": 1,
+      "nodes": [
+        {
+          "id": "pursuit",
+          "title": "Imperial Pursuit",
+          "desc": "Fight through the first TIE screen with an unreliable hyperdrive.",
+          "type": "fight",
+          "enemy": {
+            "name": "Imperial Pursuit",
+            "hp": 13,
+            "deck": [
+              "SOR_132",
+              "ASH_215",
+              "SHD_082",
+              "JTL_033",
+              "SOR_173",
+              "SOR_132",
+              "ASH_215",
+              "SHD_082",
+              "JTL_033",
+              "SOR_173"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          },
+          "player_preplaced": [
+            {
+              "id": "SOR_193",
+              "ready": false
+            }
+          ],
+          "deploy_from_deck": [
+            "SOR_193"
+          ]
+        },
+        {
+          "id": "asteroids",
+          "title": "Asteroid Field",
+          "desc": "Hold together until the Falcon clears the debris field.",
+          "type": "objective",
+          "enemy": {
+            "name": "Asteroid hazards",
+            "hp": 20,
+            "deck": [
+              "LOF_109",
+              "LAW_135",
+              "SHD_082",
+              "JTL_033",
+              "LOF_109",
+              "LAW_135",
+              "SHD_082",
+              "JTL_033"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "survive_n",
+            "params": {
+              "rounds": 4,
+              "text": "Survive four rounds in the asteroid field.",
+              "objective_only": true
+            }
+          },
+          "battle_rules": {
+            "deck_out_damage": 0
+          }
+        },
+        {
+          "id": "slug",
+          "title": "Exogorth and Mynocks",
+          "desc": "Drive off the Mynocks and clear the exogorth's jaws.",
+          "type": "elite",
+          "enemy": {
+            "name": "Asteroid Nest",
+            "hp": 20,
+            "deck": [
+              "LOF_109",
+              "HMW_139",
+              "LOF_109",
+              "LOF_109",
+              "HMW_139",
+              "LOF_109"
+            ],
+            "preplaced": [
+              {
+                "id": "HMW_233",
+                "ready": false,
+                "hp": 5,
+                "power": 4
+              }
+            ]
+          },
+          "objective": {
+            "type": "clear_wave",
+            "params": {
+              "targets": [
+                "HMW_233"
+              ],
+              "text": "Defeat the Awakened Exogorth.",
+              "objective_only": true
+            }
+          },
+          "player_preplaced": [
+            {
+              "id": "LAW_068",
+              "ready": true
+            }
+          ],
+          "deploy_from_deck": [
+            "LAW_068"
+          ]
+        },
+        {
+          "id": "garbage",
+          "type": "event",
+          "title": "Float Away with the Garbage",
+          "desc": "The Falcon hides against a Star Destroyer's hull and leaves with its waste.",
+          "event": {
+            "choices": [
+              {
+                "label": "Patch the hull",
+                "effect": {
+                  "heal": 8
+                }
+              },
+              {
+                "label": "Recover salvaged equipment",
+                "effect": {
+                  "add_cards": [
+                    "SOR_214",
+                    "JTL_075"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "repairs",
+          "type": "rest",
+          "title": "Falcon's Workshop",
+          "desc": "Make final repairs before attempting to shake the pursuit.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit Experience",
+              "cost": 20
+            }
+          ]
+        },
+        {
+          "id": "boss",
+          "title": "Boba Fett · Relentless Pursuit",
+          "desc": "Survive Fett's pursuit and head for Bespin.",
+          "type": "boss",
+          "enemy": {
+            "name": "Boba Fett",
+            "hp": 25,
+            "deck": [
+              "JTL_240",
+              "JTL_157",
+              "ASH_215",
+              "JTL_033",
+              "LAW_175",
+              "JTL_240",
+              "JTL_157",
+              "ASH_215",
+              "JTL_033",
+              "LAW_175"
+            ],
+            "preplaced": [
+              {
+                "id": "JTL_240",
+                "ready": false,
+                "hp": 6
+              }
+            ],
+            "leader": "JTL_009"
+          },
+          "objective": {
+            "type": "survive_n",
+            "params": {
+              "rounds": 5,
+              "text": "Escape after five rounds without losing your base.",
+              "objective_only": true
+            }
+          },
+          "battle_rules": {
+            "deck_out_damage": 0
+          },
+          "ending": "Boba Fett shadows the Falcon to Bespin. The crew walks into Vader's trap.",
+          "player_preplaced": [
+            {
+              "id": "LAW_068",
+              "ready": true,
+              "shield": true
+            }
+          ],
+          "deploy_from_deck": [
+            "LAW_068"
+          ],
+          "player_extra_resources": 2
+        }
+      ],
+      "map": {
+        "rows": [
+          [
+            "pursuit"
+          ],
+          [
+            "asteroids"
+          ],
+          [
+            "slug"
+          ],
+          [
+            "garbage"
+          ],
+          [
+            "repairs"
+          ],
+          [
+            "boss"
+          ]
+        ],
+        "edges": {
+          "pursuit": [
+            "asteroids"
+          ],
+          "asteroids": [
+            "slug"
+          ],
+          "slug": [
+            "garbage"
+          ],
+          "garbage": [
+            "repairs"
+          ],
+          "repairs": [
+            "boss"
+          ]
+        }
+      },
+      "next_chapter": "ep5_ch3_cloud_city"
+    },
+    {
+      "id": "ep5_ch3_cloud_city",
+      "episode": 5,
+      "number": 3,
+      "title": "The Trap at Cloud City",
+      "intro": "Luke confronts Vader while the others fight their way to the Falcon.",
+      "leader_options": [
+        "SOR_005"
+      ],
+      "base_sequence": [
+        "JTL_019"
+      ],
+      "starting_deck": [
+        "SOR_189",
+        "SOR_196",
+        "SOR_197",
+        "SOR_236",
+        "SOR_238",
+        "SOR_049",
+        "SHD_103",
+        "SOR_067",
+        "SOR_067",
+        "SOR_240",
+        "LAW_254",
+        "LAW_180",
+        "JTL_094",
+        "TWI_174",
+        "TWI_174",
+        "SOR_053",
+        "SEC_110",
+        "JTL_075",
+        "LOF_216",
+        "HMW_264"
+      ],
+      "reward_pool": [
+        "ASH_059",
+        "LAW_108",
+        "SEC_068",
+        "SHD_070",
+        "LAW_200",
+        "SOR_051",
+        "LOF_222"
+      ],
+      "arenas": [
+        "ground",
+        "space"
+      ],
+      "ruleset": "campaign",
+      "alignment": "heroism",
+      "base_hp_override": 30,
+      "repair_after_win": 5,
+      "unlocks_on_clear": [
+        "SOR_005"
+      ],
+      "board_theme": "space",
+      "player_extra_resources": 3,
+      "deploy_leader_at_start": true,
+      "linked_duel_cards": [
+        "ASH_243",
+        "SOR_087",
+        "SOR_136",
+        "SOR_139",
+        "SOR_053",
+        "LOF_216",
+        "SOR_049",
+        "SOR_051",
+        "JTL_094",
+        "SOR_128",
+        "SHD_114"
+      ],
+      "arena_names": {
+        "ground": "Crew Escape · Ground",
+        "space": "Luke's Duel · Ground"
+      },
+      "nodes": [
+        {
+          "id": "ambush",
+          "title": "Cloud City Ambush",
+          "desc": "Luke starts in the duel corridor. His allies begin the escape through Cloud City.",
+          "type": "fight",
+          "enemy": {
+            "name": "Imperial Occupation",
+            "hp": 14,
+            "deck": [
+              "SOR_063",
+              "SOR_128",
+              "SHD_114",
+              "LAW_197",
+              "SOR_139",
+              "SOR_063",
+              "SOR_128",
+              "SHD_114",
+              "LAW_197",
+              "SOR_139"
+            ],
+            "preplaced": [
+              {
+                "id": "SHD_114",
+                "ready": false
+              },
+              {
+                "id": "SOR_063",
+                "ready": false
+              }
+            ]
+          },
+          "objective": {
+            "type": "standard"
+          },
+          "player_preplaced": [
+            {
+              "id": "SOR_189",
+              "ready": false
+            }
+          ],
+          "deploy_from_deck": [
+            "SOR_189"
+          ]
+        },
+        {
+          "id": "crew",
+          "type": "event",
+          "title": "Gather the Crew",
+          "desc": "Lando points the group toward a service passage.",
+          "event": {
+            "choices": [
+              {
+                "label": "Rally Lando and Chewbacca",
+                "effect": {
+                  "add_cards": [
+                    "LAW_108",
+                    "SOR_196"
+                  ]
+                }
+              },
+              {
+                "label": "Bring the droids",
+                "effect": {
+                  "add_cards": [
+                    "SOR_236",
+                    "SOR_238"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "carbon",
+          "title": "Carbon-Freezing Chambers",
+          "desc": "Keep Luke safe while the crew fights past the detention squad.",
+          "type": "objective",
+          "enemy": {
+            "name": "Vader's Detachment",
+            "hp": 20,
+            "deck": [
+              "SOR_128",
+              "SHD_114",
+              "SOR_063",
+              "LAW_197",
+              "SOR_139",
+              "SOR_128",
+              "SHD_114",
+              "SOR_063",
+              "LAW_197",
+              "SOR_139"
+            ],
+            "preplaced": [
+              {
+                "id": "SHD_114",
+                "ready": false
+              }
+            ]
+          },
+          "objective": {
+            "type": "survive_n",
+            "params": {
+              "rounds": 4,
+              "text": "Hold both routes for four rounds.",
+              "objective_only": true,
+              "protect_leader": true
+            }
+          },
+          "opening_leader_shield": true,
+          "player_preplaced": [
+            {
+              "id": "SOR_049",
+              "ready": true
+            },
+            {
+              "id": "SOR_196",
+              "ready": true
+            }
+          ],
+          "deploy_from_deck": [
+            "SOR_049",
+            "SOR_196"
+          ]
+        },
+        {
+          "id": "hunters",
+          "title": "Bounty Hunter Intercept",
+          "desc": "Deal with the hunters between the crew and the landing platform.",
+          "type": "objective",
+          "enemy": {
+            "name": "Cloud City Hunters",
+            "hp": 20,
+            "deck": [
+              "LAW_214",
+              "LAW_159",
+              "LAW_197",
+              "LAW_218",
+              "SHD_114",
+              "LAW_214",
+              "LAW_159",
+              "LAW_197",
+              "LAW_218",
+              "SHD_114"
+            ],
+            "preplaced": [
+              {
+                "id": "SHD_114",
+                "ready": false
+              },
+              {
+                "id": "LAW_159",
+                "ready": false
+              }
+            ]
+          },
+          "objective": {
+            "type": "survive_n",
+            "params": {
+              "rounds": 4,
+              "text": "Keep Luke alive and clear the route to the Falcon.",
+              "objective_only": true,
+              "protect_leader": true
+            }
+          }
+        },
+        {
+          "id": "platform",
+          "type": "rest",
+          "title": "Service Platform",
+          "desc": "Repair and rearm before the final escape.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit Experience",
+              "cost": 20
+            }
+          ]
+        },
+        {
+          "id": "boss",
+          "title": "Luke and Vader · Escape from Bespin",
+          "desc": "Survive Vader while the crew reaches the Falcon.",
+          "type": "boss",
+          "enemy": {
+            "name": "Darth Vader and the Imperial Guard",
+            "hp": 30,
+            "deck": [
+              "SOR_128",
+              "HMW_107",
+              "SHD_114",
+              "LAW_197",
+              "SOR_139",
+              "SOR_128",
+              "HMW_107",
+              "SHD_114",
+              "LAW_197",
+              "SOR_139"
+            ],
+            "preplaced": [
+              {
+                "id": "ASH_243",
+                "ready": false,
+                "hp": 7,
+                "power": 4
+              },
+              {
+                "id": "SOR_063",
+                "ready": false
+              }
+            ]
+          },
+          "objective": {
+            "type": "survive_n",
+            "params": {
+              "rounds": 5,
+              "text": "Keep Luke alive and the escape route open for five rounds.",
+              "objective_only": true,
+              "protect_leader": true
+            }
+          },
+          "player_preplaced": [
+            {
+              "id": "SOR_196",
+              "ready": true
+            }
+          ],
+          "deploy_from_deck": [
+            "SOR_196"
+          ],
+          "battle_rules": {
+            "deck_out_damage": 0
+          },
+          "ending": "Luke survives the duel and the others pull him aboard the Falcon.",
+          "opening_leader_shield": true
+        }
+      ],
+      "map": {
+        "rows": [
+          [
+            "ambush"
+          ],
+          [
+            "crew"
+          ],
+          [
+            "carbon",
+            "hunters"
+          ],
+          [
+            "platform"
+          ],
+          [
+            "boss"
+          ]
+        ],
+        "edges": {
+          "ambush": [
+            "crew"
+          ],
+          "crew": [
+            "carbon",
+            "hunters"
+          ],
+          "carbon": [
+            "platform"
+          ],
+          "hunters": [
+            "platform"
+          ],
+          "platform": [
+            "boss"
+          ]
+        }
+      },
+      "opening_leader_hp": 12
+    }
+  ]
+}

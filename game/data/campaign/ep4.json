@@ -848,6 +848,203 @@
           "scenes": [
             "saga_docking_94"
           ]
+        },
+        {
+          "id": "black_sphere",
+          "type": "event",
+          "title": "Mysterious Black Sphere",
+          "desc": "Something black protrudes from the sand.",
+          "event": {
+            "choices": [
+              {
+                "label": "Pick it up",
+                "outcomes": [
+                  {
+                    "weight": 50,
+                    "effect": {
+                      "starting_resource_bonus": 1,
+                      "message": "A black melon. Gain one starting resource in every remaining battle."
+                    }
+                  },
+                  {
+                    "weight": 50,
+                    "effect": {
+                      "base_hp_bonus": -5,
+                      "message": "A sand creature strikes. Lose 5 maximum base HP for the chapter."
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Leave"
+              }
+            ]
+          },
+          "optional_choice": true
+        },
+        {
+          "id": "buried_relic",
+          "type": "event",
+          "title": "Buried Relic",
+          "desc": "An old metallic object glints beneath the sand.",
+          "event": {
+            "choices": [
+              {
+                "label": "Dig it up",
+                "outcomes": [
+                  {
+                    "weight": 50,
+                    "effect": {
+                      "add_cards": [
+                        "LAW_201"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 50,
+                    "effect": {
+                      "add_cards": [
+                        "LOF_261"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Leave"
+              }
+            ]
+          },
+          "optional_choice": true
+        },
+        {
+          "id": "jawa_trade",
+          "type": "event",
+          "title": "Utinni!",
+          "desc": "Trade an upgrade to a Jawa for an unseen droid.",
+          "event": {
+            "choices": [
+              {
+                "label": "Trade an upgrade",
+                "pick": "upgrade",
+                "outcomes": [
+                  {
+                    "weight": 50,
+                    "effect": {
+                      "add_cards": [
+                        "ASH_156"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 50,
+                    "effect": {
+                      "add_cards": [
+                        "SEC_110"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Walk away"
+              }
+            ]
+          },
+          "optional_choice": true
+        },
+        {
+          "id": "oil_bath",
+          "type": "event",
+          "title": "Droid Oil Bath",
+          "desc": "Choose a droid in your deck to gain two Experience whenever it enters play this chapter.",
+          "event": {
+            "choices": [
+              {
+                "label": "Accept",
+                "pick": "droid"
+              },
+              {
+                "label": "Decline"
+              }
+            ]
+          },
+          "optional_choice": true
+        },
+        {
+          "id": "imperial_checkpoint",
+          "type": "event",
+          "title": "Imperial Patrol",
+          "desc": "Stormtroopers search travelers for suspicious droids.",
+          "event": {
+            "choices": [
+              {
+                "label": "Fight",
+                "effect": {
+                  "battle": true
+                }
+              },
+              {
+                "label": "Hide",
+                "outcomes": [
+                  {
+                    "weight": 50,
+                    "effect": {
+                      "message": "The patrol passes by."
+                    }
+                  },
+                  {
+                    "weight": 50,
+                    "effect": {
+                      "battle": true
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Bribe · 20 credits",
+                "cost": 20,
+                "effect": {
+                  "message": "The patrol lets you through."
+                }
+              }
+            ]
+          },
+          "optional_choice": true,
+          "enemy": {
+            "name": "Imperial Patrol",
+            "hp": 12,
+            "deck": [
+              "SOR_128",
+              "HMW_107",
+              "HMW_192",
+              "TWI_256",
+              "SOR_128",
+              "HMW_107",
+              "HMW_192",
+              "TWI_256"
+            ],
+            "preplaced": []
+          }
+        },
+        {
+          "id": "cantina_war",
+          "type": "event",
+          "title": "Cantina Sabacc · War",
+          "desc": "Stake 10 run credits on a hand of Sabacc War.",
+          "event": {
+            "choices": [
+              {
+                "label": "Play a hand · 10 credits",
+                "war": true,
+                "cost": 10
+              },
+              {
+                "label": "Walk away"
+              }
+            ]
+          },
+          "optional_choice": true
         }
       ],
       "route_version": 1,
@@ -869,7 +1066,35 @@
         "saga_cantina",
         "saga_docking_94"
       ],
-      "completion_background": "saga_docking_94_icon"
+      "completion_background": "saga_docking_94_icon",
+      "choice_slots": [
+        {
+          "before": "sandcrawler",
+          "events": [
+            "black_sphere",
+            "buried_relic",
+            "jawa_trade"
+          ]
+        },
+        {
+          "before": "homestead",
+          "events": [
+            "black_sphere",
+            "buried_relic",
+            "jawa_trade",
+            "oil_bath",
+            "imperial_checkpoint"
+          ]
+        },
+        {
+          "before": "cantina_supplies",
+          "events": [
+            "cantina_war",
+            "oil_bath",
+            "imperial_checkpoint"
+          ]
+        }
+      ]
     },
     {
       "id": "ep4_ch2_deathstar",
@@ -890,36 +1115,42 @@
       "base_hp_override": 34,
       "starting_deck": [
         "SOR_236",
-        "SOR_236",
         "SOR_238",
-        "SOR_238",
-        "LOF_249",
         "LOF_249",
         "SOR_049",
-        "SOR_067",
-        "SOR_067",
-        "TWI_174",
-        "TWI_174",
-        "SOR_053",
-        "SHD_070",
-        "HMW_264",
-        "JTL_075",
-        "SOR_236",
-        "SOR_238",
+        "LAW_159",
+        "LAW_218",
+        "SOR_240",
+        "LAW_254",
+        "LAW_180",
         "SEC_110",
-        "SEC_110"
+        "SOR_046",
+        "TWI_174",
+        "SHD_070",
+        "SOR_223",
+        "SHD_205",
+        "JTL_075",
+        "SOR_053",
+        "HMW_264",
+        "TWI_256"
       ],
       "reward_pool": [
-        "LOF_215",
-        "JTL_260",
-        "JTL_075",
+        "LOF_222",
+        "SOR_199",
+        "LOF_216",
         "SEC_177",
-        "HMW_264",
+        "LOF_264",
+        "SHD_205",
+        "JTL_075",
+        "LOF_215",
+        "HMW_127",
+        "JTL_260",
+        "LAW_225",
+        "SHD_104",
         "SHD_070",
+        "LAW_201",
         "HMW_261",
-        "LAW_180",
-        "SOR_067",
-        "SHD_205"
+        "SHD_167"
       ],
       "treasures": [
         "kyber_shard",
@@ -939,16 +1170,16 @@
             "falcon_armor"
           ],
           [
-            "armory",
-            "droid_reprocessing",
-            "isb_interrogation"
+            "armory_stop"
           ],
           [
             "inner_patrol"
           ],
           [
-            "rescue_rebels",
-            "rescue_scum"
+            "rescue_choices"
+          ],
+          [
+            "isb_choices"
           ],
           [
             "prison_escape"
@@ -972,27 +1203,18 @@
         ],
         "edges": {
           "falcon_armor": [
-            "armory",
-            "droid_reprocessing",
-            "isb_interrogation"
+            "armory_stop"
           ],
-          "armory": [
-            "inner_patrol"
-          ],
-          "droid_reprocessing": [
-            "inner_patrol"
-          ],
-          "isb_interrogation": [
+          "armory_stop": [
             "inner_patrol"
           ],
           "inner_patrol": [
-            "rescue_rebels",
-            "rescue_scum"
+            "rescue_choices"
           ],
-          "rescue_rebels": [
-            "prison_escape"
+          "rescue_choices": [
+            "isb_choices"
           ],
-          "rescue_scum": [
+          "isb_choices": [
             "prison_escape"
           ],
           "prison_escape": [
@@ -1060,86 +1282,6 @@
           ]
         },
         {
-          "id": "armory",
-          "type": "event",
-          "title": "Imperial Armory",
-          "desc": "The stolen armor gets you through the door. Stock up before proceeding.",
-          "scenes": [
-            "saga_deathstar_superlaser",
-            "saga_deathstar_overlook"
-          ],
-          "event": {
-            "choices": [
-              {
-                "label": "Take six weapons and items",
-                "effect": {
-                  "add_cards": [
-                    "TWI_256",
-                    "SHD_174",
-                    "ASH_210",
-                    "LOF_171",
-                    "LAW_200",
-                    "LAW_201"
-                  ]
-                }
-              }
-            ]
-          }
-        },
-        {
-          "id": "droid_reprocessing",
-          "type": "event",
-          "title": "Droid Reprocessing",
-          "desc": "R2 slices the terminal and brings six labor and utility droids online.",
-          "scenes": [
-            "saga_deathstar_superlaser",
-            "saga_deathstar_overlook"
-          ],
-          "event": {
-            "choices": [
-              {
-                "label": "Recruit six sliced droids",
-                "effect": {
-                  "add_cards": [
-                    "SEC_259",
-                    "SEC_110",
-                    "ASH_237",
-                    "SEC_221",
-                    "SEC_239",
-                    "LAW_075"
-                  ]
-                }
-              }
-            ]
-          }
-        },
-        {
-          "id": "isb_interrogation",
-          "type": "event",
-          "title": "ISB Interrogation Room",
-          "desc": "Unlock the cells and turn five disillusioned Imperial personnel against the station.",
-          "scenes": [
-            "saga_deathstar_superlaser",
-            "saga_deathstar_overlook"
-          ],
-          "event": {
-            "choices": [
-              {
-                "label": "Recruit five Imperial defectors",
-                "effect": {
-                  "add_cards": [
-                    "ASH_250",
-                    "IBH_062",
-                    "LAW_097",
-                    "SHD_114",
-                    "HMW_107"
-                  ]
-                }
-              }
-            ]
-          }
-        },
-        {
           "id": "inner_patrol",
           "type": "fight",
           "title": "Behind Enemy Lines",
@@ -1164,7 +1306,10 @@
               "TWI_174",
               "TWI_174",
               "SEC_184",
-              "SHD_114"
+              "SHD_114",
+              "JTL_091",
+              "HMW_114",
+              "HMW_252"
             ],
             "base": "SOR_023",
             "hero_skin": "stormtrooper",
@@ -1258,59 +1403,6 @@
             }
           ],
           "reward_tier": 2
-        },
-        {
-          "id": "rescue_rebels",
-          "type": "event",
-          "title": "Tantive IV Prisoners",
-          "desc": "Six survivors from the captured Tantive IV can reinforce the rescue.",
-          "scenes": [
-            "saga_deathstar_superlaser",
-            "saga_deathstar_overlook"
-          ],
-          "event": {
-            "choices": [
-              {
-                "label": "Free six Rebel prisoners",
-                "effect": {
-                  "add_cards": [
-                    "SOR_046",
-                    "SOR_240",
-                    "LAW_254",
-                    "LAW_180",
-                    "SOR_067",
-                    "SHD_200"
-                  ]
-                }
-              }
-            ]
-          }
-        },
-        {
-          "id": "rescue_scum",
-          "type": "event",
-          "title": "Detention Block Outlaws",
-          "desc": "Five prisoners will help you reach Leia if you open their cells.",
-          "scenes": [
-            "saga_deathstar_superlaser",
-            "saga_deathstar_overlook"
-          ],
-          "event": {
-            "choices": [
-              {
-                "label": "Free five underworld prisoners",
-                "effect": {
-                  "add_cards": [
-                    "LAW_218",
-                    "LAW_159",
-                    "SOR_247",
-                    "LAW_060",
-                    "LAW_197"
-                  ]
-                }
-              }
-            ]
-          }
         },
         {
           "id": "prison_escape",
@@ -1422,7 +1514,17 @@
             }
           },
           "reward_tier": 3,
-          "player_extra_resources": 2
+          "player_extra_resources": 2,
+          "player_preplaced": [
+            {
+              "id": "SOR_189",
+              "ready": true,
+              "shield": true
+            }
+          ],
+          "deploy_from_deck": [
+            "SOR_189"
+          ]
         },
         {
           "id": "tractor_beam",
@@ -1641,7 +1743,11 @@
               "HMW_107",
               "HMW_107",
               "SOR_234",
-              "SOR_139"
+              "SOR_139",
+              "HMW_108",
+              "SHD_085",
+              "SOR_041",
+              "SOR_136"
             ],
             "base": "SOR_023",
             "hero_skin": "stormtrooper",
@@ -1766,7 +1872,10 @@
             "preplaced": [
               {
                 "id": "SOR_128",
-                "arena": "ground",
+                "ready": false
+              },
+              {
+                "id": "SOR_128",
                 "ready": false
               }
             ]
@@ -1812,7 +1921,7 @@
             "ground": "Hangar",
             "space": "Duel"
           },
-          "player_extra_resources": 1,
+          "player_extra_resources": 2,
           "first": 0,
           "ending": "Obi-Wan buys the crew the time they need. The Falcon clears the hangar with Leia and the stolen plans.",
           "player_preplaced": [
@@ -1820,14 +1929,516 @@
               "id": "SOR_189",
               "arena": "ground",
               "ready": false
+            },
+            {
+              "id": "SOR_046",
+              "ready": true,
+              "shield": true
             }
           ],
           "deploy_from_deck": [
             "SOR_189"
           ]
+        },
+        {
+          "id": "rescue_choices",
+          "type": "event",
+          "title": "Prison Access",
+          "desc": "Free the underworld inmates or unlock the Droid Depot.",
+          "event": {
+            "choices": [
+              {
+                "label": "Free the underworld inmates",
+                "effect": {
+                  "add_cards": [
+                    "LAW_218",
+                    "LAW_159",
+                    "SOR_247",
+                    "LAW_060",
+                    "LAW_197"
+                  ]
+                }
+              },
+              {
+                "label": "Release the Droid Depot",
+                "effect": {
+                  "add_cards": [
+                    "SEC_259",
+                    "SEC_110",
+                    "ASH_237",
+                    "SEC_221",
+                    "SEC_239",
+                    "LAW_075"
+                  ]
+                }
+              }
+            ]
+          },
+          "combined_recruit": [
+            "LAW_218",
+            "LAW_159",
+            "SOR_247",
+            "LAW_060",
+            "LAW_197",
+            "SEC_259",
+            "SEC_110",
+            "ASH_237",
+            "SEC_221",
+            "SEC_239",
+            "LAW_075"
+          ]
+        },
+        {
+          "id": "isb_choices",
+          "type": "event",
+          "title": "ISB Interrogation Wing",
+          "desc": "Free imprisoned Rebels or take the Imperial defectors with you.",
+          "event": {
+            "choices": [
+              {
+                "label": "Free the Rebels",
+                "effect": {
+                  "add_cards": [
+                    "SOR_046",
+                    "SOR_240",
+                    "LAW_254",
+                    "LAW_180",
+                    "SOR_067",
+                    "SHD_200"
+                  ]
+                }
+              },
+              {
+                "label": "Recruit the Imperial defectors",
+                "effect": {
+                  "add_cards": [
+                    "ASH_250",
+                    "IBH_062",
+                    "LAW_097",
+                    "SHD_114",
+                    "HMW_107"
+                  ]
+                }
+              }
+            ]
+          },
+          "combined_recruit": [
+            "SOR_046",
+            "SOR_240",
+            "LAW_254",
+            "LAW_180",
+            "SOR_067",
+            "SHD_200",
+            "ASH_250",
+            "IBH_062",
+            "LAW_097",
+            "SHD_114",
+            "HMW_107"
+          ]
+        },
+        {
+          "id": "armory_stop",
+          "title": "Imperial Armory",
+          "desc": "Buy weapons or modify your leader.",
+          "type": "rest",
+          "shop": true,
+          "offers": [
+            {
+              "id": "arms_cache",
+              "label": "Take six weapons and items",
+              "cost": 20,
+              "cards": [
+                "TWI_256",
+                "SHD_174",
+                "ASH_210",
+                "LOF_171",
+                "LAW_200",
+                "LAW_201"
+              ]
+            },
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            }
+          ]
+        },
+        {
+          "id": "supply_closet",
+          "type": "event",
+          "title": "Imperial Supply Closet",
+          "desc": "Open an unlocked utility closet.",
+          "event": {
+            "choices": [
+              {
+                "label": "Search the closet",
+                "outcomes": [
+                  {
+                    "weight": 4,
+                    "effect": {
+                      "add_cards": [
+                        "JTL_075"
+                      ],
+                      "message": "You find a medical kit."
+                    }
+                  },
+                  {
+                    "weight": 1,
+                    "effect": {
+                      "add_cards": [
+                        "ASH_237"
+                      ],
+                      "message": "You catch the Mouse Droid."
+                    }
+                  },
+                  {
+                    "weight": 3,
+                    "effect": {
+                      "next_enemy_card": "ASH_237",
+                      "message": "A Mouse Droid escapes and alerts the next patrol."
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Leave"
+              }
+            ]
+          },
+          "optional_choice": true
+        },
+        {
+          "id": "surveillance",
+          "type": "event",
+          "title": "Imperial Surveillance Network",
+          "desc": "R2-D2 can attempt to slice into the cameras.",
+          "event": {
+            "choices": [
+              {
+                "label": "Attempt the slice",
+                "outcomes": [
+                  {
+                    "weight": 75,
+                    "effect": {
+                      "revealed_hand": true,
+                      "message": "The security feed reveals the enemy's hand for this chapter."
+                    }
+                  },
+                  {
+                    "weight": 25,
+                    "effect": {
+                      "disabled_cards": [
+                        "SOR_236"
+                      ],
+                      "disabled_battles": 3,
+                      "message": "Electrical feedback disables R2-D2 for the next three battles."
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Leave"
+              }
+            ]
+          },
+          "optional_choice": true
+        },
+        {
+          "id": "officer_quarters",
+          "type": "event",
+          "title": "Imperial Officer's Quarters",
+          "desc": "Three shuffled cards conceal 100 credits, Old Access Codes, or a security alarm.",
+          "event": {
+            "choices": [
+              {
+                "label": "Turn over card 1",
+                "draw_offset": 0,
+                "outcomes": [
+                  {
+                    "weight": 1,
+                    "effect": {
+                      "credits": 100,
+                      "message": "Gain 100 run credits."
+                    }
+                  },
+                  {
+                    "weight": 1,
+                    "effect": {
+                      "add_cards": [
+                        "TWI_168"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 1,
+                    "effect": {
+                      "battle": true
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Turn over card 2",
+                "draw_offset": 1,
+                "outcomes": [
+                  {
+                    "weight": 1,
+                    "effect": {
+                      "credits": 100,
+                      "message": "Gain 100 run credits."
+                    }
+                  },
+                  {
+                    "weight": 1,
+                    "effect": {
+                      "add_cards": [
+                        "TWI_168"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 1,
+                    "effect": {
+                      "battle": true
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Turn over card 3",
+                "draw_offset": 2,
+                "outcomes": [
+                  {
+                    "weight": 1,
+                    "effect": {
+                      "credits": 100,
+                      "message": "Gain 100 run credits."
+                    }
+                  },
+                  {
+                    "weight": 1,
+                    "effect": {
+                      "add_cards": [
+                        "TWI_168"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 1,
+                    "effect": {
+                      "battle": true
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "optional_choice": true,
+          "enemy": {
+            "name": "Imperial Security",
+            "hp": 12,
+            "deck": [
+              "SOR_128",
+              "LAW_097",
+              "SEC_184",
+              "HMW_107",
+              "SOR_128",
+              "LAW_097",
+              "SEC_184",
+              "HMW_107"
+            ],
+            "preplaced": []
+          }
+        },
+        {
+          "id": "compactor_salvage",
+          "type": "event",
+          "title": "Trash Compactor Salvage",
+          "desc": "An Imperial equipment cache lies at the edge of the compactor.",
+          "event": {
+            "choices": [
+              {
+                "label": "Return for salvage",
+                "outcomes": [
+                  {
+                    "weight": 10,
+                    "effect": {
+                      "add_cards": [
+                        "TWI_256"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 10,
+                    "effect": {
+                      "add_cards": [
+                        "SHD_174"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 10,
+                    "effect": {
+                      "add_cards": [
+                        "ASH_210"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 10,
+                    "effect": {
+                      "add_cards": [
+                        "LOF_171"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 10,
+                    "effect": {
+                      "add_cards": [
+                        "LAW_200"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 10,
+                    "effect": {
+                      "add_cards": [
+                        "LAW_201"
+                      ]
+                    }
+                  },
+                  {
+                    "weight": 40,
+                    "effect": {
+                      "base_damage": 5,
+                      "message": "The Dianoga lashes out. Your base takes 5 damage."
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Leave"
+              }
+            ]
+          },
+          "optional_choice": true
+        },
+        {
+          "id": "power_conduit",
+          "type": "event",
+          "title": "Auxiliary Power Conduit",
+          "desc": "Try to siphon power before Obi-Wan disables the tractor beam.",
+          "event": {
+            "choices": [
+              {
+                "label": "Siphon power",
+                "outcomes": [
+                  {
+                    "weight": 75,
+                    "effect": {
+                      "starting_resource_bonus": 1,
+                      "message": "Gain one starting resource in every remaining battle."
+                    }
+                  },
+                  {
+                    "weight": 25,
+                    "effect": {
+                      "battle": true
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Decline"
+              }
+            ]
+          },
+          "optional_choice": true,
+          "enemy": {
+            "name": "Conduit Stormtroopers",
+            "hp": 30,
+            "deck": [],
+            "preplaced": [
+              {
+                "id": "SOR_128",
+                "ready": false
+              },
+              {
+                "id": "SOR_128",
+                "ready": false
+              },
+              {
+                "id": "SOR_128",
+                "ready": false
+              },
+              {
+                "id": "SOR_128",
+                "ready": false
+              },
+              {
+                "id": "SOR_128",
+                "ready": false
+              }
+            ]
+          },
+          "objective": {
+            "type": "clear_wave",
+            "params": {
+              "targets": [
+                "SOR_128"
+              ],
+              "text": "Defeat the five Stormtroopers.",
+              "objective_only": true
+            }
+          },
+          "player_preplaced": [
+            {
+              "id": "SOR_049",
+              "ready": true
+            }
+          ],
+          "battle_rules": {
+            "deck_out_damage": 0
+          }
+        },
+        {
+          "id": "hangar_override",
+          "type": "event",
+          "title": "Hangar Bay Security Override",
+          "desc": "R2-D2 can reroute the blast doors before the final assault. Slicing is unavailable while R2-D2 is disabled.",
+          "event": {
+            "choices": [
+              {
+                "label": "Slice the terminal",
+                "outcomes": [
+                  {
+                    "weight": 75,
+                    "effect": {
+                      "hangar_troopers": -2,
+                      "message": "Two Stormtroopers are sealed behind the blast doors."
+                    }
+                  },
+                  {
+                    "weight": 25,
+                    "effect": {
+                      "hangar_troopers": 2,
+                      "message": "The alert brings two more Stormtroopers."
+                    }
+                  }
+                ],
+                "requires_r2": true
+              },
+              {
+                "label": "Proceed without slicing"
+              }
+            ]
+          },
+          "optional_choice": true
         }
       ],
-      "route_version": 1,
+      "route_version": 2,
       "arenas": [
         "ground"
       ],
@@ -1848,14 +2459,144 @@
         "saga_deathstar_schematic"
       ],
       "player_extra_resources": 1,
-      "repair_after_win": 8
+      "repair_after_win": 8,
+      "chapter_card_pool": {
+        "Leader": [
+          "SOR_003",
+          "SOR_017"
+        ],
+        "Base": [
+          "SOR_023"
+        ],
+        "Units": [
+          "LAW_218",
+          "SEC_259",
+          "HMW_261",
+          "SOR_238",
+          "SHD_238",
+          "SOR_196",
+          "SOR_046",
+          "SOR_128",
+          "LAW_159",
+          "HMW_155",
+          "SOR_240",
+          "SEC_110",
+          "SOR_198",
+          "IBH_062",
+          "ASH_250",
+          "LAW_097",
+          "LAW_180",
+          "LAW_075",
+          "SEC_184",
+          "SOR_189",
+          "SHD_200",
+          "SOR_035",
+          "LOF_249",
+          "ASH_237",
+          "SOR_049",
+          "LAW_060",
+          "SOR_236",
+          "SOR_067",
+          "SHD_114",
+          "LAW_197",
+          "LAW_254",
+          "HMW_107",
+          "SHD_085",
+          "HMW_108",
+          "SOR_247",
+          "SEC_221",
+          "SEC_239",
+          "SOR_228",
+          "SHD_167"
+        ],
+        "Events": [
+          "LOF_222",
+          "JTL_091",
+          "SOR_199",
+          "HMW_114",
+          "LOF_216",
+          "SOR_223",
+          "SOR_139",
+          "SEC_177",
+          "LOF_264",
+          "SHD_205",
+          "SOR_234",
+          "TWI_174",
+          "SOR_041",
+          "JTL_075"
+        ],
+        "Upgrades": [
+          "SEC_070",
+          "LOF_215",
+          "HMW_127",
+          "ASH_210",
+          "JTL_260",
+          "LAW_225",
+          "LOF_171",
+          "HMW_264",
+          "TWI_256",
+          "SHD_174",
+          "SHD_104",
+          "SOR_053",
+          "SHD_070",
+          "LAW_200",
+          "LAW_201",
+          "SOR_136",
+          "HMW_252"
+        ]
+      },
+      "choice_slots": [
+        {
+          "before": "rescue_choices",
+          "events": [
+            "supply_closet",
+            "officer_quarters"
+          ]
+        },
+        {
+          "before": "tractor_beam",
+          "events": [
+            "surveillance",
+            "compactor_salvage"
+          ],
+          "alternate_before": {
+            "surveillance": "prison_escape"
+          }
+        },
+        {
+          "before": "repair_station",
+          "events": [
+            "power_conduit",
+            "hangar_override"
+          ]
+        }
+      ],
+      "special_scenario_cards": [
+        "TWI_168",
+        "ASH_243"
+      ],
+      "starter_revision": 1,
+      "starter_replacements": [
+        [
+          "SOR_067",
+          "LAW_218"
+        ],
+        [
+          "SOR_067",
+          "LAW_159"
+        ],
+        [
+          "TWI_174",
+          "SHD_070"
+        ]
+      ]
     },
     {
       "id": "ep4_ch3_yavin",
       "episode": 4,
       "number": 3,
-      "title": "Battle of Yavin",
-      "intro": "The Death Star approaches Yavin 4. Every pilot is needed for the trench run.",
+      "title": "Battle of Yavin · Trench Run",
+      "intro": "Scramble from Massassi Temple, recruit pilots, and breach the Death Star's defenses.",
       "alignment": "heroism",
       "ruleset": "campaign",
       "board_theme": "space",
@@ -1866,38 +2607,64 @@
         "JTL_012"
       ],
       "base_sequence": [
-        "KYB_001"
+        "JTL_026"
       ],
       "base_hp_override": 20,
       "repair_after_win": 4,
       "starting_deck": [
-        "SOR_237",
-        "SOR_237",
         "LAW_253",
-        "LAW_253",
+        "SOR_237",
+        "SEC_213",
         "JTL_051",
         "JTL_051",
-        "JTL_151",
-        "IBH_024",
-        "IBH_024",
-        "SOR_141",
-        "SOR_141",
-        "SOR_241",
-        "LAW_068",
         "JTL_095",
-        "JTL_095"
+        "SHD_246",
+        "IBH_006",
+        "JTL_151",
+        "JTL_101",
+        "JTL_149",
+        "SOR_060",
+        "JTL_150",
+        "JTL_245",
+        "JTL_123",
+        "JTL_075",
+        "JTL_076",
+        "SOR_125",
+        "JTL_171",
+        "JTL_254"
       ],
       "reward_pool": [
-        "SOR_044",
-        "SEC_152",
-        "ASH_153",
-        "IBH_006",
-        "JTL_095",
-        "JTL_151",
+        "ASH_078",
+        "LAW_183",
+        "JTL_199",
+        "ASH_204",
         "LAW_189",
-        "SOR_220",
-        "SOR_172",
-        "SOR_073"
+        "ASH_043",
+        "ASH_157",
+        "JTL_148",
+        "ASH_153",
+        "JTL_203",
+        "JTL_103",
+        "LAW_110",
+        "ASH_037",
+        "SOR_144",
+        "JTL_255",
+        "JTL_122",
+        "JTL_205",
+        "SOR_219",
+        "TWI_175",
+        "JTL_120",
+        "SOR_121",
+        "SOR_214",
+        "SEC_227",
+        "JTL_172",
+        "HMW_126",
+        "JTL_057",
+        "JTL_058",
+        "JTL_159",
+        "JTL_246",
+        "SOR_171",
+        "TWI_253"
       ],
       "treasures": [
         "kyber_shard",
@@ -1949,7 +2716,7 @@
           "objective": {
             "type": "standard"
           },
-          "base": "KYB_001",
+          "base": "JTL_026",
           "arenas": [
             "space"
           ],
@@ -1960,18 +2727,20 @@
             "hp": 14,
             "base": "KYB_003",
             "deck": [
-              "SOR_225",
-              "SOR_225",
-              "SOR_225",
-              "IBH_075",
-              "IBH_075",
-              "IBH_075",
               "SOR_132",
-              "SOR_132",
-              "SHD_082",
-              "SHD_082",
+              "ASH_215",
               "JTL_033",
-              "SOR_225"
+              "SHD_082",
+              "LAW_175",
+              "JTL_034",
+              "JTL_123",
+              "SOR_132",
+              "ASH_215",
+              "JTL_033",
+              "SHD_082",
+              "LAW_175",
+              "JTL_034",
+              "JTL_123"
             ]
           },
           "reward_tier": 1
@@ -1984,7 +2753,7 @@
           "objective": {
             "type": "standard"
           },
-          "base": "KYB_001",
+          "base": "JTL_026",
           "arenas": [
             "space"
           ],
@@ -1995,18 +2764,22 @@
             "hp": 10,
             "base": "KYB_003",
             "deck": [
-              "KYB_002",
-              "SOR_225",
-              "SOR_225",
-              "SOR_225",
-              "IBH_075",
-              "IBH_075",
+              "ASH_117",
               "SHD_082",
-              "JTL_033",
+              "SOR_132",
+              "LAW_175",
+              "SOR_173",
+              "JTL_205",
+              "JTL_171",
+              "ASH_117",
               "SHD_082",
-              "SOR_225",
-              "KYB_002",
-              "IBH_075"
+              "SOR_132",
+              "LAW_175",
+              "SOR_173",
+              "JTL_205",
+              "JTL_171",
+              "LAW_135",
+              "JTL_092"
             ]
           },
           "reward_tier": 2,
@@ -2023,7 +2796,7 @@
           "objective": {
             "type": "standard"
           },
-          "base": "KYB_001",
+          "base": "JTL_026",
           "arenas": [
             "space"
           ],
@@ -2034,18 +2807,21 @@
             "hp": 16,
             "base": "KYB_003",
             "deck": [
-              "SOR_231",
-              "LAW_175",
               "LAW_175",
               "SOR_132",
+              "ASH_215",
+              "JTL_033",
+              "JTL_084",
+              "JTL_086",
+              "JTL_123",
+              "LAW_175",
               "SOR_132",
-              "IBH_075",
-              "IBH_075",
-              "SOR_225",
-              "SOR_225",
-              "JTL_087",
-              "SHD_082",
-              "SOR_225"
+              "ASH_215",
+              "JTL_033",
+              "JTL_084",
+              "JTL_086",
+              "JTL_123",
+              "JTL_236"
             ]
           },
           "reward_tier": 3
@@ -2071,7 +2847,7 @@
           "objective": {
             "type": "standard"
           },
-          "base": "KYB_001",
+          "base": "JTL_026",
           "arenas": [
             "space"
           ],
@@ -2080,38 +2856,137 @@
             "blast"
           ],
           "enemy": {
-            "name": "Vader & Tarkin",
+            "name": "Vader's Black Squadron",
             "hero_skin": "vader",
             "ai_profile": "tempo",
             "hp": 12,
             "base": "KYB_003",
             "preplaced": [
               {
-                "id": "SOR_231",
-                "arena": "space",
-                "ready": false
+                "id": "LAW_175",
+                "ready": false,
+                "arena": "space"
               }
             ],
             "deck": [
-              "SOR_231",
               "LAW_175",
               "SOR_132",
-              "IBH_075",
-              "IBH_075",
-              "KYB_002",
-              "SOR_225",
-              "SOR_225",
-              "SOR_225",
-              "JTL_087",
-              "SHD_082",
-              "IBH_075",
-              "SOR_225",
-              "SHD_082"
+              "ASH_215",
+              "JTL_033",
+              "JTL_142",
+              "JTL_084",
+              "JTL_086",
+              "SOR_173",
+              "JTL_123",
+              "LAW_175",
+              "SOR_132",
+              "ASH_215",
+              "JTL_033",
+              "JTL_142",
+              "JTL_084",
+              "JTL_086",
+              "SOR_173",
+              "JTL_123"
             ]
           },
-          "reward_tier": 4
+          "reward_tier": 4,
+          "player_extra_resources": 2,
+          "player_preplaced": [
+            {
+              "id": "JTL_151",
+              "ready": true,
+              "shield": true
+            }
+          ],
+          "deploy_from_deck": [
+            "JTL_151"
+          ]
         }
-      ]
+      ],
+      "chapter_card_pool": {
+        "Leader": [
+          "JTL_012"
+        ],
+        "Base": [
+          "JTL_026"
+        ],
+        "Units": [
+          "SEC_213",
+          "JTL_058",
+          "LAW_253",
+          "SOR_237",
+          "JTL_057",
+          "ASH_078",
+          "LAW_183",
+          "JTL_150",
+          "JTL_199",
+          "ASH_204",
+          "LAW_189",
+          "JTL_103",
+          "ASH_043",
+          "ASH_157",
+          "JTL_142",
+          "JTL_159",
+          "SOR_060",
+          "ASH_215",
+          "JTL_148",
+          "ASH_153",
+          "SHD_246",
+          "JTL_203",
+          "TWI_253",
+          "JTL_246",
+          "SOR_132",
+          "JTL_236",
+          "JTL_034",
+          "JTL_033",
+          "ASH_117",
+          "SHD_082",
+          "JTL_095",
+          "LAW_110",
+          "LAW_135",
+          "LAW_175",
+          "JTL_245",
+          "IBH_006",
+          "JTL_151",
+          "JTL_101",
+          "ASH_037",
+          "JTL_051",
+          "JTL_149",
+          "SOR_144",
+          "JTL_255",
+          "JTL_086",
+          "JTL_084"
+        ],
+        "Events": [
+          "JTL_122",
+          "SOR_173",
+          "JTL_205",
+          "JTL_076",
+          "JTL_254",
+          "JTL_123",
+          "SOR_171",
+          "SOR_125",
+          "JTL_075",
+          "JTL_092",
+          "SOR_219",
+          "TWI_175"
+        ],
+        "Upgrades": [
+          "JTL_120",
+          "SOR_121",
+          "SOR_214",
+          "SEC_227",
+          "JTL_171",
+          "JTL_172",
+          "HMW_126"
+        ]
+      },
+      "unavailable_source_printings": [
+        "A-Wing (IC27)",
+        "Red Leader - Wait For My Signal (IC27)",
+        "Apology Accepted (IC27)"
+      ],
+      "route_version": 1
     }
   ],
   "treasures": {

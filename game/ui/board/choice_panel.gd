@@ -91,7 +91,7 @@ func _build() -> void:
 		buttons.add_child(yes)
 	else:
 		var shown: Array = pending.get("reveal", pending.get("options", []))
-		_add_cards(v, shown, true)
+		_add_cards(v, shown, int(pending.get("max", 1)) > 0)
 		_count = UIKit.label("", 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
 		v.add_child(_count)
 		_confirm = SabaccButton.make("Confirm", SabaccButton.Style.PRIMARY, "", true)
@@ -157,6 +157,7 @@ func _add_cards(v: VBoxContainer, uids: Array, selectable: bool) -> void:
 		holder.custom_minimum_size = CardView.PORTRAIT * _scale() + Vector2(0, 20)
 		row.add_child(holder)
 		var cv := CardView.create(ci.id, ci)
+		cv.face_down = pending.get("hidden_cards", false)
 		cv.draggable = false
 		cv.hover_lift = false
 		cv.pivot_offset = Vector2.ZERO
@@ -169,7 +170,8 @@ func _add_cards(v: VBoxContainer, uids: Array, selectable: bool) -> void:
 		cv.dim = selectable and not selectable_card
 		if selectable_card:
 			cv.tapped.connect(func(_c): _toggle(uid))
-		cv.inspect_requested.connect(func(c): InspectOverlay.open(self, c.card_id, c.get_global_rect(), ci))
+		if not cv.face_down:
+			cv.inspect_requested.connect(func(c): InspectOverlay.open(self, c.card_id, c.get_global_rect(), ci))
 		_views[uid] = cv
 		UIKit.pop_in(cv, i * 0.05)
 		i += 1

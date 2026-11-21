@@ -5,6 +5,8 @@ signal screen_changed(path: String)
 
 const SCREENS := {
 	"play": "res://ui/screens/play_carousel.tscn",
+	"mini_games": "res://ui/screens/mini_games.tscn",
+	"sabacc_war": "res://ui/screens/sabacc_war.tscn",
 	"hub": "res://ui/screens/mode_hub.tscn",
 	"packs": "res://ui/screens/pack_opening.tscn",
 	"customization": "res://ui/screens/customization.tscn",
@@ -58,9 +60,8 @@ func handle_back() -> bool:
 		top.request_back()
 		return true
 	var scene := get_tree().current_scene as ScreenBase
-	if scene and not scene._back_target.is_empty():
-		go(scene._back_target)
-		return true
+	if scene:
+		return scene.request_screen_back()
 	return false
 
 

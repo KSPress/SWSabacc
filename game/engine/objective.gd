@@ -22,6 +22,8 @@ static func create(cfg: Dictionary) -> Objective:
 			o = ReinforcementHunt.new()
 		"hangar_duel":
 			o = HangarDuel.new()
+		"clear_wave":
+			o = ClearWave.new()
 		"attrition":
 			o = Attrition.new()
 		_:
@@ -78,14 +80,67 @@ class SurviveRounds extends Objective:
 						m._put_in_play(unit, unit.arena(), not wave.get("ready", false))
 
 	func on_round_end(m: Match) -> void:
-		if m.round_num >= int(params.get("rounds", 4)) and m.players[0].base_remaining() > 0:
+		if check(m) < 0 and m.round_num >= int(params.get("rounds", 4)) and m.players[0].base_remaining() > 0:
 			m.set_winner(0, "survived")
 
+	func check(m: Match) -> int:
+		if params.get("protect_leader", false):
+			var leader: CardInst = m.players[0].leader
+			if not leader or not leader.in_play() or leader.remaining_hp() <= 0 or leader.controller != 0:
+				return 1
+		return -1
+
 	func describe() -> String:
+		if params.has("text"):
+			return params["text"]
 		return "Survive %d rounds." % int(params.get("rounds", 4))
 
 	func tracker(m: Match) -> String:
 		return "Survive: round %d / %d" % [m.round_num, int(params.get("rounds", 4))]
+
+
+class ClearWave extends Objective:
+	var targets: Array[CardInst] = []
+	var defeated: Array[CardInst] = []
+	var transitioned := false
+
+	func setup(m: Match) -> void:
+		for unit in m.players[1].units:
+			if unit.id in params.get("targets", []):
+				unit.flags["objective_target"] = true
+				targets.append(unit)
+
+	func on_protected_lost(_m: Match, unit: CardInst) -> void:
+		if unit in targets and unit not in defeated:
+			defeated.append(unit)
+
+	func on_action_start(m: Match) -> void:
+		if transitioned or not params.get("naboo_transition", false) or m.round_num < 2:
+			return
+		transitioned = true
+		var leader: CardInst = m.players[0].leader
+		if leader and leader.id == "LOF_016":
+			if leader.in_play():
+				m.defeat(leader)
+			leader.flags["campaign_retired"] = true
+		else:
+			for unit in m.players[0].units.duplicate():
+				if unit.id == "LOF_200":
+					m.defeat(unit)
+		if not m.players[0].units.any(func(unit): return unit.id == "LOF_096" or unit.id == "LOF_008"):
+			m.summon(0, "LOF_096", true)
+		m._log("Qui-Gon falls. Obi-Wan takes over the duel.")
+
+	func check(_m: Match) -> int:
+		if params.get("naboo_transition", false) and not transitioned:
+			return -1
+		return 0 if not targets.is_empty() and defeated.size() == targets.size() else -1
+
+	func describe() -> String:
+		return params.get("text", "Defeat all marked enemies.")
+
+	func tracker(_m: Match) -> String:
+		return "%s · %d/%d" % [params.get("tracker", "Targets defeated"), defeated.size(), targets.size()]
 
 
 class DefendUnit extends Objective:

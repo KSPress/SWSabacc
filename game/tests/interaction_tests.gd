@@ -40,6 +40,13 @@ func _run() -> void:
 	Save.data = Save.default_data()
 	Sabacc.settings["anim_speed"] = 1.0
 	Sabacc.settings["perf_mode"] = false
+	if only == "sabacc_war":
+		await _test_sabacc_war()
+		print("SABACC WAR INPUT: %d checks, %d failed" % [checks, failures])
+		if failures:
+			get_tree().quit(1)
+			await get_tree().process_frame
+		return
 	if only == "campaign_update":
 		await _test_campaign_update()
 		print("CAMPAIGN UPDATE: %d checks, %d failed" % [checks, failures])
@@ -174,6 +181,73 @@ func _run() -> void:
 	if failures:
 		get_tree().quit(1)
 		await get_tree().process_frame
+
+
+func _test_sabacc_war() -> void:
+	var war := preload("res://engine/cantina_war.gd")
+	await _size(540, 960)
+	await _go("play")
+	var carousel := get_tree().current_scene
+	for i in 3:
+		var center: Vector2 = carousel._stage.get_global_rect().get_center()
+		await _drag(center, center + Vector2(-100, 0))
+	check(carousel._open.text == "Mini Games" and carousel._cards.size() == 4, "Swipe through the fourth Play card")
+	await _click(carousel._open)
+	var menu := get_tree().current_scene
+	check(_button(menu, "Sabacc War").disabled, "New accounts see a locked Sabacc War option")
+	await _shot("mini-games-locked")
+	Save.clear_chapter(war.UNLOCK_CHAPTER)
+	var progress := Progression.state()
+	progress["sabacc_war"] = {"decks": [[8, 2, 3, 4, 6, 1, 5, 7], [7, 1, 2, 3, 4, 6, 5, 8]], "shuffle": 1}
+	Save.data["credits"] = 20
+	await _go("mini_games")
+	menu = get_tree().current_scene
+	check(not _button(menu, "Sabacc War").disabled, "Episode I Chapter 1 unlocks the standalone table")
+	Sabacc.settings["music_enabled"] = true
+	Music._apply()
+	var old_track := Music.current_path
+	await _click(_button(menu, "Sabacc War"))
+	var table := get_tree().current_scene
+	check(table.bg._location == "saga_cantina" and Music.current_path.ends_with("cantina_band.mp3") and Music.player.playing,
+		"War switches to the Cantina background and soundtrack")
+	await _click(table._deal)
+	check(table._dealing and table._deal.disabled and table._back.disabled, "The hand settles once while cards animate")
+	await _wait(5.0)
+	check(table._remaining == [3, 3] and table._burned.size() == 6 and Progression.credits() == 30
+		and table._amount.text == "30" and table._delta.text == "+10", "Face clash plays three cards down, reveals the fourth, shrinks the decks, and awards ten")
+	await _shot("sabacc-war-portrait")
+	await _size(1280, 720)
+	await _shot("sabacc-war-landscape")
+	await _click(table._deal)
+	await _wait(1.0)
+	check(table._remaining == [2, 2] and Progression.credits() == 20 and table._amount.text == "20" and table._delta.text == "-10",
+		"The next hand uses the same decks and subtracts the lost stake")
+	await _click(table._back)
+	check(Music.current_path == old_track and get_tree().current_scene.scene_file_path.ends_with("mini_games.tscn"),
+		"Leaving standalone War returns to Mini Games and resumes the soundtrack")
+
+	await _size(540, 960)
+	var chapter := CardDB.chapter("ep4_ch1_tatooine")
+	var run := CampaignRun.start(chapter, "SEC_015", 82)
+	for seed_value in 100:
+		run = CampaignRun.start(chapter, "SEC_015", seed_value)
+		if "cantina_war" in CampaignRun.route(chapter, run)["map"]["edges"]:
+			break
+	run["current"] = "cantina_duel"
+	run["credits"] = 30
+	run["war_table"] = {"decks": [[6, 1], [4, 2]]}
+	Save.set_run(run)
+	await _go("chapter", {"chapter_id": chapter["id"]})
+	var chapter_map := get_tree().current_scene
+	await _click(chapter_map._nodes["cantina_war"])
+	table = get_tree().current_scene
+	await _click(table._deal)
+	await _wait(1.0)
+	check(int(Save.run()["credits"]) == 40 and Progression.credits() == 20 and table._amount.text == "40",
+		"The campaign table pays into the run wallet only")
+	await _click(table._back)
+	check(Save.run()["current"] == "cantina_war" and get_tree().current_scene.scene_file_path.ends_with("chapter_map.tscn"),
+		"Leaving the Tatooine table completes the node and returns to the chapter map")
 
 
 func _test_campaign_update() -> void:

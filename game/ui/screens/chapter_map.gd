@@ -21,6 +21,9 @@ func build() -> void:
 	if not active or CampaignFlow.needs_new_route(run, chapter):
 		_build_start(Router.params.get("failed", false))
 	else:
+		if CampaignRun.update_starter_deck(run, chapter):
+			Save.set_run(run)
+		chapter = CampaignRun.route(chapter, run)
 		bg.set_location(CampaignRun.scene_for(run, chapter, CampaignRun.node_by_id(chapter, run.get("current", ""))))
 		_build_map()
 
@@ -58,13 +61,17 @@ func _build_start(failed: bool) -> void:
 	var intro := UIKit.label(chapter.get("intro", ""), 20, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_start_box.add_child(intro)
+	var leaders := CampaignFlow.eligible_leaders(chapter)
+	if chapter.get("two_leaders", false) or leaders.size() > 3:
+		_build_leader_picker(leaders)
+		return
 	_start_box.add_child(UIKit.label("Choose your leader", 22, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 16)
 	row.name = "Leaders"
 	_start_box.add_child(row)
-	for lid in chapter.get("leader_options", []):
+	for lid in leaders:
 		if not CardDB.lib.has(lid):
 			continue
 		var holder := VBoxContainer.new()
@@ -96,6 +103,31 @@ func _build_start(failed: bool) -> void:
 		var deck := SabaccButton.make("View starting deck (%d)" % chapter.get("starting_deck", []).size(), SabaccButton.Style.GHOST, "deck")
 		deck.pressed.connect(func(): _show_deck(chapter.get("starting_deck", [])))
 		_start_box.add_child(deck)
+
+
+func _build_leader_picker(ids: Array) -> void:
+	var twin: bool = chapter.get("two_leaders", false)
+	_start_box.add_child(UIKit.label("Choose two different leaders" if twin else "Choose your leader",
+		22, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	var first := OptionButton.new()
+	var second := OptionButton.new()
+	for picker in [first, second] if twin else [first]:
+		picker.custom_minimum_size.y = 60
+		for id in ids:
+			picker.add_item("%s · %s" % [CardDB.card(id).get("name", id), CardDB.card(id).get("subtitle", "")])
+		_start_box.add_child(picker)
+	first.select(0)
+	if twin:
+		second.select(1)
+	var go := SabaccButton.make("Start run", SabaccButton.Style.PRIMARY)
+	if twin:
+		var validate := func(_index: int): go.disabled = first.selected == second.selected
+		first.item_selected.connect(validate)
+		second.item_selected.connect(validate)
+	go.pressed.connect(func():
+		CampaignFlow.start_run(chapter, ids[first.selected], ids[second.selected] if twin else "")
+		Router.go("chapter", {"chapter_id": chapter["id"]}))
+	_start_box.add_child(go)
 
 
 # ---------------------------------------------------------------- map
@@ -221,6 +253,9 @@ func _open_node(n: Dictionary) -> void:
 	var nb: NodeButton = _nodes[n["id"]]
 	if nb.state != "available":
 		return
+	if n["id"] == "cantina_war":
+		Router.go("sabacc_war", {"chapter_id": chapter["id"], "node_id": n["id"]})
+		return
 	bg.set_location(CampaignRun.scene_for(run, chapter, n))
 	var mp := ModalPanel.open(self, 620.0, Sabacc.C_EMPIRE if n.get("type") == "boss" else Sabacc.C_GOLD)
 	mp.dismiss_on_backdrop = true
@@ -231,10 +266,51 @@ func _open_node(n: Dictionary) -> void:
 	mp.text(n.get("desc", ""), 18)
 	match n.get("type", "fight"):
 		"event":
-			for ch in n.get("event", {}).get("choices", []):
-				var b := _wrap_button(ch.get("label", ""), SabaccButton.Style.PRIMARY, "event")
-				b.pressed.connect(func(): _resolve_event(n, ch))
-				mp.add(b)
+			var choices: Array = n.get("event", {}).get("choices", [])
+			if run.get("pending_event_battle") == n["id"]:
+				choices = [{"label": "Fight the patrol", "effect": {"battle": true}}]
+			if n.has("combined_recruit") and "TWI_168" in run["deck"]:
+				choices = choices + [{"label": "Use Old Access Codes · recruit both groups",
+					"effect": {"remove_id": "TWI_168", "add_cards": n["combined_recruit"]}}]
+			var card_row: HBoxContainer
+			if n.get("optional_choice", false):
+				card_row = HBoxContainer.new()
+				card_row.add_theme_constant_override("separation", 8)
+				mp.add(card_row)
+			var faces := [
+				preload("res://assets/branding/play_campaigns.png"),
+				preload("res://assets/branding/play_conquest.png"),
+				preload("res://assets/branding/play_battles.png"),
+			]
+			for i in choices.size():
+				var choice: Dictionary = choices[i]
+				var styles := [SabaccButton.Style.GOLD, SabaccButton.Style.REBEL, SabaccButton.Style.EMPIRE]
+				var b := _wrap_button(choice["label"], styles[i % styles.size()], "deck")
+				b.disabled = int(choice.get("cost", 0)) > int(run.get("credits", 0))
+				if choice.get("requires_r2", false):
+					b.disabled = b.disabled or int(run.get("disabled_battles", 0)) > 0
+				if choice.has("pick"):
+					b.disabled = b.disabled or _event_candidates(choice["pick"]).is_empty()
+				b.pressed.connect(func(): _resolve_event(n, choice))
+				if card_row:
+					var card := VBoxContainer.new()
+					card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+					var art := TextureButton.new()
+					art.texture_normal = faces[i % faces.size()]
+					if n["id"] == "officer_quarters":
+						art.texture_normal = faces[2]
+					art.ignore_texture_size = true
+					art.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+					art.custom_minimum_size.y = 140
+					art.disabled = b.disabled
+					art.pressed.connect(func(): b.pressed.emit())
+					card.add_child(art)
+					b.glyph = ""
+					b.custom_minimum_size.y = 74
+					card.add_child(b)
+					card_row.add_child(card)
+				else:
+					mp.add(b)
 		"rest":
 			if n.get("shop", false):
 				_cantina(mp, n)
@@ -285,7 +361,7 @@ func _open_node(n: Dictionary) -> void:
 
 
 func _cantina(panel: ModalPanel, node: Dictionary) -> void:
-	if node.has("offers"):
+	if node.get("shop", false):
 		_service_menu(panel, node)
 		return
 	var funds := int(run.get("credits", 0))
@@ -310,10 +386,13 @@ func _cantina(panel: ModalPanel, node: Dictionary) -> void:
 func _service_menu(panel: ModalPanel, node: Dictionary) -> void:
 	var funds := int(run.get("credits", 0))
 	panel.add(UIKit.credit_label("%d run credits" % funds))
-	for offer in node["offers"]:
+	for offer in CampaignRun.shop_offers(run, node):
 		var used := CampaignRun.service_used(run, node, offer)
 		var cost := int(offer["cost"])
-		var button := _wrap_button("%s · %s" % [offer["label"], "Purchased" if used else "%d credits" % cost], SabaccButton.Style.GOLD)
+		var label: String = offer["label"]
+		if offer.has("leader_id") and run.has("support_leader"):
+			label += " · " + CardDB.card(offer["leader_id"]).get("name", "")
+		var button := _wrap_button("%s · %s" % [label, "Purchased" if used else "%d credits" % cost], SabaccButton.Style.GOLD)
 		var candidates: Array = []
 		if offer["id"] == "duplicate" or offer["id"] == "experience":
 			var seen := {}
@@ -352,11 +431,31 @@ func _wrap_button(label: String, style: SabaccButton.Style, glyph := "", breathe
 
 
 func _resolve_event(n: Dictionary, choice: Dictionary) -> void:
-	var e: Dictionary = choice.get("effect", {})
+	if _resolving or int(choice.get("cost", 0)) > int(run.get("credits", 0)):
+		return
+	var e := CampaignRun.event_effect(run, n, choice)
+	if e.get("battle", false):
+		run["pending_event_battle"] = n["id"]
+		Save.set_run(run)
+		CampaignFlow.start_node(chapter, n)
+		return
+	if choice.has("pick"):
+		var kind: String = choice["pick"]
+		_show_deck(_event_candidates(kind), func(id: String):
+			e["remove_id" if kind == "upgrade" else "experience_id"] = id
+			_finish_simple(n, e), "Choose an upgrade to trade" if kind == "upgrade" else "Choose a droid for the oil bath")
+		return
 	if e.has("remove_card"):
 		_remove_card_then(n)
 		return
 	_finish_simple(n, e)
+
+
+func _event_candidates(kind: String) -> Array:
+	return run["deck"].filter(func(id):
+		var data := CardDB.card(id)
+		return data.get("type") == "upgrade" if kind == "upgrade" else (
+			data.get("type") == "unit" and "droid" in data.get("traits", [])))
 
 
 func _finish_simple(n: Dictionary, e: Dictionary) -> void:
@@ -370,6 +469,10 @@ func _finish_simple(n: Dictionary, e: Dictionary) -> void:
 		upgrades[e["upgrade"]] = ["experience"]
 		run["card_upgrades"] = upgrades
 	var msg := CampaignRun.apply_effect(run, chapter, e)
+	if int(run.get("base_damage", 0)) >= CampaignRun.max_base_hp(run, chapter):
+		var payout := CampaignFlow.cash_out(run)
+		Router.go("chapter", {"chapter_id": chapter["id"], "failed": true, "payout": payout})
+		return
 	CampaignRun.complete_node(run, n["id"])
 	Save.set_run(run)
 	Sfx.play("deploy")

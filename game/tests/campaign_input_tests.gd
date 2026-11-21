@@ -335,6 +335,11 @@ func _run() -> void:
 	cantina_run["credits"] = 50
 	cantina_run["base_damage"] = 10
 	cantina_run["current"] = "tusken_raid"
+	var routed := CampaignRun.route(chapter, cantina_run)
+	var bypass: Array = CampaignRun.available_nodes(cantina_run, routed).filter(func(id): return id.begins_with("bypass_"))
+	check(bypass.size() == 1, "The first Tatooine event can be bypassed")
+	if not bypass.is_empty():
+		CampaignRun.complete_node(cantina_run, bypass[0])
 	Save.set_run(cantina_run)
 	var wallet_before := Progression.credits()
 	await _go("chapter", {"chapter_id": chapter["id"]})
@@ -358,8 +363,8 @@ func _run() -> void:
 		check(Save.run()["credits"] == 5 and Save.run()["deck"].size() == 25, "Recruit the full Jawa package after repairing")
 		await _click(_button(map, "Continue"))
 		await _wait(1.5)
-		check("sandcrawler" in Save.run()["visited"] and CampaignRun.available_nodes(Save.run(), chapter) == ["homestead"],
-			"Continuing leaves the shop for the homestead")
+		check("sandcrawler" in Save.run()["visited"] and "homestead" in routed["map"]["edges"][CampaignRun.available_nodes(Save.run(), routed)[0]],
+			"Continuing leaves the shop for the branch before the homestead")
 
 	var deck: Dictionary = CardDB.spotlight_for_mode("traditional")[0]
 	var crowded := QuickMatch.config_for(deck, deck, RuleSet.premier(), "tempo", RandomNumberGenerator.new())

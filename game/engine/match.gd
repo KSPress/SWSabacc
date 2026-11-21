@@ -19,6 +19,9 @@ const SIDES := ["player", "enemy"]
 var lib: CardLibrary
 var rules: RuleSet
 var players: Array = []
+var linked_duel_cards: Array = []
+var lando_space_campaign := false
+var removed_enemy_traits := [{}, {}]
 var rng := RandomNumberGenerator.new()
 var seed_value := 0
 var round_num := 1
@@ -67,6 +70,8 @@ var _extra_action := false
 func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 	lib = p_lib
 	rules = cfg.get("rules", RuleSet.premier())
+	linked_duel_cards = cfg.get("linked_duel_cards", [])
+	lando_space_campaign = cfg.get("lando_space_campaign", false)
 	seed_value = int(cfg.get("seed", randi()))
 	rng.seed = seed_value
 	players.clear()
@@ -82,6 +87,11 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 		if pc.get("leader", "") != "":
 			ps.leader = _new_inst(pc["leader"], i)
 			ps.leader.zone = "leader"
+		if pc.get("support_leader", "") != "":
+			ps.support_leader = _new_inst(pc["support_leader"], i)
+			ps.support_leader.zone = "leader"
+		for leader in ps.leaders():
+			_apply_leader_mods(leader, pc.get("leader_mods", {}).get(leader.id, []))
 		ps.base = _new_inst(pc.get("base", ""), i)
 		ps.base.zone = "base"
 		var hp_target := rules.base_hp_override if rules.base_hp_override > 0 else ps.base.printed_hp()
@@ -90,12 +100,16 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 		hp_target += int(pc.get("base_hp_bonus", 0))
 		if hp_target != ps.base.printed_hp():
 			ps.base.mods.append({"h": hp_target - ps.base.printed_hp(), "dur": "permanent"})
+		var oil_bath_card: String = pc.get("oil_bath_card", "")
 		for cid in pc.get("deck", []):
 			if not lib.has(cid):
 				push_warning("Match: unknown card id %s skipped" % cid)
 				continue
 			var c := _new_inst(cid, i)
 			c.zone = "deck"
+			if cid == oil_bath_card:
+				c.flags["campaign_oil_bath"] = true
+				oil_bath_card = ""
 			ps.deck.append(c)
 		_shuffle(ps.deck)
 		ps.base.damage = int(pc.get("base_damage", 0))
@@ -111,6 +125,8 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 			u.flags.merge(pre.get("flags", {}), true)
 			if pre.has("hp"):
 				u.mods.append({"h": int(pre["hp"]) - u.printed_hp(), "dur": "permanent"})
+			if pre.has("power"):
+				u.mods.append({"p": int(pre["power"]) - u.printed_power(), "dur": "permanent"})
 			_apply_card_upgrades(u)
 			if pre.get("shield", false):
 				attach_token(u, "shield")
@@ -122,6 +138,17 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 	tokens = Tokens.resolve(cfg.get("tokens", ["initiative"]))
 	objective = Objective.create(cfg.get("objective", {"type": "standard"}))
 	objective.setup(self)
+	for p in 2:
+		if cfg["players"][p].get("deploy_leader_at_start", false) and players[p].leader:
+			var leader: CardInst = players[p].leader
+			leader.deployed = true
+			leader.epic_used = true
+			_put_in_play(leader, "space", false, false)
+			var opening_hp := int(cfg["players"][p].get("opening_leader_hp", 0))
+			if opening_hp > leader.printed_hp():
+				leader.mods.append({"h": opening_hp - leader.printed_hp(), "dur": "permanent"})
+			if cfg["players"][p].get("opening_leader_shield", false):
+				attach_token(leader, "shield")
 	var random_first := rng.randi_range(0, 1)
 	var first := int(cfg.get("first", -1))
 	initiative = first if first in [0, 1] else random_first
@@ -154,6 +181,22 @@ func _new_inst(cid: String, owner_idx: int) -> CardInst:
 	return c
 
 
+func _apply_leader_mods(leader: CardInst, modifications: Array) -> void:
+	if modifications.is_empty():
+		return
+	leader.data = leader.data.duplicate(true)
+	if "early_deploy" in modifications and leader.data.has("epic_cost"):
+		leader.data["epic_cost"] = maxi(0, int(leader.data["epic_cost"]) - 1)
+	for key in ["leader_unit", "pilot"]:
+		if not leader.data.has(key):
+			continue
+		var deployed: Dictionary = leader.data[key]
+		if "leader_armor" in modifications:
+			deployed["hp"] = int(deployed.get("hp", 0)) + 2
+		if "leader_weapon" in modifications:
+			deployed["power"] = int(deployed.get("power", 0)) + 1
+
+
 func _shuffle(arr: Array) -> void:
 	for i in range(arr.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
@@ -180,8 +223,9 @@ func trigger_sources() -> Array:
 	var result := all_units()
 	for player in players:
 		result.append(player.base)
-		if player.leader and not player.leader.deployed:
-			result.append(player.leader)
+		for leader in player.leaders():
+			if not leader.deployed:
+				result.append(leader)
 	for instance in by_uid.values():
 		if instance.zone == "upgrade":
 			result.append(instance)
@@ -260,8 +304,9 @@ func _play_discount(p: int, c: CardInst, aspects: Array, opts: Dictionary) -> in
 				count = floori(float(ps.base.damage) / float(rule["base_damage_divisor"]))
 			total += int(rule["n"]) * count
 	var sources: Array = ps.units + [ps.base]
-	if ps.leader and not ps.leader.deployed:
-		sources.append(ps.leader)
+	for leader in ps.leaders():
+		if not leader.deployed:
+			sources.append(leader)
 	for source in sources:
 		for rule in source.abilities_with("play_discount"):
 			if not _matches_play(record, rule["filter"]):
@@ -324,7 +369,7 @@ func _attack_targets(u: CardInst, allow_exhausted: bool, units_only: bool) -> Ar
 	if not u.in_play() or (u.exhausted and not allow_exhausted) or u.flags.get("cannot_attack", false):
 		return out
 	var allowed_arenas: Array = [u.zone]
-	var no_base := false
+	var no_base := u.mods.any(func(modifier): return modifier.get("no_base_attack", false) and u.modifier_active(modifier))
 	for ability in u.abilities_with("constant"):
 		match ability.get("flag", ""):
 			"cannot_attack":
@@ -377,6 +422,8 @@ func legal_actions(p: int) -> Array:
 			continue
 		if play_cost(p, c) - exploit_discount(p, c) <= res:
 			out.append({"a": "play", "uid": c.uid})
+		if c.has_constant("discard_cunning_instead_of_cost") and ps.hand.any(func(other): return other != c and "cunning" in other.aspects()):
+			out.append({"a": "play_alt", "uid": c.uid})
 	for r in ps.resources:
 		if r.has_kw("smuggle") and play_cost(p, r, true) <= res:
 			if r.card_type() == "unit" and not (arena_for(r) in rules.arenas):
@@ -384,6 +431,11 @@ func legal_actions(p: int) -> Array:
 			if r.card_type() == "upgrade" and not _has_upgrade_target(p, r):
 				continue
 			out.append({"a": "smuggle", "uid": r.uid})
+	for discarded in ps.discard:
+		if not discarded.has_constant("play_if_discarded_this_phase") or discarded.flags.get("discarded_phase", -1) != phase_serial:
+			continue
+		if play_cost(p, discarded) <= res and _has_upgrade_target(p, discarded):
+			out.append({"a": "play", "uid": discarded.uid})
 	for u in ps.units:
 		for t in attack_targets(u):
 			out.append({"a": "attack", "uid": u.uid, "target": t})
@@ -398,24 +450,27 @@ func legal_actions(p: int) -> Array:
 		for i in actions.size():
 			if _can_pay_action(p, source, actions[i]):
 				out.append({"a": "ability", "uid": source.uid, "idx": i})
-	if ps.leader and not ps.leader.deployed:
-		var acts := ps.leader.abilities_with("action")
+	for leader in ps.leaders():
+		if leader.deployed or leader.flags.get("campaign_retired", false):
+			continue
+		var acts := leader.abilities_with("action")
 		for i in acts.size():
-			if _can_pay_action(p, ps.leader, acts[i]):
-				out.append({"a": "ability", "uid": ps.leader.uid, "idx": i})
+			if _can_pay_action(p, leader, acts[i]):
+				out.append({"a": "ability", "uid": leader.uid, "idx": i})
 		# double-sided leaders with no unit side (e.g. Chancellor Palpatine // Darth Sidious) never deploy
-		var has_unit_side := int(ps.leader.data.get("leader_unit", {}).get("hp", 0)) > 0
-		if rules.name == "quick_space" and ps.leader.data.has("pilot") and ps.leader.arena() != "space":
+		var has_unit_side := int(leader.data.get("leader_unit", {}).get("hp", 0)) > 0
+		var space_campaign := rules.name == "campaign" and rules.arenas == ["space"]
+		if (space_campaign or (rules.name == "quick_space" and leader.data.has("pilot"))) and leader.arena() != "space":
 			has_unit_side = false
-		if has_unit_side and not ps.leader.epic_used and ps.resources.size() >= int(ps.leader.data.get("epic_cost", 99)):
-			out.append({"a": "deploy"})
-		var pilot: Dictionary = ps.leader.data.get("pilot", {})
+		if has_unit_side and not leader.epic_used and ps.resources.size() >= int(leader.data.get("epic_cost", 99)):
+			out.append({"a": "deploy"} if leader == ps.leader else {"a": "deploy", "uid": leader.uid})
+		var pilot: Dictionary = leader.data.get("pilot", {})
 		if not pilot.is_empty():
-			var can_pilot := not ps.leader.epic_used and ps.resources.size() >= int(ps.leader.data.get("epic_cost", 99))
+			var can_pilot := not leader.epic_used and ps.resources.size() >= int(leader.data.get("epic_cost", 99))
 			if pilot.has("flip_cost"):
-				can_pilot = res >= int(pilot["flip_cost"]) and not ps.leader.exhausted
-			if can_pilot and not Effects.upgrade_targets(self, p, ps.leader, true).is_empty():
-				out.append({"a": "deploy_pilot", "uid": ps.leader.uid})
+				can_pilot = res >= int(pilot["flip_cost"]) and not leader.exhausted
+			if can_pilot and not Effects.upgrade_targets(self, p, leader, true).is_empty():
+				out.append({"a": "deploy_pilot", "uid": leader.uid})
 	for tk in tokens:
 		if _token_claimable(p, tk):
 			out.append({"a": "claim", "token": tk["id"]})
@@ -445,9 +500,8 @@ func _can_pay_action(p: int, c: CardInst, ab: Dictionary) -> bool:
 	var required: Dictionary = effects[0]
 	if required.get("op") == "attack_with" and required.get("t", {}).get("can_attack", false) and not required.has("if"):
 		return not Effects.candidates(self, required["t"], {"ctl": p, "src": c.uid}).is_empty()
-	if not ab.get("epic", false) and resources == 0 and not cost.get("exhaust", false) and not cost.has("other"):
-		if required.get("op") == "play_from_hand":
-			return Effects.has_hand_play(self, p, required)
+	if required.get("op") == "play_from_hand" and not required.get("optional", false) and not required.has("if"):
+		return Effects.has_hand_play(self, p, required, resources)
 	return true
 
 
@@ -505,6 +559,11 @@ func do_action(a: Dictionary) -> bool:
 				push_frame([{"op": "_exploit", "uid": pc.uid}], {"ctl": p, "src": pc.uid, "name": pc.name(), "text": "Exploit"})
 			else:
 				_play_card(p, pc, false, {"target": target, "direct_action": true})
+		"play_alt":
+			consecutive_passes = 0
+			var pc := card(a["uid"])
+			push_frame([{"op": "discard", "aspect": "cunning", "exclude_source": true}, {"op": "_play_without_cost", "if_did": true}],
+				{"ctl": p, "src": pc.uid, "name": pc.name()})
 		"smuggle":
 			consecutive_passes = 0
 			_play_card(p, card(a["uid"]), true)
@@ -514,9 +573,9 @@ func do_action(a: Dictionary) -> bool:
 		"deploy_pilot":
 			consecutive_passes = 0
 			if target:
-				_deploy_pilot(p, target)
+				_deploy_pilot(p, target, card(a["uid"]))
 			else:
-				push_frame([{"op": "_deploy_pilot"}], {"ctl": p, "src": ps.leader.uid})
+				push_frame([{"op": "_deploy_pilot"}], {"ctl": p, "src": a["uid"]})
 		"attack":
 			consecutive_passes = 0
 			begin_attack(card(a["uid"]), card(a["target"]))
@@ -525,7 +584,7 @@ func do_action(a: Dictionary) -> bool:
 			_use_action_ability(p, card(a["uid"]), int(a["idx"]))
 		"deploy":
 			consecutive_passes = 0
-			_deploy_leader(p)
+			_deploy_leader(p, card(int(a.get("uid", 0))))
 		"claim":
 			consecutive_passes = 0
 			_claim_token(p, a["token"])
@@ -535,6 +594,8 @@ func do_action(a: Dictionary) -> bool:
 
 
 func _same_action(l: Dictionary, a: Dictionary) -> bool:
+	if l["a"] == "deploy" and l.get("uid", 0) != a.get("uid", 0):
+		return false
 	for k in l:
 		if not a.has(k) or str(a[k]) != str(l[k]):
 			return false
@@ -590,6 +651,8 @@ func _ability_frame(src: CardInst, ab: Dictionary, extra := {}) -> Dictionary:
 		if not src.attached_to or not src.attached_to.meets_host_requirement(ab["host_requires"]):
 			return {}
 	var ctx := {"src": src.uid, "ctl": src.controller, "text": ab.get("text", ""), "name": src.name()}
+	if ab.has("grant_source"):
+		ctx["grant_source"] = ab["grant_source"]
 	ctx.merge(extra, true)
 	return {"effects": ab["effects"], "i": 0, "ctx": ctx, "rule": ab, "source": src}
 
@@ -599,6 +662,13 @@ func push_ability_frame(frame: Dictionary) -> void:
 	var src: CardInst = frame["source"]
 	if not _ability_limit_available(src, ab):
 		return
+	var ps: PlayerState = players[frame["ctx"]["ctl"]]
+	if ab.get("trigger") == "when_played" and ps.repeat_when_played_phase == phase_serial and ps.repeat_when_played_count > 0:
+		var original: Array = frame["effects"]
+		var replay := {"op": "_repeat_when_played", "effects": original, "original_context": frame["ctx"].duplicate()}
+		frame["effects"] = original + [replay]
+		replay["count"] = ps.repeat_when_played_count
+		ps.repeat_when_played_count = 0
 	frames.append(frame)
 	if ab.get("optional_limit", false):
 		frame["optional_rule"] = ab
@@ -909,6 +979,8 @@ func pay(p: int, amount: int) -> void:
 ## (ground or space) fights in the single shared lane.
 func arena_for(c: CardInst, printed := "") -> String:
 	var a := printed if printed != "" or c == null else c.arena()
+	if not linked_duel_cards.is_empty() and c != null:
+		return "space" if c.is_leader() or c.id in linked_duel_cards else "ground"
 	if rules.single_lane:
 		return str(rules.arenas[0])
 	return a
@@ -979,6 +1051,7 @@ func _play_card(p: int, c: CardInst, smuggle: bool, opts := {}) -> void:
 		return rule["phase"] == phase_serial and rule["uses"] > 0)
 	played_this_phase[p].append(c)
 	var from_resource: bool = smuggle or opts.get("from_resource", false)
+	var from_hand := c.zone == "hand" and not from_resource
 	# A ready resource being played may pay for itself before leaving the zone.
 	if from_resource and not c.exhausted and cost > 0:
 		c.exhausted = true
@@ -991,6 +1064,8 @@ func _play_card(p: int, c: CardInst, smuggle: bool, opts := {}) -> void:
 			move_to_resources(p, ps.deck.pop_front(), true)
 	else:
 		ps.hand.erase(c)
+		if c.zone == "deck":
+			ps.deck.erase(c)
 		players[c.owner].discard.erase(c)
 	c.controller = p
 	events.append({"t": "play", "p": p, "uid": c.uid})
@@ -1038,6 +1113,8 @@ func _play_card(p: int, c: CardInst, smuggle: bool, opts := {}) -> void:
 				c.mods.append({"kw": keyword, "v": 1, "dur": "phase"})
 			if opts.has("gain_kw"):
 				c.mods.append({"kw": opts["gain_kw"], "v": 1, "dur": "phase"})
+			if from_hand and c.has_constant("ambush_from_hand"):
+				c.mods.append({"kw": "ambush", "dur": "phase"})
 			_on_card_played(p, c, smuggle, from_resource)
 			_on_unit_enters(c, "when_played")
 			if opts.has("deal_damage_on_play"):
@@ -1210,6 +1287,9 @@ func create_unit_token(p: int, key: String) -> CardInst:
 func _apply_card_upgrades(u: CardInst) -> void:
 	for kind in players[u.controller].card_upgrades.get(u.id, []):
 		attach_token(u, kind)
+	if u.flags.get("campaign_oil_bath", false):
+		attach_token(u, "experience")
+		attach_token(u, "experience")
 
 
 func summon(p: int, cid: String, ready := false) -> CardInst:
@@ -1278,6 +1358,16 @@ func heal(target: CardInst, n: int) -> int:
 	return h
 
 
+func discard_from_hand_or_deck(player: int, c: CardInst) -> void:
+	var ps: PlayerState = players[player]
+	ps.hand.erase(c)
+	ps.deck.erase(c)
+	c.flags["discarded_phase"] = phase_serial
+	c.zone = "discard"
+	ps.discard.append(c)
+	events.append({"t": "discard", "uid": c.uid, "p": player})
+
+
 func defeat(u: CardInst, departing_host := false, skip_replacement := false) -> void:
 	if not skip_replacement:
 		if u.flags.get("pilot_replacement_pending", false):
@@ -1317,7 +1407,7 @@ func defeat(u: CardInst, departing_host := false, skip_replacement := false) -> 
 		return
 	var bounties := u.abilities_with("bounty")
 	var abil := u.abilities_with("when_defeated")
-	var last_known := {"lki_arena": u.arena(), "lki_damage": u.damage}
+	var last_known := {"lki_arena": u.arena(), "lki_damage": u.damage, "lki_ready": not u.exhausted}
 	if not abil.is_empty():
 		last_known["lki_power"] = u.power(attack.get("a", 0) == u.uid)
 	_defeat_attached_upgrades(u)
@@ -1393,13 +1483,16 @@ func return_to_hand(u: CardInst) -> void:
 	events.append({"t": "bounce", "uid": u.uid})
 
 
-func put_unit_on_bottom(u: CardInst) -> void:
+func put_unit_on_bottom(u: CardInst, top := false) -> void:
 	if u.in_play() and u.flags.get("objective_target", false):
 		return
 	if u.is_leader() or u.is_token:
 		return
 	_leave_for_owner_zone(u, "deck")
-	players[u.owner].deck.append(u)
+	if top:
+		players[u.owner].deck.push_front(u)
+	else:
+		players[u.owner].deck.append(u)
 	events.append({"t": "deck_bottom", "uid": u.uid})
 
 
@@ -1504,9 +1597,15 @@ func begin_attack(a: CardInst, t: CardInst, using_ambush := false) -> void:
 	for ability in t.abilities_with("when_attacked"):
 		triggers.append(_ability_frame(t, ability, {"it": a.uid}))
 	# "When a friendly <Trait> unit attacks" on the attacker's base and other units
-	for src in [players[p].base] + players[p].units:
+	var attack_sources: Array = [players[p].base] + players[p].units
+	for leader in players[p].leaders():
+		if not leader.deployed:
+			attack_sources.append(leader)
+	for src in attack_sources:
 		for ab in src.abilities_with("friendly_attack"):
-			if a.has_trait(str(ab.get("trait", ""))):
+			if ab.get("higher_cost_target", false) and (not t.in_play() or t.cost() <= a.cost()):
+				continue
+			if not ab.has("trait") or a.has_trait(str(ab["trait"])):
 				triggers.append(_ability_frame(src, ab, {"it": a.uid}))
 	var restore := a.kw("restore")
 	if restore > 0:
@@ -1561,6 +1660,7 @@ func resolve_combat() -> void:
 	var t_shielded := t.shield_count() > 0
 	var dealt := deal_damage(t, ap, a, false, true)
 	if dealt > 0:
+		attack["excess_damage"] = maxi(0, dealt - t_rem)
 		attack["combat_unit_uid"] = t.uid
 		if not t.is_leader_unit():
 			attack["nonleader_combat_uid"] = t.uid
@@ -1615,6 +1715,8 @@ func end_attack() -> void:
 			if source.controller != a.controller:
 				continue
 			for ability in source.abilities_with("friendly_attack_end"):
+				if ability.get("no_other_attacks", false) and attacked_with.any(func(ids): return ids.any(func(uid): return uid != a.uid)):
+					continue
 				if not ability.has("attacker_trait") or a.has_trait(ability["attacker_trait"]):
 					end_abilities.append([source, ability])
 		for ability in a.abilities_with("attack_end"):
@@ -1633,6 +1735,7 @@ func end_attack() -> void:
 	var context := {"subject": attack["a"], "combat_defender": attack["t"], "combat": attack}
 	attack["attacker_survived"] = survived
 	attack["nonleader_defender_defeated"] = attack.get("defender_defeated", false) and attack["defender_nonleader"]
+	attack["defender_defeated_with_excess"] = attack.get("defender_defeated", false) and attack.get("excess_damage", 0) > 0
 	context["trigger_amount"] = attack.get("base_combat_damage", 0)
 	attack = {}
 	_expire("attack")
@@ -1683,8 +1786,9 @@ func _use_action_ability(p: int, c: CardInst, idx: int) -> void:
 	push_ability(c, ab)
 
 
-func _deploy_leader(p: int) -> void:
-	var l: CardInst = players[p].leader
+func _deploy_leader(p: int, l: CardInst = null) -> void:
+	if l == null:
+		l = players[p].leader
 	l.deployed = true
 	l.epic_used = true
 	var was_exhausted := l.exhausted
@@ -1694,8 +1798,9 @@ func _deploy_leader(p: int) -> void:
 	_notify_leader_deployed(p, l, true)
 
 
-func _deploy_pilot(p: int, host: CardInst) -> void:
-	var leader: CardInst = players[p].leader
+func _deploy_pilot(p: int, host: CardInst, leader: CardInst = null) -> void:
+	if leader == null:
+		leader = players[p].leader
 	var pilot: Dictionary = leader.data["pilot"]
 	var flips := pilot.has("flip_cost")
 	leader.deployed = true
@@ -1756,8 +1861,9 @@ func continuous_bonus(target: CardInst, field: String, keyword: String) -> int:
 	var total := 0
 	var sources := all_units()
 	for player in players:
-		if player.leader and not player.leader.deployed:
-			sources.append(player.leader)
+		for leader in player.leaders():
+			if not leader.deployed:
+				sources.append(leader)
 		sources.append(player.base)
 	for source in sources:
 		for ability in source.abilities_with("continuous"):

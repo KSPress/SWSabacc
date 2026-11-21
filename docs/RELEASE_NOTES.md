@@ -1,9 +1,9 @@
-SWU Sabacc 0.7.22
+SWU Sabacc 0.7.23
 
-- Added 63 sound clips, including alternate character voices, rare unit cues, and a cue for clearing the Death Star chapter of Saga.
-- Character kill lines play when the character defeats an enemy unit.
-- PLAY opens a Sabacc card carousel with Campaigns, Battles, and a Galactic Conquest preview.
-- Campaigns opens the Saga episodes. Spotlight decks remain available in Battles.
-- The Android APK uses version code 32 and the existing signing identity. Extract the Windows ZIP and keep the EXE and PCK together.
+- Sabacc War now plays at a full-screen Cantina table with the Cantina band, animated deals and flips, shrinking decks, and a live credit counter.
+- The fourth PLAY card opens Mini Games. Clear Episode I, Chapter 1 to unlock Sabacc War for account credits. The Tatooine encounter uses its run wallet.
+- Episode IV Chapter 2 offers distinct 20-card starters, with Rugged Survivors removed. Chewbacca's leader action now checks which cards can actually be played.
+- Updated the Saga routes and automated more campaign card effects. Queen Amidala, Vuutun Palaa, and Darth Maul still show incomplete rules support.
+- The Android APK uses version code 33 and the existing signing identity. Extract the Windows ZIP and keep the EXE and PCK together.
 
 Unofficial, non-commercial fan project. Star Wars and Star Wars: Unlimited characters, card text and artwork belong to Lucasfilm Ltd. and Fantasy Flight Games.
