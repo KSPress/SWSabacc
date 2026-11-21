@@ -273,7 +273,8 @@ func _open_node(n: Dictionary) -> void:
 				choices = choices + [{"label": "Use Old Access Codes · recruit both groups",
 					"effect": {"remove_id": "TWI_168", "add_cards": n["combined_recruit"]}}]
 			var card_row: HBoxContainer
-			if n.get("optional_choice", false):
+			var answers: HBoxContainer
+			if n.get("optional_choice", false) and choices.any(func(choice): return not choice.has("answer")):
 				card_row = HBoxContainer.new()
 				card_row.add_theme_constant_override("separation", 8)
 				mp.add(card_row)
@@ -291,6 +292,13 @@ func _open_node(n: Dictionary) -> void:
 					b.disabled = b.disabled or int(run.get("disabled_battles", 0)) > 0
 				if choice.has("pick"):
 					b.disabled = b.disabled or _event_candidates(choice["pick"]).is_empty()
+				if choice.has("answer"):
+					if not answers:
+						answers = preload("res://ui/kit/event_choice_cards.gd").new()
+						mp.add(answers)
+					answers.add_choice(choice["answer"], choice["label"], b.disabled, func(): _resolve_event(n, choice))
+					b.free()
+					continue
 				b.pressed.connect(func(): _resolve_event(n, choice))
 				if card_row:
 					var card := VBoxContainer.new()

@@ -221,6 +221,7 @@ func _event_panel(mp: ModalPanel, id: String, n: Dictionary) -> void:
 		if e["id"] == n.get("event", ""):
 			ev = e
 	mp.text(ev.get("desc", ""), 17)
+	var answers: HBoxContainer
 	for ch in ev.get("choices", []):
 		var eff: Dictionary = ch.get("effect", {})
 		var b := SabaccButton.make(ch.get("label", ""), SabaccButton.Style.PRIMARY, "event")
@@ -228,7 +229,7 @@ func _event_panel(mp: ModalPanel, id: String, n: Dictionary) -> void:
 		b.disabled = int(eff.get("credits", 0)) < 0 and int(run["credits"]) < -int(eff["credits"])
 		if eff.has("remove_card") and _removable_cards().is_empty():
 			b.disabled = true
-		b.pressed.connect(func():
+		var choose := func():
 			mp.close()
 			if eff.has("remove_card"):
 				_pick_owned("Choose a card to trade away", func(cid):
@@ -240,8 +241,16 @@ func _event_panel(mp: ModalPanel, id: String, n: Dictionary) -> void:
 					SpotlightRun.upgrade_card(run, cid, eff["upgrade_card"])
 					_finish_effect(id, eff))
 				return
-			_finish_effect(id, eff))
-		mp.add(b)
+			_finish_effect(id, eff)
+		if ch.has("answer"):
+			if not answers:
+				answers = preload("res://ui/kit/event_choice_cards.gd").new()
+				mp.add(answers)
+			answers.add_choice(ch["answer"], ch["label"], b.disabled, choose)
+			b.free()
+		else:
+			b.pressed.connect(choose)
+			mp.add(b)
 
 
 func _finish_effect(id: String, eff: Dictionary) -> void:

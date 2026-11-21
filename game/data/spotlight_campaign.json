@@ -79,11 +79,11 @@
     {"id": "smuggler", "title": "Smuggler's Offer", "desc": "A Corellian smuggler offers a crate of 'misplaced' cargo — for a price.", "choices": [
       {"label": "Buy the crate (30 credits): gain a card from your Spotlight deck", "effect": {"credits": -30, "card_locked": 1}},
       {"label": "Rob him blind: gain 25 credits, take 4 base damage", "effect": {"credits": 25, "damage": 4}},
-      {"label": "Walk away", "effect": {}}]},
+      {"label": "Walk away", "answer": "no", "effect": {}}]},
     {"id": "jawas", "title": "Jawa Traders", "desc": "Utinni! A sandcrawler full of salvage rolls up beside you.", "choices": [
       {"label": "Trade away a card (remove one from your deck) for 20 credits", "effect": {"remove_card": 1, "credits": 20}},
       {"label": "Buy salvage (15 credits): gain a random loot card", "effect": {"credits": -15, "card_loot": 1}},
-      {"label": "Leave", "effect": {}}]},
+      {"label": "Leave", "answer": "no", "effect": {}}]},
     {"id": "derelict", "title": "Derelict Freighter", "desc": "A dead freighter drifts in the shipping lane. Something still has power.", "choices": [
       {"label": "Board it: gain a card from your Spotlight deck, take 3 base damage", "effect": {"card_locked": 1, "damage": 3}},
       {"label": "Strip the hull for 15 credits", "effect": {"credits": 15}}]},
@@ -91,8 +91,8 @@
       {"label": "Embrace it: a card in your deck gains a permanent Experience token", "effect": {"upgrade_card": "experience"}},
       {"label": "Meditate: heal 6 base damage", "effect": {"heal": 6}}]},
     {"id": "bounty", "title": "Bounty Board", "desc": "A Guild posting offers credits for dangerous work.", "choices": [
-      {"label": "Take the job: +40 credits, take 6 base damage", "effect": {"credits": 40, "damage": 6}},
-      {"label": "Pass", "effect": {}}]},
+      {"label": "Take the job: +40 credits, take 6 base damage", "answer": "yes", "effect": {"credits": 40, "damage": 6}},
+      {"label": "Pass", "answer": "no", "effect": {}}]},
     {"id": "cantina", "title": "Cantina Brawl", "desc": "Someone shot first. Chairs are flying.", "choices": [
       {"label": "Join in: gain a random loot card, take 3 base damage", "effect": {"card_loot": 1, "damage": 3}},
       {"label": "Slip out the back with a dropped purse (+10 credits)", "effect": {"credits": 10}}]},

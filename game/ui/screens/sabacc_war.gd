@@ -30,6 +30,11 @@ var _status: Label
 var _deal: Button
 var _back: Button
 var _rules: Button
+var _manual := false
+var _drag_start := Vector2.ZERO
+var _dragging := false
+var _waiting_flip := false
+signal reveal_requested
 
 
 func build() -> void:
@@ -64,6 +69,10 @@ func build() -> void:
 	for side in 2:
 		_cards.append(_make_card(side, War.BACK))
 		_cards[side].hide()
+	_cards[0].mouse_filter = Control.MOUSE_FILTER_STOP
+	_cards[0].gui_input.connect(func(event: InputEvent):
+		if _waiting_flip and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			reveal_requested.emit())
 	_house = _label("Cantina gambler", 21, Sabacc.C_TEXT)
 	_wallet = UIKit.credit_label(str(_credit_total()))
 	_wallet.alignment = BoxContainer.ALIGNMENT_BEGIN
@@ -131,7 +140,8 @@ func relayout(in_portrait: bool, rect: Rect2) -> void:
 	var width := minf(rect.size.x, rect.size.y * (0.99 if in_portrait else 1.72))
 	var field := Rect2(Vector2((rect.size.x - width) * 0.5, 0), Vector2(width, rect.size.y))
 	_table.position = Vector2(field.position.x - width * 0.13, -field.size.y * 0.025)
-	_table.size = Vector2(width * 1.26, field.size.y * 0.98)
+	_table.size = Vector2(width * 1.16, field.size.y * 0.98)
+	_table.position.x = field.position.x - width * 0.08
 	var height := minf(width * (0.32 if in_portrait else 0.23), field.size.y * 0.36)
 	_card_size = Vector2(height * 168.0 / 243.0, height)
 	_face_centers[1] = _point(field, 0.30, 0.30)
@@ -176,6 +186,21 @@ func _layout_decks() -> void:
 			card.size = _card_size * 0.83
 			card.position = _deck_centers[side] - card.size / 2.0 - Vector2(1.8, 3.1) * i
 		_deck_labels[side].text = "%d left" % visible_count
+
+
+func _input(event: InputEvent) -> void:
+	if not _allowed or _dealing or not event is InputEventMouseButton or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var point: Vector2 = body.get_global_transform().affine_inverse() * event.position
+	if event.pressed:
+		var deck_rect := Rect2(_deck_centers[0] - _card_size * 0.52, _card_size)
+		_dragging = deck_rect.has_point(point)
+		_drag_start = point
+	elif _dragging:
+		_dragging = false
+		if (point - _drag_start).length() >= 26 and _table.get_rect().has_point(point) and _credit_total() >= War.STAKE:
+			_manual = true
+			_play_hand()
 
 
 func _place_burn(card: TextureRect, index: int) -> void:
@@ -248,6 +273,7 @@ func _play_hand() -> void:
 		count.tween_method(func(value: float): _amount.text = str(roundi(value)), float(before), float(before + change), Sabacc.anim(0.52))
 		await count.finished
 	_dealing = false
+	_manual = false
 	_back.disabled = false
 	_rules.disabled = false
 	_update_deal_button()
@@ -278,6 +304,11 @@ func _draw_cards(reveal: Dictionary) -> void:
 	await slide.finished
 	if not face_down.is_empty():
 		return
+	if _manual and dealt[0] != 0:
+		_status.text = "Tap your card to reveal"
+		_waiting_flip = true
+		await reveal_requested
+		_waiting_flip = false
 	var flip := create_tween().set_parallel()
 	for side in 2:
 		if dealt[side] != 0:

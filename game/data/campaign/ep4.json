@@ -858,6 +858,7 @@
             "choices": [
               {
                 "label": "Pick it up",
+                "answer": "yes",
                 "outcomes": [
                   {
                     "weight": 50,
@@ -876,7 +877,8 @@
                 ]
               },
               {
-                "label": "Leave"
+                "label": "Leave",
+                "answer": "no"
               }
             ]
           },
@@ -891,6 +893,7 @@
             "choices": [
               {
                 "label": "Dig it up",
+                "answer": "yes",
                 "outcomes": [
                   {
                     "weight": 50,
@@ -911,7 +914,8 @@
                 ]
               },
               {
-                "label": "Leave"
+                "label": "Leave",
+                "answer": "no"
               }
             ]
           },
@@ -926,6 +930,7 @@
             "choices": [
               {
                 "label": "Trade an upgrade",
+                "answer": "yes",
                 "pick": "upgrade",
                 "outcomes": [
                   {
@@ -947,7 +952,8 @@
                 ]
               },
               {
-                "label": "Walk away"
+                "label": "Walk away",
+                "answer": "no"
               }
             ]
           },
@@ -962,10 +968,12 @@
             "choices": [
               {
                 "label": "Accept",
+                "answer": "yes",
                 "pick": "droid"
               },
               {
-                "label": "Decline"
+                "label": "Decline",
+                "answer": "no"
               }
             ]
           },
@@ -2073,6 +2081,7 @@
             "choices": [
               {
                 "label": "Search the closet",
+                "answer": "yes",
                 "outcomes": [
                   {
                     "weight": 4,
@@ -2102,7 +2111,8 @@
                 ]
               },
               {
-                "label": "Leave"
+                "label": "Leave",
+                "answer": "no"
               }
             ]
           },
@@ -2117,6 +2127,7 @@
             "choices": [
               {
                 "label": "Attempt the slice",
+                "answer": "yes",
                 "outcomes": [
                   {
                     "weight": 75,
@@ -2138,7 +2149,8 @@
                 ]
               },
               {
-                "label": "Leave"
+                "label": "Leave",
+                "answer": "no"
               }
             ]
           },
@@ -2260,6 +2272,7 @@
             "choices": [
               {
                 "label": "Return for salvage",
+                "answer": "yes",
                 "outcomes": [
                   {
                     "weight": 10,
@@ -2319,7 +2332,8 @@
                 ]
               },
               {
-                "label": "Leave"
+                "label": "Leave",
+                "answer": "no"
               }
             ]
           },
@@ -2334,6 +2348,7 @@
             "choices": [
               {
                 "label": "Siphon power",
+                "answer": "yes",
                 "outcomes": [
                   {
                     "weight": 75,
@@ -2351,7 +2366,8 @@
                 ]
               },
               {
-                "label": "Decline"
+                "label": "Decline",
+                "answer": "no"
               }
             ]
           },
@@ -2412,6 +2428,7 @@
             "choices": [
               {
                 "label": "Slice the terminal",
+                "answer": "yes",
                 "outcomes": [
                   {
                     "weight": 75,
@@ -2431,7 +2448,8 @@
                 "requires_r2": true
               },
               {
-                "label": "Proceed without slicing"
+                "label": "Proceed without slicing",
+                "answer": "no"
               }
             ]
           },

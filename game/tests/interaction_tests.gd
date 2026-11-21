@@ -218,7 +218,11 @@ func _test_sabacc_war() -> void:
 	await _shot("sabacc-war-portrait")
 	await _size(1280, 720)
 	await _shot("sabacc-war-landscape")
-	await _click(table._deal)
+	var deck_top: TextureRect = table._decks[0][2]
+	await _drag(deck_top.get_global_rect().get_center(), table.body.global_position + table._face_centers[0])
+	await _wait(0.40)
+	check(table._waiting_flip and table._cards[0].visible, "Dragging from the player deck deals face down and waits for a tap")
+	await _click(table._cards[0])
 	await _wait(1.0)
 	check(table._remaining == [2, 2] and Progression.credits() == 20 and table._amount.text == "20" and table._delta.text == "-10",
 		"The next hand uses the same decks and subtracts the lost stake")
@@ -248,6 +252,21 @@ func _test_sabacc_war() -> void:
 	await _click(table._back)
 	check(Save.run()["current"] == "cantina_war" and get_tree().current_scene.scene_file_path.ends_with("chapter_map.tscn"),
 		"Leaving the Tatooine table completes the node and returns to the chapter map")
+	for answer in ["Yes", "No"]:
+		chapter_map = get_tree().current_scene
+		var choice_node := CampaignRun.node_by_id(chapter, "black_sphere")
+		if not chapter_map._nodes.has("black_sphere"):
+			chapter_map._nodes["black_sphere"] = preload("res://ui/screens/chapter_map.gd").NodeButton.new()
+			chapter_map.body.add_child(chapter_map._nodes["black_sphere"])
+		chapter_map._nodes["black_sphere"].state = "available"
+		chapter_map._open_node(choice_node)
+		await _wait(0.4)
+		var card := chapter_map._panel.find_child(answer + "Card", true, false) as TextureButton
+		check(card != null and not card.disabled, "%s artwork is an active card" % answer)
+		if card:
+			await _click(card)
+			await _wait(1.4)
+			check(Save.run()["current"] == "black_sphere", "%s card resolves the event by pointer input" % answer)
 
 
 func _test_campaign_update() -> void:
