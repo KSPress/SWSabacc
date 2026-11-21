@@ -273,7 +273,7 @@ func _open_node(n: Dictionary) -> void:
 				choices = choices + [{"label": "Use Old Access Codes · recruit both groups",
 					"effect": {"remove_id": "TWI_168", "add_cards": n["combined_recruit"]}}]
 			var card_row: HBoxContainer
-			var answers: HBoxContainer
+			var answers: PanelContainer
 			if n.get("optional_choice", false) and choices.any(func(choice): return not choice.has("answer")):
 				card_row = HBoxContainer.new()
 				card_row.add_theme_constant_override("separation", 8)

@@ -1,24 +1,29 @@
-extends HBoxContainer
+extends PanelContainer
 
 const YES := preload("res://assets/branding/event_yes.png")
 const NO := preload("res://assets/branding/event_no.png")
 
-func _ready() -> void:
+var _row := HBoxContainer.new()
+
+func _init() -> void:
+	add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	var wood := ColorRect.new()
 	var surface := ShaderMaterial.new()
 	surface.shader = preload("res://ui/screens/sabacc_war_table.gdshader")
 	wood.material = surface
 	wood.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(wood, false, Node.INTERNAL_MODE_BACK)
-	resized.connect(func(): wood.size = size + Vector2(14, 16))
-	wood.position = Vector2(-7, -8)
-	wood.size = size + Vector2(14, 16)
+	add_child(wood)
+	var padding := MarginContainer.new()
+	padding.add_theme_constant_override("margin_top", 18)
+	padding.add_theme_constant_override("margin_bottom", 18)
+	padding.add_child(_row)
+	add_child(padding)
 
 
 func add_choice(answer: String, caption: String, disabled: bool, choose: Callable) -> void:
 	var slot := VBoxContainer.new()
 	slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	add_child(slot)
+	_row.add_child(slot)
 	var face := AtlasTexture.new()
 	face.atlas = YES if answer == "yes" else NO
 	face.region = Rect2(275, 289, 1012, 1375)

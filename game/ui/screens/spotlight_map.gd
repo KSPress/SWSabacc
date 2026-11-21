@@ -221,7 +221,7 @@ func _event_panel(mp: ModalPanel, id: String, n: Dictionary) -> void:
 		if e["id"] == n.get("event", ""):
 			ev = e
 	mp.text(ev.get("desc", ""), 17)
-	var answers: HBoxContainer
+	var answers: PanelContainer
 	for ch in ev.get("choices", []):
 		var eff: Dictionary = ch.get("effect", {})
 		var b := SabaccButton.make(ch.get("label", ""), SabaccButton.Style.PRIMARY, "event")
