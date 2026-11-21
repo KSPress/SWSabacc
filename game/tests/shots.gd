@@ -8,6 +8,9 @@ var only := ""
 
 
 func _ready() -> void:
+	AudioServer.set_bus_mute(0, true)
+	Sabacc.settings["music_enabled"] = false
+	Music._apply()
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		out = args[0]
@@ -23,14 +26,17 @@ func _ready() -> void:
 		get_tree().current_scene = dummy
 		reparent.call_deferred(get_tree().root)
 		await get_tree().process_frame
-	Kyber.settings["anim_speed"] = 2.0
+	Sabacc.settings["anim_speed"] = 2.0
 	await _run()
 	get_tree().quit()
 
 
 func _size(w: int, h: int) -> void:
-	DisplayServer.window_set_size(Vector2i(w, h))
+	get_tree().root.mode = Window.MODE_WINDOWED
+	get_tree().root.min_size = Vector2i.ZERO
+	get_tree().root.size = Vector2i(w, h)
 	await _wait(0.6)
+	print("viewport requested ", Vector2i(w, h), " actual window ", get_tree().root.size, " canvas ", get_viewport().get_visible_rect().size)
 
 
 func _wait(t: float) -> void:
@@ -98,13 +104,17 @@ func _run() -> void:
 	if _want("campaign_match"):
 		var ch := CardDB.chapter("ep4_ch1_tatooine")
 		CampaignFlow.start_run(ch, "SEC_015")
-		CampaignFlow.start_node(ch, CampaignRun.node_by_id(ch, "n3"))
+		CampaignFlow.start_node(ch, CampaignRun.node_by_id(ch, "tusken_raid"))
 		await _wait(2.0)
 		await _play_some(3, "15_defend_portrait", "16_defend_landscape", false)
 	if only == "input":
 		await _input_test()
 	if only == "anims":
 		await _anims()
+	if only == "arena_cards":
+		await _arena_cards()
+	if only == "saga_scenes":
+		await _saga_scenes()
 	if only == "new":
 		await _new_screens()
 	if only == "tokens":
@@ -125,6 +135,91 @@ func _run() -> void:
 	if _want("settings"):
 		await _go("settings")
 		await _shot("14_settings_portrait")
+
+
+func _arena_cards() -> void:
+	await _size(570, 1050)
+	await _go("match")
+	var screen := get_tree().current_scene
+	var battle: Match = screen.m
+	for i in 22:
+		if battle.phase == "action" and battle.pending.is_empty() and not screen.busy:
+			break
+		_resolve_setup(screen)
+		await _wait(0.25)
+	if battle.phase != "action" or not battle.pending.is_empty() or screen.busy:
+		push_error("Arena screenshot match did not finish setup")
+		get_tree().quit(1)
+		return
+	battle.players[1].is_ai = false
+	var chewbacca := battle._new_inst("SOR_003", 0)
+	chewbacca.deployed = true
+	battle._put_in_play(chewbacca, "ground", false)
+	battle.attach_upgrade(battle._new_inst("SOR_057", 0), chewbacca)
+	battle.attach_upgrade(battle._new_inst("TWI_256", 0), chewbacca)
+	var tie := battle._new_inst("SOR_231", 1)
+	battle._put_in_play(tie, "space", false)
+	battle.attach_upgrade(battle._new_inst("JTL_189", 1), tie)
+	battle._put_in_play(battle._new_inst("SOR_237", 0), "space", false)
+	battle._put_in_play(battle._new_inst("SOR_095", 0), "ground", true)
+	battle._put_in_play(battle._new_inst("SOR_230", 1), "ground", false)
+	battle.take_events()
+	screen._sync()
+	await _wait(0.9)
+	await _shot("arena-portrait")
+	await _size(1600, 900)
+	await _wait(0.7)
+	await _shot("arena-landscape")
+	await RenderingServer.frame_post_draw
+	var image := get_viewport().get_texture().get_image()
+	var token: UnitToken = screen.tokens[chewbacca.uid]
+	var to_canvas := token.get_global_transform_with_canvas()
+	var pixel_scale := Vector2(image.get_size()) / get_viewport().get_visible_rect().size
+	var position := (to_canvas * Vector2(-10, -7)) * pixel_scale
+	var end := (to_canvas * (UnitToken.SIZE + Vector2(10, 7))) * pixel_scale
+	image.get_region(Rect2i(Vector2i(position), Vector2i(end - position))).save_png(out.path_join("arena-attachment-detail.png"))
+
+
+func _saga_scenes() -> void:
+	var death_star := CardDB.chapter("ep4_ch2_deathstar")
+	Save.set_run(CampaignRun.start(death_star, "SOR_017", 717))
+	await _go("chapter", {"chapter_id": death_star["id"]})
+	var route_map := get_tree().current_scene
+	for layout in [[540, 960, "portrait"], [1280, 720, "landscape"]]:
+		await _size(layout[0], layout[1])
+		for tile in route_map._nodes.values():
+			if tile.get_global_rect().intersects(route_map._hud.get_global_rect()):
+				push_error("Death Star map overlaps the run controls in " + layout[2])
+				get_tree().quit(1)
+				return
+		await _shot("death-star-map-" + layout[2])
+	await _size(540, 960)
+	for spec in [["ep4_ch1_tatooine", "cantina_duel"], ["ep4_ch1_tatooine", "docking_bay"],
+		["ep4_ch2_deathstar", "falcon_armor"], ["ep4_ch2_deathstar", "prison_escape"], ["ep4_ch2_deathstar", "boss"]]:
+		var chapter := CardDB.chapter(spec[0])
+		var run := CampaignRun.start(chapter, chapter["leader_options"][0], 717)
+		var node := CampaignRun.node_by_id(chapter, spec[1])
+		for from in chapter["map"]["edges"]:
+			if node["id"] in chapter["map"]["edges"][from]:
+				run["current"] = from
+				break
+		Save.set_run(run)
+		CampaignFlow.start_node(chapter, node)
+		await _wait(1.6)
+		var screen := get_tree().current_scene
+		if not screen.scene_file_path.ends_with("match_screen.tscn") or not screen.theme_bg._film.visible:
+			push_error("Missing Saga artwork or film layer for " + node["id"])
+			get_tree().quit(1)
+			return
+		for _i in 10:
+			if screen.m.phase == "action" and screen.m.pending.is_empty():
+				break
+			_resolve_setup(screen)
+			await _wait(0.25)
+		await _shot(node["id"] + "-portrait")
+		if node["id"] == "boss":
+			await _size(1280, 720)
+			await _shot("hangar-duel-landscape")
 
 
 func _find_card(n: Node) -> CardView:
@@ -272,7 +367,7 @@ func _input_test() -> void:
 ## Plays whole matches through the real UI (bot on both sides), rotating the
 ## window every few actions, to shake out crashes.
 func _soak(games: int) -> void:
-	Kyber.settings["anim_speed"] = 2.5
+	Sabacc.settings["anim_speed"] = 2.5
 	for g in games:
 		await _go("match")
 		await _wait(1.5)
@@ -327,7 +422,7 @@ func _close_layers() -> void:
 func _comb() -> void:
 	var ch := CardDB.chapter("ep4_ch1_tatooine")
 	CampaignFlow.start_run(ch, "SEC_015")
-	for nid in ["n1", "n2", "n3", "rest"]:
+	for nid in ["tusken_raid", "sandcrawler", "cantina_duel", "cantina_supplies"]:
 		await _both("node_" + nid, func():
 			await _go("chapter", {"chapter_id": ch["id"]})
 			var cm := get_tree().current_scene
@@ -339,10 +434,10 @@ func _comb() -> void:
 		await _go("chapter", {"chapter_id": ch["id"]})
 		get_tree().current_scene._show_deck(Save.run()["deck"]))
 	await _both("reward", func():
-		await _go("reward", {"won": true, "chapter_id": ch["id"], "node_id": "n4", "rewards": ["SOR_205", "HMW_268", "LOF_249"], "treasures": ["kyber_shard", "jawa_salvage"]})
+		await _go("reward", {"won": true, "chapter_id": ch["id"], "node_id": "homestead", "rewards": ["LOF_215", "TWI_256", "JTL_260"]})
 		await _wait(1.0))
 	await _both("clear", func():
-		await _go("reward", {"won": true, "boss": true, "chapter_id": ch["id"], "node_id": "boss", "unlocked": ["SEC_015", "HMW_261", "HMW_170", "IBH_046"]}))
+		await _go("reward", {"won": true, "boss": true, "chapter_id": ch["id"], "node_id": "docking_bay", "unlocked": ["SEC_015", "HMW_261", "HMW_170", "IBH_003"]}))
 	await _both("episodes", func(): await _go("episodes"))
 	await _both("chapter_start", func():
 		Save.data["campaign"]["run"] = {}
@@ -400,7 +495,7 @@ const ANIM_CASES := [
 
 
 func _anims() -> void:
-	Kyber.settings["anim_speed"] = 1.0
+	Sabacc.settings["anim_speed"] = 1.0
 	await _size(540, 960)
 	for case in ANIM_CASES:
 		await _go("match")
@@ -434,8 +529,10 @@ func _anims() -> void:
 			continue
 		print("ANIM %s style=%s" % [case[2], AttackStyle.of(a)["style"]])
 		ms._act({"a": "attack", "uid": a.uid, "target": d.uid})
-		for f in [0.18, 0.42, 0.62, 0.9]:
-			await get_tree().create_timer(f - (0.0 if f == 0.18 else 0.0)).timeout
+		var previous := 0.0
+		for f in [0.12, 0.32, 0.54, 0.64, 0.86, 1.15]:
+			await get_tree().create_timer(f - previous).timeout
+			previous = f
 			await _shot("anim_%s_%02d" % [case[2], int(f * 100)])
 		await _wait(1.5)
 
@@ -493,7 +590,7 @@ func _new_screens() -> void:
 
 
 func _tokens_shots() -> void:
-	Kyber.settings["anim_speed"] = 1.0
+	Sabacc.settings["anim_speed"] = 1.0
 	for sz in [[540, 960, "p"], [1280, 720, "l"]]:
 		await _size(sz[0], sz[1])
 		await _go("match")
@@ -563,6 +660,7 @@ func _spotlight_shots() -> void:
 	Save.data["spotlight_runs"] = {}
 	Save.data["spotlight_records"] = {}
 	var spot: Dictionary = SpotlightFlow.spots()[0]
+	Save.unlock([spot["leader"], spot["base"]] + spot["cards"].keys())
 	# one finished run so a record shows
 	var dead := SpotlightRun.start(spot, CardDB.lib, 77, SpotlightFlow.spots())
 	dead["stats"]["wins"] = 6
@@ -617,6 +715,7 @@ func _spotlight_e2e() -> void:
 	await _size(540, 960)
 	Save.data["spotlight_runs"] = {}
 	var spot: Dictionary = SpotlightFlow.spots()[2]
+	Save.unlock([spot["leader"], spot["base"]] + spot["cards"].keys())
 	var r := SpotlightFlow.start(spot["id"])
 	var nid := ""
 	for id in SpotlightRun.available_nodes(r):
@@ -633,7 +732,7 @@ func _spotlight_e2e() -> void:
 	await _wait(1.5)
 	await _shot("e2e_victory")
 	for c in get_tree().root.find_children("*", "", true, false):
-		if c is KyberButton and c.text == "Continue":
+		if c is SabaccButton and c.text == "Continue":
 			c.pressed.emit()
 	await _wait(2.5)
 	await _shot("e2e_reward")

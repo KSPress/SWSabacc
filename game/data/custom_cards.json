@@ -95,6 +95,38 @@
       "text": "",
       "art": "",
       "theme": "tatooine"
+    },
+    "KYB_005": {
+      "id": "KYB_005",
+      "set": "KYB",
+      "number": "005",
+      "name": "Kalani",
+      "subtitle": "Remnant Tactician",
+      "type": "leader",
+      "arena": "ground",
+      "cost": 6,
+      "epic_cost": 6,
+      "power": 4,
+      "hp": 6,
+      "aspects": ["command"],
+      "traits": ["droid", "separatist"],
+      "unique": true,
+      "art": "",
+      "text": "Action [C=1, Exhaust]: Give an Experience token to a friendly Droid unit.",
+      "abilities": [{
+        "trigger": "action",
+        "cost": {"resources": 1, "exhaust": true},
+        "text": "Action [C=1, Exhaust]: Give an Experience token to a friendly Droid unit.",
+        "effects": [{"op": "experience", "n": 1, "t": {"s": "choose", "kind": "unit", "side": "friendly", "trait": "droid"}}]
+      }],
+      "leader_unit": {
+        "arena": "ground",
+        "power": 4,
+        "hp": 6,
+        "text": "Sentinel",
+        "keywords": [{"k": "sentinel"}],
+        "abilities": []
+      }
     }
   }
 }

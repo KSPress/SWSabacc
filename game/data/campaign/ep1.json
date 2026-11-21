@@ -1,0 +1,738 @@
+{
+  "episode": 1,
+  "roman": "I",
+  "title": "The Phantom Menace",
+  "crawl": "A Trade Federation blockade threatens the peaceful world of Naboo.",
+  "alignment": "heroism",
+  "chapters": [
+    {
+      "id": "ep1_ch1_naboo",
+      "episode": 1,
+      "number": 1,
+      "title": "The Invasion of Naboo",
+      "intro": "Survive hostile negotiations, befriend the Gungans, and help Queen Amidala escape.",
+      "leader_options": [
+        "LOF_016",
+        "LOF_008"
+      ],
+      "base_sequence": [
+        "HMW_025"
+      ],
+      "starting_deck": [
+        "LOF_200",
+        "LOF_096",
+        "SEC_101",
+        "SEC_120",
+        "LOF_247",
+        "TWI_202",
+        "HMW_077",
+        "SEC_111",
+        "HMW_226",
+        "LOF_190",
+        "LAW_088",
+        "SEC_110",
+        "SOR_059",
+        "TWI_174",
+        "JTL_075",
+        "LOF_261",
+        "LOF_201",
+        "SHD_070"
+      ],
+      "reward_pool": [
+        "SEC_120",
+        "SEC_101",
+        "HMW_077",
+        "LOF_247",
+        "HMW_226",
+        "LOF_096"
+      ],
+      "arenas": [
+        "ground"
+      ],
+      "ruleset": "campaign",
+      "alignment": "heroism",
+      "base_hp_override": 30,
+      "repair_after_win": 5,
+      "unlocks_on_clear": [
+        "LOF_016",
+        "LOF_008"
+      ],
+      "board_theme": "forest",
+      "player_extra_resources": 1,
+      "nodes": [
+        {
+          "id": "negotiations",
+          "title": "Hostile Negotiations",
+          "desc": "The Trade Federation's battle droids close on the ambassadors.",
+          "type": "fight",
+          "enemy": {
+            "name": "Trade Federation Boarding Party",
+            "hp": 12,
+            "deck": [
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174",
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "jar_jar",
+          "type": "event",
+          "title": "A Gungan Guide",
+          "desc": "Jar Jar leads the party through occupied Naboo and below the lake.",
+          "event": {
+            "choices": [
+              {
+                "label": "Accept Jar Jar's help",
+                "effect": {
+                  "add_cards": [
+                    "TWI_202",
+                    "HMW_077"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "occupation",
+          "title": "Occupied Theed",
+          "desc": "Find the royal party before the droid patrol reaches it.",
+          "type": "fight",
+          "enemy": {
+            "name": "Theed Patrol",
+            "hp": 14,
+            "deck": [
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174",
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "gungan_cache",
+          "type": "rest",
+          "title": "Gungan Hideout",
+          "desc": "Stock up before getting the Queen out.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit Experience",
+              "cost": 20
+            }
+          ]
+        },
+        {
+          "id": "boss",
+          "title": "Escape from Theed",
+          "desc": "Keep the escape route open until the royal party is clear.",
+          "type": "boss",
+          "enemy": {
+            "name": "Trade Federation Occupation",
+            "hp": 25,
+            "deck": [
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174",
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174"
+            ],
+            "preplaced": [
+              {
+                "id": "TWI_229",
+                "ready": false
+              }
+            ]
+          },
+          "objective": {
+            "type": "survive_n",
+            "params": {
+              "rounds": 5,
+              "text": "Hold out until the Queen escapes the occupation.",
+              "objective_only": true
+            }
+          },
+          "player_preplaced": [
+            {
+              "id": "SEC_101",
+              "ready": false
+            }
+          ],
+          "battle_rules": {
+            "deck_out_damage": 0
+          }
+        }
+      ],
+      "map": {
+        "rows": [
+          [
+            "negotiations"
+          ],
+          [
+            "jar_jar"
+          ],
+          [
+            "occupation"
+          ],
+          [
+            "gungan_cache"
+          ],
+          [
+            "boss"
+          ]
+        ],
+        "edges": {
+          "negotiations": [
+            "jar_jar"
+          ],
+          "jar_jar": [
+            "occupation"
+          ],
+          "occupation": [
+            "gungan_cache"
+          ],
+          "gungan_cache": [
+            "boss"
+          ]
+        }
+      },
+      "next_chapter": "ep1_ch2_chosen"
+    },
+    {
+      "id": "ep1_ch2_chosen",
+      "episode": 1,
+      "number": 2,
+      "title": "The Chosen One",
+      "intro": "Find Anakin in Mos Espa and get him and the Queen safely off Tatooine.",
+      "leader_options": [
+        "LOF_016",
+        "LOF_008"
+      ],
+      "base_sequence": [
+        "HMW_019"
+      ],
+      "starting_deck": [
+        "LOF_200",
+        "LOF_096",
+        "SEC_101",
+        "SEC_120",
+        "LOF_247",
+        "TWI_202",
+        "HMW_077",
+        "SEC_111",
+        "HMW_226",
+        "LOF_190",
+        "LAW_088",
+        "SEC_110",
+        "SOR_059",
+        "TWI_174",
+        "JTL_075",
+        "LOF_261",
+        "LOF_201",
+        "SHD_070"
+      ],
+      "reward_pool": [
+        "LAW_088",
+        "LOF_190",
+        "LOF_065",
+        "SEC_110",
+        "HMW_226",
+        "LOF_261"
+      ],
+      "arenas": [
+        "ground"
+      ],
+      "ruleset": "campaign",
+      "alignment": "heroism",
+      "base_hp_override": 30,
+      "repair_after_win": 5,
+      "unlocks_on_clear": [
+        "LOF_016",
+        "LOF_008"
+      ],
+      "board_theme": "saga_tatooine_canyon",
+      "player_extra_resources": 1,
+      "nodes": [
+        {
+          "id": "mos_espa",
+          "title": "Mos Espa",
+          "desc": "Drive off opportunists drawn to the stranded party.",
+          "type": "fight",
+          "enemy": {
+            "name": "Mos Espa Scum",
+            "hp": 13,
+            "deck": [
+              "LAW_218",
+              "LAW_159",
+              "SOR_247",
+              "LOF_209",
+              "HMW_224",
+              "LAW_218",
+              "LAW_159",
+              "SOR_247",
+              "LOF_209",
+              "HMW_224"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "podrace",
+          "type": "event",
+          "title": "The Podrace",
+          "desc": "Anakin wins his freedom in the Boonta Eve Classic.",
+          "event": {
+            "choices": [
+              {
+                "label": "Recruit Anakin",
+                "effect": {
+                  "add_cards": [
+                    "LAW_088",
+                    "LOF_190"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "dunes",
+          "title": "Across the Dunes",
+          "desc": "Reach the ship before the Tusken war party cuts off the route.",
+          "type": "fight",
+          "enemy": {
+            "name": "Tusken War Party",
+            "hp": 13,
+            "deck": [
+              "HMW_224",
+              "HMW_181",
+              "LOF_209",
+              "TWI_174",
+              "HMW_224",
+              "HMW_181",
+              "LOF_209",
+              "TWI_174"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "parts",
+          "type": "rest",
+          "title": "Mos Espa Parts Yard",
+          "desc": "Collect supplies and repair before leaving.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit Experience",
+              "cost": 20
+            }
+          ]
+        },
+        {
+          "id": "boss",
+          "title": "Maul in the Dunes",
+          "desc": "Survive Maul's ambush until the ship takes off.",
+          "type": "boss",
+          "enemy": {
+            "name": "Darth Maul",
+            "hp": 24,
+            "deck": [
+              "LOF_209",
+              "HMW_224",
+              "SOR_139",
+              "LOF_209",
+              "HMW_224",
+              "SOR_139"
+            ],
+            "preplaced": [
+              {
+                "id": "TWI_135",
+                "ready": false,
+                "hp": 6
+              }
+            ]
+          },
+          "objective": {
+            "type": "survive_n",
+            "params": {
+              "rounds": 4,
+              "text": "Survive four rounds and escape Darth Maul.",
+              "objective_only": true
+            }
+          },
+          "battle_rules": {
+            "deck_out_damage": 0
+          }
+        }
+      ],
+      "map": {
+        "rows": [
+          [
+            "mos_espa"
+          ],
+          [
+            "podrace"
+          ],
+          [
+            "dunes"
+          ],
+          [
+            "parts"
+          ],
+          [
+            "boss"
+          ]
+        ],
+        "edges": {
+          "mos_espa": [
+            "podrace"
+          ],
+          "podrace": [
+            "dunes"
+          ],
+          "dunes": [
+            "parts"
+          ],
+          "parts": [
+            "boss"
+          ]
+        }
+      },
+      "next_chapter": "ep1_ch3_battle_naboo"
+    },
+    {
+      "id": "ep1_ch3_battle_naboo",
+      "episode": 1,
+      "number": 3,
+      "title": "The Battle of Naboo",
+      "intro": "One deck fights the droid army on the ground and the control ship in space.",
+      "leader_options": [
+        "LOF_008",
+        "LOF_016",
+        "TWI_008"
+      ],
+      "base_sequence": [
+        "HMW_025"
+      ],
+      "starting_deck": [
+        "LOF_200",
+        "LOF_096",
+        "SEC_101",
+        "SEC_120",
+        "LOF_247",
+        "TWI_202",
+        "HMW_077",
+        "SEC_111",
+        "HMW_226",
+        "LOF_190",
+        "LAW_088",
+        "SEC_110",
+        "SOR_059",
+        "TWI_174",
+        "JTL_075",
+        "LOF_261",
+        "LOF_201",
+        "SHD_070",
+        "LOF_192",
+        "LOF_192",
+        "SEC_099",
+        "HMW_079",
+        "LOF_197",
+        "JTL_197",
+        "JTL_123"
+      ],
+      "reward_pool": [
+        "LOF_192",
+        "SEC_099",
+        "HMW_226",
+        "SEC_120",
+        "HMW_260",
+        "LOF_096",
+        "LOF_197",
+        "JTL_197"
+      ],
+      "arenas": [
+        "ground",
+        "space"
+      ],
+      "ruleset": "campaign",
+      "alignment": "heroism",
+      "base_hp_override": 30,
+      "repair_after_win": 5,
+      "unlocks_on_clear": [
+        "LOF_008",
+        "LOF_016",
+        "TWI_008"
+      ],
+      "board_theme": "forest",
+      "player_extra_resources": 1,
+      "nodes": [
+        {
+          "id": "grasslands",
+          "title": "Gungan Defense",
+          "desc": "The Gungans draw the droid army into the open.",
+          "type": "fight",
+          "enemy": {
+            "name": "Trade Federation Army",
+            "hp": 16,
+            "deck": [
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174",
+              "SEC_122",
+              "LOF_233",
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174",
+              "SEC_122",
+              "LOF_233"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "squadrons",
+          "type": "event",
+          "title": "Naboo Reinforcements",
+          "desc": "Reinforce the palace assault or launch another squadron.",
+          "event": {
+            "choices": [
+              {
+                "label": "Rally Gungans and palace guards",
+                "effect": {
+                  "add_cards": [
+                    "HMW_226",
+                    "LOF_247",
+                    "SEC_120"
+                  ]
+                }
+              },
+              {
+                "label": "Launch N-1 fighters",
+                "effect": {
+                  "add_cards": [
+                    "LOF_192",
+                    "SEC_099",
+                    "LOF_197"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "palace",
+          "title": "Retake Theed",
+          "desc": "The Queen's party breaks through while the N-1 squadrons screen the city.",
+          "type": "fight",
+          "enemy": {
+            "name": "Theed Occupation",
+            "hp": 17,
+            "deck": [
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174",
+              "LOF_233",
+              "SOR_132",
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174",
+              "LOF_233",
+              "SOR_132"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "rally",
+          "type": "rest",
+          "title": "Palace Rally Point",
+          "desc": "Prepare the ground and space forces for the joint assault.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit Experience",
+              "cost": 20
+            }
+          ]
+        },
+        {
+          "id": "boss",
+          "title": "Duel and Droid Control Ship",
+          "desc": "Defeat Maul on the ground and destroy the control ship in space.",
+          "type": "boss",
+          "enemy": {
+            "name": "Trade Federation and Darth Maul",
+            "hp": 30,
+            "deck": [
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174",
+              "SOR_132",
+              "LOF_233",
+              "TWI_229",
+              "TWI_230",
+              "TWI_235",
+              "SEC_239",
+              "TWI_174",
+              "SOR_132",
+              "LOF_233"
+            ],
+            "preplaced": [
+              {
+                "id": "TWI_135",
+                "ready": false,
+                "hp": 7
+              },
+              {
+                "id": "SEC_122",
+                "ready": false,
+                "hp": 8
+              }
+            ]
+          },
+          "objective": {
+            "type": "clear_wave",
+            "params": {
+              "targets": [
+                "TWI_135",
+                "SEC_122"
+              ],
+              "text": "Defeat Maul and destroy the droid control ship.",
+              "objective_only": true,
+              "naboo_transition": true
+            }
+          },
+          "player_preplaced": [
+            {
+              "id": "LOF_200",
+              "ready": false
+            },
+            {
+              "id": "LOF_192",
+              "ready": true
+            },
+            {
+              "id": "SEC_099",
+              "ready": false,
+              "shield": true
+            }
+          ],
+          "deploy_from_deck": [
+            "LOF_200",
+            "LOF_192",
+            "SEC_099"
+          ],
+          "battle_rules": {
+            "deck_out_damage": 0
+          },
+          "player_extra_resources": 2
+        }
+      ],
+      "map": {
+        "rows": [
+          [
+            "grasslands"
+          ],
+          [
+            "squadrons"
+          ],
+          [
+            "palace"
+          ],
+          [
+            "rally"
+          ],
+          [
+            "boss"
+          ]
+        ],
+        "edges": {
+          "grasslands": [
+            "squadrons"
+          ],
+          "squadrons": [
+            "palace"
+          ],
+          "palace": [
+            "rally"
+          ],
+          "rally": [
+            "boss"
+          ]
+        }
+      }
+    }
+  ]
+}

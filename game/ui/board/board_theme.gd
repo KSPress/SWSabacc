@@ -14,9 +14,12 @@ const SHIP_DIR := "res://ip/ui/ships/"
 const PLANET_DIR := "res://ip/ui/planets/"
 
 var theme_id := "auto"
+var _location := ""
+var _spec: Dictionary = {}
 var _t := 0.0
 var _stars: Array = []          # {p: Vector2 (0..1), z: depth 0.2..1, tw}
 var _planet: Texture2D
+var _orbit_planet: Texture2D
 var _planet_rect := Rect2()     # in 0..1 viewport units (position + size by height)
 var _planet_spin := 0.0
 var _photo: Texture2D            # special backdrops (Death Star chapter)
@@ -30,10 +33,33 @@ var _next_capital := 12.0
 var _side := 0
 var _par := Vector2.ZERO        # smoothed pointer parallax offset (-1..1)
 var _rng := RandomNumberGenerator.new()
+var _datapad: DatapadBackground
+var _film: TextureRect
 
 
-func setup(id: String) -> void:
+func _ready() -> void:
+	_datapad = DatapadBackground.new()
+	UIKit.fill_rect(_datapad)
+	add_child(_datapad)
+	_film = SagaScenes.film_layer()
+	add_child(_film)
+	UIKit.fill_rect(_film)
+	Appearance.changed.connect(_apply_theme)
+	_apply_theme()
+
+
+func _apply_theme() -> void:
+	_spec = Appearance.preset(_location)
+	_datapad.visible = _spec["kind"] == "datapad"
+	_planet = _orbit_planet if _spec["kind"] == "space" else null
+	_photo = Cosmetics.background_texture(_spec.get("art", "")) if _spec["kind"] == "planet" else null
+	SagaScenes.set_film_photo(_film, _photo, _spec.get("film", false))
+	queue_redraw()
+
+
+func setup(id: String, lock_location := false) -> void:
 	theme_id = id
+	_location = id if lock_location else ""
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_rng.randomize()
 	for i in 220:
@@ -43,9 +69,7 @@ func setup(id: String) -> void:
 		var d = JSON.parse_string(FileAccess.get_file_as_string(path))
 		if typeof(d) == TYPE_DICTIONARY:
 			_manifest = d
-	if id == "deathstar":
-		_photo = Art.ui_texture("deathstar")
-	else:
+	if id != "deathstar":
 		var planet := ""
 		var tp: Dictionary = _manifest.get("theme_planet", {})
 		if tp.has(id):
@@ -55,12 +79,42 @@ func setup(id: String) -> void:
 			if not all.is_empty():
 				planet = all[_rng.randi_range(0, all.size() - 1)]
 		if planet != "":
-			_planet = Art.ui_texture("planets/" + planet)
+			_orbit_planet = Art.ui_texture("planets/" + planet)
 	# planet placement: big, hugging a random corner, mostly in view
 	var sz := _rng.randf_range(0.55, 0.85)
 	var corner := Vector2(_rng.randf_range(-0.25, 0.55), _rng.randf_range(-0.2, 0.35))
 	_planet_rect = Rect2(corner, Vector2(sz, sz))
 	_planet_spin = _rng.randf_range(-0.004, 0.004)
+	_apply_theme()
+
+
+func set_conquest_world(world: String) -> void:
+	var known := {
+		"Tatooine": "saga_tatooine_canyon", "Coruscant": "coruscant", "Kamino": "kamino",
+		"Geonosis": "geonosis", "Dathomir": "dathomir", "Kuat": "kuat_ring",
+		"Hoth": "scene_ice_ambush",
+	}
+	if known.has(world):
+		_location = known[world]
+		_apply_theme()
+		if _photo:
+			return
+	_location = "space"
+	var orbital_art := {"Kessel": "kessel", "Mustafar": "mustafar", "Felucia": "felucia"}
+	_orbit_planet = Art.ui_texture("planets/" + orbital_art[world]) if orbital_art.has(world) else null
+	_apply_theme()
+	if _orbit_planet:
+		return
+	var view := ColorRect.new()
+	view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var material := ShaderMaterial.new()
+	material.shader = preload("res://ui/board/conquest_planet.gdshader")
+	var identity := float(world.hash() % 997) / 997.0
+	material.set_shader_parameter("seed", identity * 24.0)
+	material.set_shader_parameter("terrain", Color.from_hsv(identity, 0.47, 0.63))
+	view.material = material
+	add_child(view)
+	UIKit.fill_rect(view)
 
 
 ## Leaders decide which fleets fly past. Call after the match is set up.
@@ -88,7 +142,9 @@ static func faction_for(data: Dictionary, manifest: Dictionary) -> String:
 
 
 func _process(dt: float) -> void:
-	if Kyber.perf():
+	if _spec["kind"] in ["datapad", "planet"]:
+		return
+	if Sabacc.perf():
 		if _t == 0.0:
 			_t = 0.001
 			queue_redraw()
@@ -164,7 +220,15 @@ func _vp(p: Vector2, z: float) -> Vector2:
 
 func _draw() -> void:
 	var s := size
-	draw_rect(Rect2(Vector2.ZERO, s), Kyber.C_BG)
+	draw_rect(Rect2(Vector2.ZERO, s), _spec["base"])
+	if _spec["kind"] == "datapad" or _film.visible:
+		return
+	if _photo:
+		var ts := _photo.get_size()
+		var covered := ts * maxf(s.x / ts.x, s.y / ts.y)
+		draw_texture_rect(_photo, Rect2((s - covered) * 0.5, covered), false)
+		draw_rect(Rect2(Vector2.ZERO, s), Color(_spec["base"], 0.37))
+		return
 	# faint nebula wash
 	draw_circle(Vector2(s.x * 0.2, s.y * 0.25), s.length() * 0.35, Color(0.18, 0.12, 0.35, 0.10))
 	draw_circle(Vector2(s.x * 0.85, s.y * 0.8), s.length() * 0.3, Color(0.35, 0.1, 0.15, 0.07))
@@ -173,11 +237,6 @@ func _draw() -> void:
 		if st["z"] > 0.5:
 			continue
 		_star(st, s)
-	if _photo:
-		var ts := _photo.get_size()
-		var sc := maxf(s.x / ts.x, s.y / ts.y) * 1.06
-		var off := (s - ts * sc) / 2.0 + Vector2(sin(_t * 0.03), cos(_t * 0.025)) * 10.0 + _par * 6.0
-		draw_texture_rect(_photo, Rect2(off, ts * sc), false, Color(1, 1, 1, 0.7))
 	if _planet:
 		var ph := minf(s.x, s.y) * _planet_rect.size.y * 1.2
 		var drift := Vector2(sin(_t * 0.011), cos(_t * 0.008)) * 18.0 + Vector2(_t * 0.6, 0.0)
@@ -217,7 +276,11 @@ func _star(st: Dictionary, s: Vector2) -> void:
 	var drift := Vector2(-4.0, 1.2) * _t * z      # slow
 	var pos := Vector2(fposmod(p.x * s.x + drift.x, s.x), fposmod(p.y * s.y + drift.y, s.y)) + _par * 10.0 * z
 	var tw := 0.65 + 0.35 * sin(_t * (0.6 + z) + st["tw"])
-	draw_circle(pos, 0.6 + 1.3 * z, Color(0.82, 0.9, 1.0, (0.25 + 0.6 * z) * tw))
+	var col := Color(0.82, 0.9, 1.0, (0.25 + 0.6 * z) * tw)
+	if _spec == Appearance.PRESETS["space_hyperspace"]:
+		draw_line(pos, pos + (pos - s / 2.0).normalized() * z * 44.0, col, 1.2, true)
+	else:
+		draw_circle(pos, 0.6 + 1.3 * z, col)
 
 
 func _ship(sh: Dictionary, s: Vector2) -> void:

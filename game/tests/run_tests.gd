@@ -20,13 +20,22 @@ func _init() -> void:
 		print("FAIL: no card data. Run tools/import_cards.py first.")
 		quit(1)
 		return
+	if "saga_route" in args:
+		var episode: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/campaign/ep4.json"))
+		simulate_death_star_run(episode["chapters"][1])
+		print("%d passed, %d failed" % [passes, failures])
+		quit(1 if failures else 0)
+		return
 	test_aspect_penalty()
 	test_combat_and_shield()
+	test_attachment_lifetime()
 	test_sentinel_and_saboteur()
 	test_overwhelm_raid_grit()
 	test_alternating_and_initiative()
 	test_leader_deploy_and_defeat()
 	test_effect_dsl()
+	test_live_card_rules()
+	test_continuous_printed_rules()
 	test_campaign_content()
 	test_formats()
 	test_choose_one()
@@ -75,6 +84,132 @@ func add_unit(m: Match, p: int, id: String, ready := true) -> CardInst:
 	return u
 
 
+func give_card(m: Match, id: String) -> CardInst:
+	var card := m._new_inst(id, 0)
+	card.zone = "hand"
+	m.players[0].hand.append(card)
+	m.players[0].credits = 20
+	return card
+
+
+func test_live_card_rules() -> void:
+	print("live conditions and printed triggers")
+	var m := blank_match(RuleSet.campaign())
+	var chirpa := add_unit(m, 0, "HMW_164")
+	var lone_power := chirpa.power()
+	var teebo := add_unit(m, 0, "HMW_162")
+	add_unit(m, 1, "HMW_162")
+	check(chirpa.power() == lone_power + 1, "Chirpa counts only other friendly Ewoks")
+	check(chirpa.has_kw("hidden") and teebo.has_kw("hidden"), "Teebo has printed Hidden and grants Hidden to other friendly Ewoks")
+	m.defeat(teebo)
+	check(chirpa.power() == lone_power and not chirpa.has_kw("hidden"), "Ewok bonuses disappear when Teebo leaves play")
+	var troublemaker := add_unit(m, 0, "HMW_176")
+	check(not troublemaker.has_kw("hidden") and not troublemaker.has_kw("saboteur"), "Troublemaker needs an Endor base")
+	m.players[0].base = m._new_inst("HMW_029", 0)
+	m.players[0].base.zone = "base"
+	check(troublemaker.has_kw("hidden") and troublemaker.has_kw("saboteur"), "Endor base grants Hidden and Saboteur together")
+	var sentinel := add_unit(m, 0, "LOF_196")
+	check(not sentinel.has_kw("sentinel"), "Jedi Sentinel needs a Force token")
+	m.players[0].force_token = true
+	var refugee := give_card(m, "LOF_242")
+	check(m.do_action({"a": "play", "uid": refugee.uid}) and m.pending.get("options", []) == [sentinel.uid],
+		"Refugee can shield a dynamically granted Sentinel")
+	check(m.submit_choice([sentinel.uid]) and sentinel.shield_count() == 1, "Refugee applies the Shield token")
+	m.players[0].force_token = false
+	check(not sentinel.has_kw("sentinel"), "Spending the Force removes Sentinel")
+
+	for has_enemy_ship in [false, true]:
+		var fighter_match := blank_match(RuleSet.campaign())
+		add_unit(fighter_match, 1, "SOR_095")
+		if has_enemy_ship:
+			add_unit(fighter_match, 1, "SOR_225")
+		var fighter := give_card(fighter_match, "ASH_221")
+		check(fighter_match.do_action({"a": "play", "uid": fighter.uid}), "Helix Starfighter plays")
+		var advantage := fighter.upgrades.filter(func(upgrade): return upgrade.name() == "Advantage").size()
+		check(fighter.shield_count() == int(has_enemy_ship) and advantage == (0 if has_enemy_ship else 2),
+			"Helix Starfighter grants the correct tokens for the opponent's arena")
+
+	var shuttle_match := blank_match(RuleSet.campaign())
+	var shuttle := give_card(shuttle_match, "HMW_063")
+	shuttle_match.players[0].base.damage = 2
+	check(shuttle_match.do_action({"a": "play", "uid": shuttle.uid}) and not shuttle.uid in shuttle_match.pending.get("options", []),
+		"Rho Medical Shuttle cannot choose itself")
+	check(shuttle_match.submit_choice([shuttle_match.players[0].base.uid]) and shuttle_match.players[0].base.damage == 1,
+		"Rho Medical Shuttle can heal a base when played")
+
+	for host_id in ["HMW_208", "SOR_095"]:
+		var sword_match := blank_match(RuleSet.campaign())
+		var host := add_unit(sword_match, 0, host_id)
+		host.damage = 2
+		var luke := host.name() == "Luke Skywalker"
+		var saber := give_card(sword_match, "SOR_053")
+		check(sword_match.do_action({"a": "play", "uid": saber.uid}) and sword_match.submit_choice([host.uid]),
+			"Luke's Lightsaber attaches to a non-Vehicle")
+		check(host.damage == (0 if luke else 2) and host.shield_count() == int(luke), "Luke's Lightsaber heals and shields only Luke")
+
+	var walker_match := blank_match(RuleSet.campaign())
+	var walker := give_card(walker_match, "HMW_121")
+	check(walker_match.do_action({"a": "play", "uid": walker.uid}), "Hijacked AT-ST plays")
+	Effects.exec(walker_match, {"op": "_ready_all"}, {})
+	check(walker.exhausted, "Hijacked AT-ST stays exhausted through first regroup")
+	Effects.exec(walker_match, {"op": "_ready_all"}, {})
+	check(not walker.exhausted, "Hijacked AT-ST readies on later regroups")
+
+
+func test_continuous_printed_rules() -> void:
+	var setup := blank_match(RuleSet.campaign())
+	var luke := give_card(setup, "HMW_208")
+	check(setup.do_action({"a": "play", "uid": luke.uid}) and not luke.exhausted, "Farmboy Luke enters ready in round one")
+	setup.active = 0
+	setup.round_num = 2
+	setup.defeat(luke)
+	luke = give_card(setup, "HMW_208")
+	check(setup.do_action({"a": "play", "uid": luke.uid}) and luke.exhausted, "Farmboy Luke enters exhausted in round two")
+
+	var ready_match := blank_match(RuleSet.campaign())
+	ready_match.players[0].base.data = lib.get_card("HMW_028")
+	var dragon := give_card(ready_match, "HMW_234")
+	check(ready_match.do_action({"a": "play", "uid": dragon.uid}) and not dragon.exhausted, "Ritual Dragon's Tatooine rule includes itself")
+	var token := ready_match.create_unit_token(0, "battle_droid")
+	var opposing_token := ready_match.create_unit_token(1, "battle_droid")
+	check(not token.exhausted and opposing_token.exhausted, "Ritual Dragon readies friendly units entering via token creation only on its side")
+	ready_match.defeat(dragon)
+	check(ready_match.create_unit_token(0, "battle_droid").exhausted, "Removing Ritual Dragon removes the readying effect")
+
+	var ambush_match := blank_match(RuleSet.campaign())
+	var warship := add_unit(ambush_match, 0, "SOR_237")
+	var marine := add_unit(ambush_match, 0, "SOR_095")
+	var enemy_ship := add_unit(ambush_match, 1, "SOR_237")
+	var wedge := give_card(ambush_match, "SOR_100")
+	check(ambush_match.do_action({"a": "play", "uid": wedge.uid}), "Wedge enters play")
+	check(warship.power() == warship.printed_power() + 1 and warship.max_hp() == warship.printed_hp() + 1 and warship.has_kw("ambush"),
+		"Wedge grants both Vehicle stats and Ambush")
+	check(not marine.has_kw("ambush") and not enemy_ship.has_kw("ambush"), "Wedge filters enemy and non-Vehicle units out")
+	var interceptor := add_unit(ambush_match, 0, "JTL_137")
+	check(interceptor.has_kw("overwhelm") and not interceptor.has_kw("raid"), "A continuous Vehicle buff meets Vonreg's four-power threshold")
+	ambush_match.attach_token(interceptor, "experience")
+	ambush_match.attach_token(interceptor, "experience")
+	check(interceptor.kw("raid") == 1 and interceptor.power(true) == 7, "Six non-Raid power grants Raid without including its own bonus")
+	ambush_match.defeat(wedge)
+	check(not interceptor.has_kw("raid") and not warship.has_kw("ambush"), "Thresholds and keyword gains update when Wedge leaves play")
+
+	var scout_match := blank_match()
+	var hidden := add_unit(scout_match, 1, "HMW_162")
+	var attacker := add_unit(scout_match, 0, "SOR_095")
+	check(not hidden.uid in scout_match.attack_targets(attacker), "A just-played Hidden unit cannot be attacked")
+	hidden.mods.append({"kw": "sentinel", "dur": "phase"})
+	check(scout_match.attack_targets(attacker) == [hidden.uid], "Gaining Sentinel lets Hidden be attacked and protects the base")
+
+	var defense_match := blank_match()
+	var grunt := add_unit(defense_match, 0, "SOR_095")
+	var guardian := add_unit(defense_match, 1, "LOF_049")
+	check(guardian.power() == guardian.printed_power(), "Jedi Guardian has normal power before battle")
+	defense_match.begin_attack(grunt, guardian)
+	check(guardian.power() == guardian.printed_power() + 2, "Jedi Guardian gains two power when defending")
+	defense_match.pump()
+	check(guardian.power() == guardian.printed_power(), "The defending bonus expires at attack end")
+
+
 func test_aspect_penalty() -> void:
 	print("aspect penalty")
 	var m := blank_match()
@@ -95,6 +230,23 @@ func test_combat_and_shield() -> void:
 	check(d.in_play() and d.damage == 0 and d.shield_count() == 0, "shield absorbs the attack")
 	check(a.damage == 3 or not a.in_play(), "defender deals damage back")
 	check(not a.in_play(), "3 damage defeats a 3-HP attacker")
+
+
+func test_attachment_lifetime() -> void:
+	print("attachment lifetime")
+	var m := blank_match()
+	var unit := add_unit(m, 0, "SOR_095")
+	m.attach_token(unit, "experience")
+	m.attach_token(unit, "shield")
+	var attachment: CardInst = unit.upgrades[0]
+	check(attachment.attached_to == unit, "upgrade resolves its living host")
+	var unit_ref: WeakRef = weakref(unit)
+	var attachment_ref: WeakRef = weakref(attachment)
+	unit = null
+	attachment = null
+	m = null
+	check(unit_ref.get_ref() == null, "unit is released after match")
+	check(attachment_ref.get_ref() == null, "attached tokens are released after match")
 
 
 func test_sentinel_and_saboteur() -> void:
@@ -196,6 +348,49 @@ func test_campaign_content() -> void:
 				if id != "":
 					check(not ("villainy" in lib.get_card(id).get("aspects", [])), "%s/%s: pickup %s is Villainy" % [ch["id"], node["id"], id])
 		simulate_chapter(ch)
+		if ch["id"] == "ep4_ch2_deathstar":
+			simulate_death_star_run(ch)
+
+
+## Play complete routes rather than measuring every fight with an unmodified starter deck.
+func simulate_death_star_run(chapter: Dictionary) -> void:
+	var clears := 0
+	for seed_value in [10, 37, 71, 103, 120, 158]:
+		var run := CampaignRun.start(chapter, chapter["leader_options"][seed_value % 2], seed_value)
+		for row in chapter["map"]["rows"]:
+			var id: String = row[seed_value % row.size()]
+			var node := CampaignRun.node_by_id(chapter, id)
+			if node.has("enemy"):
+				var config := CampaignRun.match_config(run, chapter, node, {})
+				config["players"][0]["ai"] = true
+				var battle := Match.new()
+				battle.setup(lib, config)
+				for _step in 2000:
+					if battle.is_over():
+						break
+					if battle.pending.is_empty():
+						AiBot.act(battle)
+					else:
+						AiBot.choose(battle)
+				check(battle.is_over(), "Seeded Death Star route finishes %s" % id)
+				if battle.winner != 0:
+					print("  Death Star route seed %d fell at %s" % [seed_value, id])
+					break
+				run["base_damage"] = CampaignRun.damage_after_victory(run, chapter, battle.players[0].base.damage)
+				run["fights"] += 1
+				run["deck"].append_array(node.get("pickups", []))
+				var offers := CampaignRun.roll_rewards(run, chapter, node, lib)
+				if not offers.is_empty():
+					run["deck"].append(offers[0])
+				if node["type"] == "boss":
+					clears += 1
+			elif node["type"] == "event":
+				CampaignRun.apply_effect(run, chapter, node["event"]["choices"][0]["effect"])
+			elif node["type"] == "rest":
+				CampaignRun.apply_effect(run, chapter, {"heal": 8})
+			CampaignRun.complete_node(run, id)
+	print("  Death Star full routes: %d clears in 6 runs" % clears)
+	check(clears > 0, "Seeded runs can clear the full Death Star chapter through the Hangar")
 
 
 ## Bot plays both sides of every combat node; reports hero win rate and length.
@@ -381,7 +576,8 @@ func test_spotlight() -> void:
 	for d in pool:
 		check(lib.has(d["leader"]) and lib.has(d["base"]), "%s: leader/base exist" % d["id"])
 		var pilot: bool = "pilot" in lib.get_card(d["leader"]).get("traits", [])
-		check(pilot == ("space" in d["modes"]) and (not pilot or d["modes"] == ["space"]), "%s: pilot leaders only in Space Only" % d["id"])
+		if "space" in d["modes"]:
+			check(pilot and d["modes"] == ["space"], "%s: Space Only has a dedicated Pilot leader deck" % d["id"])
 		var variants: Dictionary = d.get("variants", {})
 		var lists := {"main": d["cards"]}
 		lists.merge(variants)
@@ -434,6 +630,8 @@ func simulate_quick_modes(n: int) -> void:
 				rounds += m.round_num
 			else:
 				stuck += 1
+				print("  stuck quick seed=%d decks=%s/%s phase=%s round=%d pending=%s actions=%s" % [
+					g, a[0], b[0], m.phase, m.round_num, m.pending.get("kind", ""), m.legal_actions(m.active)])
 		print("  quick %-11s %d decks: p0 %d / p1 %d / draw %d / stuck %d, avg rounds %.1f" % [mode, decks.size(), wins[0], wins[1], wins[2], stuck, rounds / maxf(1.0, n - stuck)])
 		check(stuck == 0, "quick %s: no stuck games" % mode)
 

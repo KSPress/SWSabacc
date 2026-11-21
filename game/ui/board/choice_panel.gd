@@ -10,7 +10,7 @@ var pending: Dictionary
 var m: Match
 var _sel: Array = []
 var _views: Dictionary = {}
-var _confirm: KyberButton
+var _confirm: SabaccButton
 var _count: Label
 
 
@@ -41,10 +41,10 @@ func _build() -> void:
 	get_viewport().size_changed.connect(_fit)
 	v.add_child(UIKit.aurebesh("choose", 22))
 	var kind: String = pending.get("kind", "")
-	var title := UIKit.title(_title_for(kind), 34, Kyber.C_KYBER)
+	var title := UIKit.title(_title_for(kind), 34, Sabacc.C_ACCENT)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(title)
-	var prompt := UIKit.label(pending.get("prompt", ""), 20, Kyber.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	var prompt := UIKit.label(pending.get("prompt", ""), 20, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 	prompt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(prompt)
 	var buttons := HBoxContainer.new()
@@ -59,22 +59,30 @@ func _build() -> void:
 		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var labels: Array = pending.get("labels", [])
 		for i in labels.size():
-			var b := KyberButton.make(str(labels[i]), KyberButton.Style.PRIMARY if i == 0 else KyberButton.Style.GOLD)
+			var b := SabaccButton.make(str(labels[i]), SabaccButton.Style.PRIMARY if i == 0 else SabaccButton.Style.GOLD)
 			b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			var idx: int = i
+			var idx: int = pending["options"][i]
 			b.pressed.connect(func(): _submit([idx]))
 			col.add_child(b)
 		if int(pending.get("min", 1)) == 0:
-			var skip := KyberButton.make("Skip", KyberButton.Style.GHOST)
+			var skip := SabaccButton.make("Skip", SabaccButton.Style.GHOST)
 			skip.pressed.connect(func(): _submit([]))
 			col.add_child(skip)
-		v.add_child(col)
+		if pending.get("op") == "_ordered_triggers":
+			var scroll := ScrollContainer.new()
+			scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+			scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			scroll.follow_focus = true
+			v.add_child(scroll)
+			scroll.add_child(col)
+		else:
+			v.add_child(col)
 	elif kind in ["yesno", "mulligan"]:
 		if kind == "mulligan":
 			_add_cards(v, _hand_uids(), false)
-		var yes := KyberButton.make("Mulligan" if kind == "mulligan" else "Yes", KyberButton.Style.GOLD if kind == "mulligan" else KyberButton.Style.PRIMARY)
-		var no := KyberButton.make("Keep hand" if kind == "mulligan" else "No", KyberButton.Style.PRIMARY if kind == "mulligan" else KyberButton.Style.GHOST, "", kind == "mulligan")
+		var yes := SabaccButton.make("Mulligan" if kind == "mulligan" else "Yes", SabaccButton.Style.GOLD if kind == "mulligan" else SabaccButton.Style.PRIMARY)
+		var no := SabaccButton.make("Keep hand" if kind == "mulligan" else "No", SabaccButton.Style.PRIMARY if kind == "mulligan" else SabaccButton.Style.GHOST, "", kind == "mulligan")
 		yes.custom_minimum_size.x = 220
 		no.custom_minimum_size.x = 220
 		yes.pressed.connect(func(): _submit([1]))
@@ -83,17 +91,17 @@ func _build() -> void:
 		buttons.add_child(yes)
 	else:
 		var shown: Array = pending.get("reveal", pending.get("options", []))
-		_add_cards(v, shown, true)
-		_count = UIKit.label("", 18, Kyber.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
+		_add_cards(v, shown, int(pending.get("max", 1)) > 0)
+		_count = UIKit.label("", 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
 		v.add_child(_count)
-		_confirm = KyberButton.make("Confirm", KyberButton.Style.PRIMARY, "", true)
+		_confirm = SabaccButton.make("Confirm", SabaccButton.Style.PRIMARY, "", true)
 		_confirm.custom_minimum_size.x = 240
 		_confirm.pressed.connect(func(): _submit(_sel))
 		buttons.add_child(_confirm)
 		_update()
 	v.add_child(buttons)
 	modulate.a = 0.0
-	create_tween().tween_property(self, "modulate:a", 1.0, Kyber.anim(0.2))
+	create_tween().tween_property(self, "modulate:a", 1.0, Sabacc.anim(0.2))
 
 
 func _fit() -> void:
@@ -104,8 +112,16 @@ func _fit() -> void:
 
 
 func _title_for(kind: String) -> String:
+	if kind == "disclose":
+		return "Disclose aspects"
+	if kind == "disclosure_reveal":
+		return "Disclosed cards"
+	if kind == "ready_resources":
+		return "Ready resources"
 	if kind == "hand" and pending.get("op", "") == "play_from_hand":
 		return "Play a card"
+	if kind == "hand" and pending.get("op", "") in ["_resource_hand", "_sundari_resource"]:
+		return "Resource a card"
 	return {"option": "Choose one", "mulligan": "Opening hand", "resource": "Resources", "hand": "Discard", "scry": "Look at the top of your deck",
 		"search": "Search your deck", "yesno": "Optional ability"}.get(kind, "Choose")
 
@@ -141,6 +157,7 @@ func _add_cards(v: VBoxContainer, uids: Array, selectable: bool) -> void:
 		holder.custom_minimum_size = CardView.PORTRAIT * _scale() + Vector2(0, 20)
 		row.add_child(holder)
 		var cv := CardView.create(ci.id, ci)
+		cv.face_down = pending.get("hidden_cards", false)
 		cv.draggable = false
 		cv.hover_lift = false
 		cv.pivot_offset = Vector2.ZERO
@@ -153,7 +170,8 @@ func _add_cards(v: VBoxContainer, uids: Array, selectable: bool) -> void:
 		cv.dim = selectable and not selectable_card
 		if selectable_card:
 			cv.tapped.connect(func(_c): _toggle(uid))
-		cv.inspect_requested.connect(func(c): InspectOverlay.open(self, c.card_id, c.get_global_rect(), ci))
+		if not cv.face_down:
+			cv.inspect_requested.connect(func(c): InspectOverlay.open(self, c.card_id, c.get_global_rect(), ci))
 		_views[uid] = cv
 		UIKit.pop_in(cv, i * 0.05)
 		i += 1
@@ -171,6 +189,8 @@ func _rows() -> int:
 
 
 func _cols() -> int:
+	if pending.get("effect", {}).get("whole_deck", false):
+		return 3 if get_viewport_rect().size.y >= get_viewport_rect().size.x else 6
 	return ceili(_count_cards() / float(_rows()))
 
 
@@ -198,7 +218,7 @@ func _toggle(uid: int) -> void:
 		var cv: CardView = _views[k]
 		cv.selected = k in _sel
 		var target := Vector2(0, -8 if k in _sel else 10)
-		cv.create_tween().tween_property(cv, "position", target, Kyber.anim(0.15)).set_trans(Tween.TRANS_BACK)
+		cv.create_tween().tween_property(cv, "position", target, Sabacc.anim(0.15)).set_trans(Tween.TRANS_BACK)
 	_update()
 
 
@@ -208,8 +228,18 @@ func _update() -> void:
 	var mn := int(pending["min"])
 	var mx := int(pending["max"])
 	_confirm.disabled = _sel.size() < mn or _sel.size() > mx
+	if pending["kind"] == "disclose" and not _sel.is_empty():
+		_confirm.disabled = not Effects.covers_aspects(m, _sel, pending["effect"].get("aspects", []))
 	_count.text = ("Select %d" % mn if mn == mx else "Select %d–%d" % [mn, mx]) + "   (%d chosen)" % _sel.size()
-	if mn == 0 and _sel.is_empty():
+	var budget: int = pending.get("effect", {}).get("combined_cost", -1)
+	if budget >= 0:
+		var total := Effects.selection_cost(m, _sel)
+		_confirm.disabled = _confirm.disabled or total > budget
+		_count.text += " · %d/%d combined cost" % [total, budget]
+	if mx == 0:
+		_count.hide()
+		_confirm.text = "Continue"
+	elif mn == 0 and _sel.is_empty():
 		_confirm.text = "Skip"
 	else:
 		_confirm.text = "Confirm"
@@ -218,7 +248,7 @@ func _update() -> void:
 func _submit(sel: Array) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tw := create_tween()
-	tw.tween_property(self, "modulate:a", 0.0, Kyber.anim(0.15))
+	tw.tween_property(self, "modulate:a", 0.0, Sabacc.anim(0.15))
 	await tw.finished
 	submitted.emit(sel)
 	get_parent().queue_free()

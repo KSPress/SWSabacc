@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "build" / "web"
 STAGE = ROOT / "build" / "pages"
-LOCAL_ONLY = {"play.py", "Play SWU Kyber.bat", "Play on Phone (same Wi-Fi).bat", "README.txt"}
+LOCAL_ONLY = {"play.py", "Play SWU Sabacc.bat", "Play on Phone (same Wi-Fi).bat", "README.txt"}
 
 if not (SITE / "index.html").exists():
     sys.exit("build/web is missing - run tools/web/build_web.py first")
@@ -32,7 +32,7 @@ if STAGE.exists():
     shutil.rmtree(STAGE, onerror=lambda f, p, _: (Path(p).chmod(0o700), f(p)))
 shutil.copytree(SITE, STAGE, ignore=lambda d, names: [n for n in names if n in LOCAL_ONLY])
 (STAGE / "README.md").write_text(
-    "# SWU Kyber - web app build\n\nBuilt site for GitHub Pages. Source: the `main` branch.\n\n"
+    "# SWU Sabacc - web app build\n\nBuilt site for GitHub Pages. Source: the `main` branch.\n\n"
     "Unofficial, non-commercial fan project. Not affiliated with Disney, Lucasfilm or Fantasy Flight Games. "
     "Star Wars characters, cards, logos and art are property of Disney and/or Fantasy Flight Games.\n",
     encoding="utf-8")
