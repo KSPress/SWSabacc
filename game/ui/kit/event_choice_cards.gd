@@ -9,7 +9,6 @@ func _ready() -> void:
 	surface.shader = preload("res://ui/screens/sabacc_war_table.gdshader")
 	wood.material = surface
 	wood.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wood.z_index = -1
 	add_child(wood, false, Node.INTERNAL_MODE_BACK)
 	resized.connect(func(): wood.size = size + Vector2(14, 16))
 	wood.position = Vector2(-7, -8)
