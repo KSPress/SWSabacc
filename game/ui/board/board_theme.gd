@@ -88,6 +88,35 @@ func setup(id: String, lock_location := false) -> void:
 	_apply_theme()
 
 
+func set_conquest_world(world: String) -> void:
+	var known := {
+		"Tatooine": "saga_tatooine_canyon", "Coruscant": "coruscant", "Kamino": "kamino",
+		"Geonosis": "geonosis", "Dathomir": "dathomir", "Kuat": "kuat_ring",
+		"Hoth": "scene_ice_ambush",
+	}
+	if known.has(world):
+		_location = known[world]
+		_apply_theme()
+		if _photo:
+			return
+	_location = "space"
+	var orbital_art := {"Kessel": "kessel", "Mustafar": "mustafar", "Felucia": "felucia"}
+	_orbit_planet = Art.ui_texture("planets/" + orbital_art[world]) if orbital_art.has(world) else null
+	_apply_theme()
+	if _orbit_planet:
+		return
+	var view := ColorRect.new()
+	view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var material := ShaderMaterial.new()
+	material.shader = preload("res://ui/board/conquest_planet.gdshader")
+	var identity := float(world.hash() % 997) / 997.0
+	material.set_shader_parameter("seed", identity * 24.0)
+	material.set_shader_parameter("terrain", Color.from_hsv(identity, 0.47, 0.63))
+	view.material = material
+	add_child(view)
+	UIKit.fill_rect(view)
+
+
 ## Leaders decide which fleets fly past. Call after the match is set up.
 func set_leaders(leaders: Array) -> void:
 	_factions.clear()

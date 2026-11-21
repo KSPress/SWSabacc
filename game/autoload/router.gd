@@ -5,6 +5,7 @@ signal screen_changed(path: String)
 
 const SCREENS := {
 	"play": "res://ui/screens/play_carousel.tscn",
+	"conquest": "res://ui/screens/galactic_conquest.tscn",
 	"mini_games": "res://ui/screens/mini_games.tscn",
 	"sabacc_war": "res://ui/screens/sabacc_war.tscn",
 	"hub": "res://ui/screens/mode_hub.tscn",

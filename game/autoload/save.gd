@@ -26,6 +26,7 @@ func default_data() -> Dictionary:
 		"cosmetics": {"earned": ["emblem:sabacc", "cardback:default", "background:datapad"], "equipped": {"emblem": "sabacc", "cardback": "default", "background": "datapad"}, "gm": false, "recorded": []},
 		"spotlight_runs": {},        # Spotlight Campaign: deck id -> active run
 		"spotlight_records": {},     # Spotlight Campaign: deck id -> record (runs, bests, history)
+		"conquest": {},
 		"campaign": {
 			"cleared": [],           # chapter ids
 			"run": {},               # active chapter run (see CampaignRun)

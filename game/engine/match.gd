@@ -58,6 +58,9 @@ var _next_uid := 1
 var _need_advance := false
 var _last_actor := 0
 var _extra_action := false
+var roster_losses := [[], []]
+var roster_leader_lost := [false, false]
+var _tracked_roster := {}
 
 
 # ---------------------------------------------------------------- setup
@@ -75,6 +78,10 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 	seed_value = int(cfg.get("seed", randi()))
 	rng.seed = seed_value
 	players.clear()
+	roster_losses = [[], []]
+	roster_leader_lost = [false, false]
+	_tracked_roster.clear()
+	var track_roster: bool = cfg.get("track_roster_losses", false)
 	for i in 2:
 		var pc: Dictionary = cfg["players"][i]
 		var ps := PlayerState.new()
@@ -87,6 +94,8 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 		if pc.get("leader", "") != "":
 			ps.leader = _new_inst(pc["leader"], i)
 			ps.leader.zone = "leader"
+			if track_roster:
+				_tracked_roster[ps.leader.uid] = true
 		if pc.get("support_leader", "") != "":
 			ps.support_leader = _new_inst(pc["support_leader"], i)
 			ps.support_leader.zone = "leader"
@@ -107,6 +116,8 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 				continue
 			var c := _new_inst(cid, i)
 			c.zone = "deck"
+			if track_roster:
+				_tracked_roster[c.uid] = true
 			if cid == oil_bath_card:
 				c.flags["campaign_oil_bath"] = true
 				oil_bath_card = ""
@@ -459,7 +470,7 @@ func legal_actions(p: int) -> Array:
 				out.append({"a": "ability", "uid": leader.uid, "idx": i})
 		# double-sided leaders with no unit side (e.g. Chancellor Palpatine // Darth Sidious) never deploy
 		var has_unit_side := int(leader.data.get("leader_unit", {}).get("hp", 0)) > 0
-		var space_campaign := rules.name == "campaign" and rules.arenas == ["space"]
+		var space_campaign := rules.name in ["campaign", "conquest"] and rules.arenas == ["space"]
 		if (space_campaign or (rules.name == "quick_space" and leader.data.has("pilot"))) and leader.arena() != "space":
 			has_unit_side = false
 		if has_unit_side and not leader.epic_used and ps.resources.size() >= int(leader.data.get("epic_cost", 99)):
@@ -1380,6 +1391,7 @@ func defeat(u: CardInst, departing_host := false, skip_replacement := false) -> 
 					"replace": true, "departing_host": departing_host}], {"ctl": u.controller, "src": u.uid})
 				return
 	if u.zone == "upgrade":
+		_record_roster_loss(u)
 		var host := u.attached_to
 		var defeated_abilities := u.abilities_with("when_defeated")
 		if host:
@@ -1405,6 +1417,7 @@ func defeat(u: CardInst, departing_host := false, skip_replacement := false) -> 
 		return
 	if not u.in_play():
 		return
+	_record_roster_loss(u)
 	var bounties := u.abilities_with("bounty")
 	var abil := u.abilities_with("when_defeated")
 	var last_known := {"lki_arena": u.arena(), "lki_damage": u.damage, "lki_ready": not u.exhausted}
@@ -1448,6 +1461,23 @@ func defeat(u: CardInst, departing_host := false, skip_replacement := false) -> 
 		push_ability(u, ab, last_known)
 	for bounty in bounties:
 		push_ability(u, bounty, {"ctl": opp(p)})
+
+
+func _record_roster_loss(unit: CardInst) -> void:
+	if not _tracked_roster.erase(unit.uid):
+		return
+	if unit.is_leader():
+		roster_leader_lost[unit.owner] = true
+	else:
+		roster_losses[unit.owner].append(unit.id)
+
+
+func defeat_resource(resource: CardInst, controller: int) -> void:
+	_record_roster_loss(resource)
+	players[controller].resources.erase(resource)
+	resource.zone = "discard"
+	players[resource.owner].discard.append(resource)
+	events.append({"t": "resource", "p": controller, "uid": resource.uid})
 
 
 func _defeat_attached_upgrades(host: CardInst) -> void:

@@ -26,6 +26,7 @@ Sfx="*res://autoload/sfx.gd"
 Music="*res://autoload/music.gd"
 Cosmetics="*res://autoload/cosmetics.gd"
 Progression="*res://autoload/progression.gd"
+Conquest="*res://autoload/conquest.gd"
 Appearance="*res://autoload/appearance.gd"
 Updater="*res://autoload/updater.gd"
 

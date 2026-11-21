@@ -4,7 +4,7 @@ const MODES := ["Campaigns", "Battles", "Galactic Conquest", "Mini Games"]
 const DESCRIPTIONS := [
 	"Story episodes and branching Saga encounters",
 	"Traditional SWU and Quick Match variants",
-	"Work in progress",
+	"Command fleets and capture planets in real time",
 	"Play Sabacc War for credits",
 ]
 const ART := [
@@ -89,7 +89,6 @@ func cycle(direction: int) -> void:
 
 func _update_selection() -> void:
 	_open.text = MODES[selected]
-	_open.disabled = selected == 2
 	_description.text = DESCRIPTIONS[selected]
 
 
@@ -139,4 +138,5 @@ func _activate() -> void:
 	match selected:
 		0: Router.go("episodes")
 		1: Router.go("hub", {"section": "battles"})
+		2: Router.go("conquest")
 		3: Router.go("mini_games")

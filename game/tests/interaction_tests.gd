@@ -40,6 +40,13 @@ func _run() -> void:
 	Save.data = Save.default_data()
 	Sabacc.settings["anim_speed"] = 1.0
 	Sabacc.settings["perf_mode"] = false
+	if only == "conquest":
+		await _test_conquest()
+		print("CONQUEST INPUT: %d checks, %d failed" % [checks, failures])
+		if failures:
+			get_tree().quit(1)
+			await get_tree().process_frame
+		return
 	if only == "sabacc_war":
 		await _test_sabacc_war()
 		print("SABACC WAR INPUT: %d checks, %d failed" % [checks, failures])
@@ -168,7 +175,7 @@ func _run() -> void:
 		await _drag(center, center + Vector2(-100, 0))
 		check(carousel._open.text == "Battles", "swiping the cards selects Battles")
 		await _drag(center, center + Vector2(-100, 0))
-		check(carousel._open.text == "Galactic Conquest" and carousel._open.disabled, "Conquest is marked in development")
+		check(carousel._open.text == "Galactic Conquest" and not carousel._open.disabled, "Conquest is available from PLAY")
 		var cancel := InputEventKey.new()
 		cancel.keycode = KEY_ESCAPE
 		cancel.pressed = true
@@ -181,6 +188,72 @@ func _run() -> void:
 	if failures:
 		get_tree().quit(1)
 		await get_tree().process_frame
+
+
+func _test_conquest() -> void:
+	await _size(540, 960)
+	await _go("play", {"selected": 2})
+	await _click(_button(get_tree().current_scene, "Galactic Conquest"))
+	var screen := get_tree().current_scene
+	await _click(_button(screen, "Rebels"))
+	await _click(_button(screen, "16 planets"))
+	check(screen._leader_name.text.begins_with("Luke Skywalker"), "Selecting Rebels equips Luke")
+	for index in screen._leader_picker.item_count:
+		if screen._leader_picker.get_item_metadata(index) == "JTL_012":
+			screen._leader_picker.item_selected.emit(index)
+			break
+	await _shot("conquest-faction")
+	await _click(_button(screen, "Start conquest"))
+	check(Conquest.run.state["worlds"].size() == 16 and Conquest.run.state["player"] == 1, "Create the selected galaxy")
+	check(Conquest.run.fleet(1)["leader"] == "JTL_012", "The chosen leader printing commands the first fleet")
+	await _shot("conquest-portrait")
+	var center: Vector2 = screen._viewport.get_global_rect().get_center()
+	var scroll_x: int = screen._viewport.scroll_horizontal
+	await _drag(center, center - Vector2(115, 0))
+	check(screen._viewport.scroll_horizontal > scroll_x, "Dragging pans the strategic galaxy map")
+	await _click(_button(screen, "Locate fleet"))
+	var target: Vector2 = screen._map.get_global_transform() * (ConquestGalaxy.WORLDS["Mandalore"] * screen._map.zoom)
+	await _drag(target, target)
+	check(screen._selected == "Mandalore" and not screen._orders.disabled, "Tap a neighbor to select the marked planet")
+	await _size(1280, 720)
+	await _shot("conquest-landscape")
+	await _click(screen._orders)
+	var task := Conquest.run.fleet(1)
+	check(task["route"] == ["Mandalore"] and Conquest.run.player_battle().is_empty(), "Attack sends the fleet through hyperspace")
+	task["arrival"] = Conquest.run.state["time"]
+	await _wait(0.55)
+	check(screen._battle.visible, "Arrival prepares the battle")
+	await _click(screen._battle)
+	var match_screen := get_tree().current_scene
+	check(match_screen.params.get("mode") == "conquest" and match_screen.m.players[1].leader == null,
+		"Militia battle opens in the actual match scene with a leaderless defender")
+	check(match_screen.params.get("battle_world") == "Mandalore", "Battle loads the selected planet backdrop")
+	await _shot("conquest-battle-background")
+	match_screen.m.set_winner(0, "Conquest smoke test")
+	match_screen._game_over()
+	await _wait(0.4)
+	await _click(_button(match_screen, "Return to galaxy"))
+	await _wait(0.4)
+	screen = get_tree().current_scene
+	check(Conquest.run.state["worlds"]["Mandalore"]["owner"] == 1 and Progression.credits() == 0,
+		"Battle captures the planet and pays only conquest credits")
+	await _click(_button(screen, "Planet production"))
+	var garrison := _button(screen, "Build garrison")
+	check(garrison != null and not garrison.disabled, "Production offers a garrison on a captured world")
+	if garrison:
+		var owner: Node = garrison
+		while owner and not owner is ScrollContainer:
+			owner = owner.get_parent()
+		if owner:
+			owner.ensure_control_visible(garrison)
+			await _wait(0.2)
+		await _click(garrison)
+	check("garrison" in Conquest.run.state["worlds"]["Mandalore"]["facilities"], "Garrison build persists through the real UI")
+	check(Conquest.save_slot(1, "Mandalore captured"), "Write a named slot")
+	check(Conquest.save_slot(1, "Mandalore checkpoint"), "Overwrite a named slot")
+	Conquest.run.state["worlds"]["Mandalore"]["owner"] = -1
+	check(Conquest.load_slot(1) and Conquest.run.state["worlds"]["Mandalore"]["owner"] == 1,
+		"Loading restores the saved map and overwrites only the autosave")
 
 
 func _test_sabacc_war() -> void:
@@ -260,12 +333,14 @@ func _test_sabacc_war() -> void:
 			chapter_map.body.add_child(chapter_map._nodes["black_sphere"])
 		chapter_map._nodes["black_sphere"].state = "available"
 		chapter_map._open_node(choice_node)
-		await _wait(0.4)
+		await _wait(0.85)
 		var card := chapter_map._panel.find_child(answer + "Card", true, false) as TextureButton
 		check(card != null and not card.disabled, "%s artwork is an active card" % answer)
 		if card:
 			if answer == "Yes":
 				await _shot("sabacc-event-choices")
+				await _size(1280, 720)
+				await _shot("sabacc-event-choices-landscape")
 			await _click(card)
 			await _wait(1.4)
 			check(Save.run()["current"] == "black_sphere", "%s card resolves the event by pointer input" % answer)

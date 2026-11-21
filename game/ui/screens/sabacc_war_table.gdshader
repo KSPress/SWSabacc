@@ -1,5 +1,7 @@
 shader_type canvas_item;
 render_mode unshaded;
+uniform bool octagonal = false;
+uniform vec2 table_size = vec2(1.0);
 
 float grain(vec2 xy) {
 	return fract(sin(dot(xy, vec2(127.1, 311.7))) * 43758.5453);
@@ -8,6 +10,13 @@ float grain(vec2 xy) {
 void fragment() {
 	vec2 p = (UV - vec2(0.5, 0.5)) / vec2(0.49, 0.49);
 	float rail = max(abs(p.y), abs(p.x) + 0.36 * abs(p.y));
+	if (octagonal) {
+		vec2 half_extent = table_size * 0.49;
+		vec2 edge_distance = abs(p) * half_extent;
+		float corner_cut = min(table_size.x, table_size.y) * 0.13;
+		float diagonal_limit = half_extent.x + half_extent.y - corner_cut;
+		rail = max(max(abs(p.x), abs(p.y)), (edge_distance.x + edge_distance.y) / diagonal_limit);
+	}
 	float mask = 1.0 - smoothstep(0.996, 1.0, rail);
 	float light = 1.0 - clamp(length(p - vec2(-0.26, -0.72)) * 0.44, 0.0, 1.0);
 	float texture_grain = grain(floor(UV * vec2(1100.0, 680.0))) - 0.5;

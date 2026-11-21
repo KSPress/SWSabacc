@@ -95,6 +95,8 @@ func _build() -> void:
 	add_child(theme_bg)
 	var location: String = params.get("theme", "auto")
 	theme_bg.setup(location, params.get("mode") == "campaign" or (params.get("mode") == "spotlight" and location != "auto"))
+	if params.has("battle_world"):
+		theme_bg.set_conquest_world(params["battle_world"])
 	board_layer = Control.new()
 	UIKit.fill_rect(board_layer)
 	board_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1455,7 +1457,8 @@ func _game_over() -> void:
 	var identity := "%s_%s" % [Time.get_unix_time_from_system(), get_instance_id()]
 	var player: PlayerState = m.players[HUMAN]
 	var leader_id := player.leader.id if player.leader else ""
-	var cosmetic_reward := Cosmetics.record_match(won, identity, m.winner, player.aspect_pool(), leader_id, m.played_aspect_counts[HUMAN])
+	var conquest_battle: bool = params.get("mode") == "conquest"
+	var cosmetic_reward := {} if conquest_battle else Cosmetics.record_match(won, identity, m.winner, player.aspect_pool(), leader_id, m.played_aspect_counts[HUMAN])
 	var credits_earned := 0
 	if params.get("mode", "quick") == "quick" and m.winner != 2:
 		credits_earned = Progression.award_credits("battle:" + identity, Progression.BATTLE_WIN if won else Progression.BATTLE_LOSS)
@@ -1472,7 +1475,7 @@ func _game_over() -> void:
 	Sfx.play("draw" if m.winner == 2 else ("win" if won else "lose"))
 	if m.winner in [0, 1]:
 		var victor: PlayerState = m.players[m.winner]
-		var aspects := Appearance.aspects_for([victor.leader.data, victor.base.data])
+		var aspects := Appearance.aspects_for([victor.leader.data if victor.leader else {}, victor.base.data])
 		Sfx.result_cues(victor.leader, m.players[1 - m.winner].leader, won, aspects)
 	var layer := CanvasLayer.new()
 	layer.layer = 45
@@ -1512,7 +1515,14 @@ func _game_over() -> void:
 		reward.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		v.add_child(reward)
 		v.move_child(reward, row.get_index())
-	if params.get("mode", "quick") == "spotlight":
+	if conquest_battle:
+		var result := Conquest.finish_player_battle(params["battle"], m)
+		if not result.is_empty():
+			v.add_child(UIKit.label(Conquest.run.state["report"], 22, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+		var cont := SabaccButton.make("Return to galaxy", SabaccButton.Style.PRIMARY, "back", true)
+		cont.pressed.connect(func(): Router.go("conquest"))
+		row.add_child(cont)
+	elif params.get("mode", "quick") == "spotlight":
 		var sres := SpotlightFlow.on_match_end(params, m)
 		var scont := SabaccButton.make("Continue", SabaccButton.Style.PRIMARY, "play", true)
 		scont.custom_minimum_size.x = 260

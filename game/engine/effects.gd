@@ -1598,10 +1598,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 						if not ps.deck.is_empty():
 							m.move_to_resources(ps.index, ps.deck[0], true)
 					"_choose_defeat_resource":
-						ps.resources.erase(c)
-						c.zone = "discard"
-						m.players[c.owner].discard.append(c)
-						m.events.append({"t": "resource", "p": ps.index, "uid": c.uid})
+						m.defeat_resource(c, ps.index)
 					"_sundari_resource":
 						m.move_to_resources(ps.index, c, false)
 						ps.base.flags["sundari_resources"] = int(ps.base.flags.get("sundari_resources", 0)) + 1
@@ -1811,10 +1808,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 				for r in rs:
 					if r.exhausted:
 						pick = r
-				rs.erase(pick)
-				pick.zone = "discard"
-				m.players[pick.owner].discard.append(pick)
-				m.events.append({"t": "resource", "p": rp, "uid": pick.uid})
+				m.defeat_resource(pick, rp)
 		"_defeat_upgrade":
 			var up_p: int = ctx.get("ctl", 0)
 			if ctx.has("_choice"):
@@ -1822,6 +1816,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 				ctx.erase("_choice")
 				for up in host.upgrades:
 					if up.controller == up_p or host.controller == up_p:
+						m._record_roster_loss(up)
 						host.upgrades.erase(up)
 						if not up.is_token:
 							up.zone = "discard"
@@ -2281,10 +2276,7 @@ static func _return_resources(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		for uid in ctx["_choice"]:
 			var card := m.card(uid)
 			if defeat:
-				m._remove_from_zones(card)
-				card.zone = "discard"
-				m.players[card.owner].discard.append(card)
-				m.events.append({"t": "resource", "p": player, "uid": card.uid})
+				m.defeat_resource(card, player)
 			else:
 				m.return_to_hand(card)
 		ctx.erase("_choice")
@@ -2316,10 +2308,7 @@ static func _campaign_zone_reveal(m: Match, e: Dictionary, ctx: Dictionary) -> i
 					m.attach_token(src, "experience")
 			elif scanner and card.has_kw("smuggle"):
 				var state: PlayerState = m.players[card.controller]
-				state.resources.erase(card)
-				card.zone = "discard"
-				m.players[card.owner].discard.append(card)
-				m.events.append({"t": "resource", "p": state.index, "uid": card.uid})
+				m.defeat_resource(card, state.index)
 				if not state.deck.is_empty():
 					m.move_to_resources(state.index, state.deck[0], true)
 		if disaster and (not picked.is_empty() or m.players[player].discard.any(func(card): return card.has_trait("disaster"))):
