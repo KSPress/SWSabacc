@@ -89,6 +89,13 @@ func setup(id: String, lock_location := false) -> void:
 
 
 func set_conquest_world(world: String) -> void:
+	var supplied := ConquestGalaxy.supplied_planet(world)
+	if supplied:
+		_location = "space"
+		_orbit_planet = supplied
+		_planet_rect = Rect2(0.21, 0.16, 0.96, 0.96)
+		_apply_theme()
+		return
 	var known := {
 		"Tatooine": "saga_tatooine_canyon", "Coruscant": "coruscant", "Kamino": "kamino",
 		"Geonosis": "geonosis", "Dathomir": "dathomir", "Kuat": "kuat_ring",
@@ -100,7 +107,7 @@ func set_conquest_world(world: String) -> void:
 		if _photo:
 			return
 	_location = "space"
-	var orbital_art := {"Kessel": "kessel", "Mustafar": "mustafar", "Felucia": "felucia"}
+	var orbital_art := ConquestGalaxy.LEGACY_ORBITAL_ART
 	_orbit_planet = Art.ui_texture("planets/" + orbital_art[world]) if orbital_art.has(world) else null
 	_apply_theme()
 	if _orbit_planet:

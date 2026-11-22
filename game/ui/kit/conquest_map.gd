@@ -8,29 +8,56 @@ const MAP := preload("res://assets/branding/galactic_map.jpg")
 var run: ConquestRun
 var selected := ""
 var fleet_index := 0
-var zoom := 1.15
+const INITIAL_ZOOM := 1.6
+const ZOOM_MIN := 0.5
+const ZOOM_MAX := 3.6
+const DRAG_THRESHOLD := 7.0
+const MARKER_TEXTURE_SIZE := 128
+const FLEET_FACE_SCALE := 0.45
+const MAP_BACKGROUND := Color("#07111e")
+const MAP_IMAGE_INSET := 6.0
+const MAP_EDGE_FADE := 36.0
+
+var zoom := INITIAL_ZOOM
+var camera_offset := Vector2.ZERO
+var _previous_size := Vector2.ZERO
+var _camera_region := Rect2()
+var _world_bounds := Rect2()
 var _clock := 0.0
 var _pointer_down := false
 var _moved := false
 var _pointer_origin := Vector2.ZERO
-var _scroll_origin := Vector2.ZERO
-var _emblems: Array[Texture2D] = []
+var _pan_origin := Vector2.ZERO
+var _touches := {}
 var _leaders := {}
+var _planet_art := {}
+var _symbols := {}
 var _marker := UnitEffects.new()
 
 
 func _ready() -> void:
-	custom_minimum_size = MAP.get_size() * zoom
+	clip_contents = true
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	mouse_default_cursor_shape = Control.CURSOR_DRAG
+	resized.connect(_resize_camera)
+	_resize_camera()
 	add_child(_marker)
 	_marker.set_status(true, false, false)
 	_marker.z_index = 2
-	for faction in GALAXY.FACTIONS:
-		_emblems.append(Cosmetics.texture("emblem", faction["emblem"]))
-		var id: String = faction["leader"]
-		var texture := Art.request(CardDB.card(id).get("art", id), func(loaded): _leaders[id] = loaded)
-		if texture:
-			_leaders[id] = texture
+	_world_bounds = Rect2(GALAXY.WORLDS[run.state["worlds"].keys()[0]], Vector2.ZERO)
+	for world in run.state["worlds"]:
+		_world_bounds = _world_bounds.expand(GALAXY.WORLDS[world])
+		var planet := GALAXY.supplied_planet(world)
+		if not planet and GALAXY.LEGACY_ORBITAL_ART.has(world):
+			planet = Art.ui_texture("planets/" + GALAXY.LEGACY_ORBITAL_ART[world])
+		if planet:
+			var sprite := planet.get_image()
+			var scale_factor := float(MARKER_TEXTURE_SIZE) / maxi(sprite.get_width(), sprite.get_height())
+			if scale_factor < 1.0:
+				var dimensions := Vector2i(Vector2(sprite.get_size()) * scale_factor)
+				sprite.resize(dimensions.x, dimensions.y, Image.INTERPOLATE_LANCZOS)
+			sprite.generate_mipmaps()
+			_planet_art[world] = ImageTexture.create_from_image(sprite)
 
 
 func _process(delta: float) -> void:
@@ -38,17 +65,22 @@ func _process(delta: float) -> void:
 	_marker.visible = not selected.is_empty()
 	if _marker.visible:
 		_marker.scale = Vector2.ONE * 0.42 * zoom
-		_marker.position = GALAXY.WORLDS[selected] * zoom + Vector2(-33, -17) * zoom
+		_marker.position = world_position(selected) + Vector2(-35, -25) * zoom
 	queue_redraw()
 
 
 func _draw() -> void:
 	if not run:
 		return
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * zoom)
-	var map_area := Rect2(Vector2.ZERO, MAP.get_size())
-	draw_texture_rect(MAP, map_area, false)
-	draw_rect(map_area, Color(0.015, 0.032, 0.068, 0.43))
+	draw_rect(Rect2(Vector2.ZERO, size), MAP_BACKGROUND)
+	draw_set_transform(camera_offset, 0.0, Vector2.ONE * zoom)
+	var map_area := Rect2(Vector2.ZERO, MAP.get_size()).grow(-MAP_IMAGE_INSET)
+	draw_texture_rect_region(MAP, map_area, map_area)
+	draw_rect(map_area, Color(0.015, 0.032, 0.068, 0.62))
+	_fade_chart_edge(map_area.position, Vector2(map_area.end.x, map_area.position.y), Vector2.DOWN)
+	_fade_chart_edge(Vector2(map_area.position.x, map_area.end.y), map_area.end, Vector2.UP)
+	_fade_chart_edge(map_area.position, Vector2(map_area.position.x, map_area.end.y), Vector2.RIGHT)
+	_fade_chart_edge(Vector2(map_area.end.x, map_area.position.y), map_area.end, Vector2.LEFT)
 	var worlds: Dictionary = run.state["worlds"]
 	var faction := int(run.state["player"])
 	var planner := run.fleet(faction, fleet_index)
@@ -63,8 +95,20 @@ func _draw() -> void:
 		if worlds.has(lane[0]) and worlds.has(lane[1]):
 			var active: bool = active_edges.has(lane.slice(0, 2))
 			var points := GALAXY.lane_points(lane)
-			draw_polyline(points, Color("#071721"), 5.0 if active else 3.4, true)
-			draw_polyline(points, Color("#ffe2a0") if active else Color(0.44, 0.78, 0.93, 0.6), 2.6 if active else 1.5, true)
+			var owner := int(worlds[lane[0]]["owner"])
+			var controlled := owner >= 0 and owner == int(worlds[lane[1]]["owner"])
+			var tint: Color = GALAXY.FACTIONS[owner]["color"] if controlled else Color("#7297b5")
+			if active and not controlled:
+				tint = GALAXY.FACTIONS[faction]["color"]
+			if controlled or active:
+				draw_polyline(points, Color(tint, 0.12), 11.0, true)
+				draw_polyline(points, Color(tint, 0.26), 6.2, true)
+				draw_polyline(points, Color(tint, 0.90), 2.9 if active else 2.1, true)
+				if active:
+					draw_polyline(points, tint.lerp(Color.WHITE, 0.56), 1.0, true)
+			else:
+				draw_polyline(points, Color("#071721"), 3.4, true)
+				draw_polyline(points, Color(tint, 0.52), 1.5, true)
 	for name in worlds:
 		_draw_world(name, worlds[name])
 	for owner in GALAXY.FACTIONS.size():
@@ -85,33 +129,73 @@ func _draw() -> void:
 		if int(probe["faction"]) == faction:
 			var at := _traveler_at(probe)
 			draw_arc(at, 6.0, 0, TAU, 8, Color("#b8ffe6"), 1.5, true)
+	for world in worlds:
+		_draw_world_label(world)
+
+
+func _fade_chart_edge(start: Vector2, end: Vector2, direction: Vector2) -> void:
+	var fade := direction * MAP_EDGE_FADE
+	var clear := Color(MAP_BACKGROUND, 0.0)
+	draw_polygon(PackedVector2Array([start, end, end + fade, start + fade]),
+		PackedColorArray([MAP_BACKGROUND, MAP_BACKGROUND, clear, clear]))
 
 
 func _draw_world(name: String, world: Dictionary) -> void:
 	var at: Vector2 = GALAXY.WORLDS[name]
 	var owner := int(world["owner"])
-	var tint: Color = GALAXY.FACTIONS[owner]["color"] if owner >= 0 else Color("#b6cadd")
-	draw_circle(at, 12 if selected == name else 8, Color(tint, 0.22))
-	draw_circle(at, 5, Color("#071723"))
-	draw_arc(at, 6.8, 0, TAU, 18, tint, 1.8, true)
-	draw_circle(at, 2.5, Color("#edfaff"))
-	var font := Sabacc.font_body
-	var label := GALAXY.display_name(name)
-	var label_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-	var rect := Rect2(at + Vector2(-label_width * 0.5 - 4, 9), Vector2(label_width + 8, 16))
-	draw_rect(rect, Color(0.03, 0.07, 0.12, 0.9))
-	draw_string(font, rect.position + Vector2(4, 12), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("#eff8fc"))
-	if owner < 0:
+	var identity := GALAXY.territory_identity(name, owner)
+	var tint: Color = identity["color"]
+	var art: Texture2D = _planet_art.get(name)
+	var radius := 14.0 if art else 6.0
+	draw_circle(at, radius + 4, Color(tint, 0.24 if selected == name else 0.11), true, -1.0, true)
+	if art:
+		var dimensions := art.get_size() * (radius * 2.0 / maxf(art.get_width(), art.get_height()))
+		draw_texture_rect(art, Rect2(at - dimensions * 0.5, dimensions), false)
+	else:
+		draw_circle(at, 5, Color("#071723"))
+		draw_circle(at, 2.5, Color("#edfaff"))
+	draw_arc(at, radius + 1.0, 0, TAU, 28, tint, 1.4, true)
+	var symbol_id := GALAXY.territory_icon(name, owner)
+	if symbol_id.is_empty():
 		return
 	var phase := at.x * 0.05 + (0.0 if Sabacc.perf() else _clock * 0.86)
-	var orbit := at + Vector2.from_angle(phase) * 14
-	var light := 0.72 + 0.24 * sin(phase * 8.0)
-	draw_arc(at, 14, 0, TAU, 24, Color(tint, 0.32), 1.0, true)
-	draw_circle(orbit, 8, Color("#091723"))
-	if _emblems[owner]:
-		draw_texture_rect(_emblems[owner], Rect2(orbit - Vector2(7, 7), Vector2(14, 14)), false, Color(1, 1, 1, light))
-	else:
-		draw_arc(orbit, 5, 0, TAU, 8, Color(tint, light), 2, true)
+	var orbit_radius := radius + 8.0
+	var orbit := at + Vector2.from_angle(phase) * orbit_radius
+	draw_arc(at, orbit_radius, 0, TAU, 28, Color(tint, 0.32), 1.0, true)
+	draw_circle(orbit, 10, Color("#091723"))
+	if not _symbols.has(symbol_id):
+		var asset := "res://assets/conquest/icons/%s.png" % symbol_id
+		_symbols[symbol_id] = load(asset) as Texture2D
+	var symbol: Texture2D = _symbols[symbol_id]
+	if symbol:
+		_draw_symbol(symbol, orbit, tint, phase)
+
+
+func _draw_symbol(symbol: Texture2D, center: Vector2, tint: Color, phase: float) -> void:
+	var image_size := symbol.get_size()
+	var dimensions := image_size * (16.0 / maxf(image_size.x, image_size.y))
+	var rect := Rect2(center - dimensions * 0.5, dimensions)
+	var light := 0.86 if Sabacc.perf() else 0.83 + 0.12 * sin(phase * 19.0)
+	draw_texture_rect(symbol, rect, false, Color(tint, light))
+	if Sabacc.perf():
+		return
+	var band := 0.13
+	var scan := fposmod(phase * 0.7, 1.0 - band)
+	var source := Rect2(0, image_size.y * scan, image_size.x, image_size.y * band)
+	var overlay := Rect2(rect.position + Vector2(sin(phase * 23.0) * 1.2, rect.size.y * scan),
+		Vector2(rect.size.x, rect.size.y * band))
+	draw_texture_rect_region(symbol, overlay, source, Color(tint.lerp(Color.WHITE, 0.5), 0.58))
+
+
+func _draw_world_label(world: String) -> void:
+	var font := Sabacc.font_body
+	var label := GALAXY.display_name(world)
+	var label_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	var margin := 17.0 if _planet_art.has(world) else 9.0
+	var rect := Rect2(GALAXY.WORLDS[world] + Vector2(-label_width * 0.5 - 4, margin), Vector2(label_width + 8, 16))
+	var identity := GALAXY.territory_identity(world, int(run.state["worlds"][world]["owner"]))
+	draw_rect(rect, Color(0.03, 0.07, 0.12, 0.9))
+	draw_string(font, rect.position + Vector2(4, 12), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, identity["color"])
 
 
 func _traveler_at(task: Dictionary) -> Vector2:
@@ -126,53 +210,176 @@ func _draw_fleet(faction: int, task: Dictionary, index: int) -> void:
 		var battle: Dictionary = run.state["battles"].get(task["engagement"], {})
 		if not battle.is_empty():
 			node = GALAXY.WORLDS[battle["world"]]
-	var offset := Vector2(-47 if faction != 2 else 47, -25 - index * 31)
+	var offset := Vector2(-56 if faction != 2 else 56, -29 - index * 44)
+	if not task["engagement"].is_empty():
+		# Separate the fleets when they share an attack site.
+		offset = [Vector2(56, -28), Vector2(-56, -28), Vector2(0, -62)][faction]
 	var center := node + offset
 	var color: Color = GALAXY.FACTIONS[faction]["color"]
 	draw_line(node, center, Color(color, 0.62), 1.2, true)
-	var shape := PackedVector2Array()
-	var uv := PackedVector2Array([Vector2(0, 0.5), Vector2(0.18, 0), Vector2(0.82, 0),
-		Vector2(1, 0.5), Vector2(0.82, 1), Vector2(0.18, 1)])
-	for point in uv:
-		shape.append(center + (point - Vector2(0.5, 0.5)) * Vector2(52, 33))
-	var id: String = task["leader"]
-	var leader: Texture2D = _leaders.get(id)
-	if not _leaders.has(id) and not id.is_empty():
-		_leaders[id] = Art.request(CardDB.card(id).get("art", id), func(loaded): _leaders[id] = loaded)
-	if leader and task["leader_alive"]:
-		var crop := PackedVector2Array()
-		for point in uv:
-			crop.append(Vector2(0.07, 0.18) + point * Vector2(0.38, 0.55))
-		draw_polygon(shape, PackedColorArray([Color.WHITE]), crop, leader)
-	else:
-		draw_colored_polygon(shape, Color("#223241"))
-	var outline := shape.duplicate()
-	outline.append(shape[0])
-	draw_polyline(outline, color, 1.8, true)
-	draw_circle(center + Vector2(21, 12), 9.5, Color("#0a1928"))
-	draw_string(Sabacc.font_body, center + Vector2(14, 16), "%d" % task["cards"].size(), HORIZONTAL_ALIGNMENT_CENTER, 14, 10, color)
+	var dimensions := UnitToken.FACE.size * FLEET_FACE_SCALE
+	var face := Rect2(center - dimensions * 0.5, dimensions)
+	var shape := UnitToken.silhouette(face)
+	var id: String = task["leader"] if task["leader_alive"] else ""
+	var aspects: Array = CardDB.card(id).get("aspects", [])
+	UnitToken.draw_alignment_edge(self, shape, aspects, FLEET_FACE_SCALE)
+	UnitToken.draw_art(self, face, shape, _deployed_leader_art(id), Color.WHITE, UnitToken.ART_UV)
+	UnitToken.draw_face_frame(self, shape, color, FLEET_FACE_SCALE)
+	var badge_side := -1.0 if offset.x < 0.0 else 1.0
+	var badge := center + Vector2(dimensions.x * 0.44 * badge_side, dimensions.y * 0.30)
+	draw_circle(badge, 9.5, Color("#0a1928"))
+	draw_arc(badge, 9.5, 0.0, TAU, 20, color, 1.0, true)
+	draw_string(Sabacc.font_body, badge + Vector2(-8, 4), "%d" % task["cards"].size(), HORIZONTAL_ALIGNMENT_CENTER, 16, 10, color)
+
+
+func _deployed_leader_art(id: String) -> Texture2D:
+	if id.is_empty():
+		return null
+	if not _leaders.has(id):
+		var art: String = CardDB.card(id).get("art", id)
+		_leaders[id] = Art.request(art, func(loaded): _leaders[id] = loaded, Art.has_art(art, true))
+	return _leaders[id]
+
+
+func world_position(world: String) -> Vector2:
+	return GALAXY.WORLDS[world] * zoom + camera_offset
+
+
+func center_on(world: String) -> void:
+	var point: Vector2 = GALAXY.WORLDS[world] * zoom
+	var chart_bounds := _chart_pan_bounds()
+	var offset := (camera_center() - point).clamp(chart_bounds.position, chart_bounds.end)
+	var safe_region := _camera_clearance()
+	if safe_region.has_area():
+		offset = (point + offset).clamp(safe_region.position, safe_region.end) - point
+	_set_offset(offset)
+
+
+func camera_center() -> Vector2:
+	return _camera_region.get_center() if _camera_region.has_area() else size * 0.5
+
+
+func set_camera_region(region: Rect2) -> void:
+	if region.is_equal_approx(_camera_region):
+		return
+	var previous := camera_center()
+	_camera_region = region
+	_set_offset(camera_offset + (camera_center() - previous))
+
+
+func _resize_camera() -> void:
+	if not _camera_region.has_area():
+		_set_offset(camera_offset + (size - _previous_size) * 0.5)
+	_previous_size = size
+
+
+func _chart_pan_bounds() -> Rect2:
+	var gap := size - MAP.get_size() * zoom
+	var rest := gap.max(Vector2.ZERO) * 0.5
+	return Rect2(gap.min(Vector2.ZERO) + rest, (-gap).max(Vector2.ZERO))
+
+
+func _camera_clearance() -> Rect2:
+	var padding := minf(32.0 * zoom, minf(_camera_region.size.x, _camera_region.size.y) * 0.25)
+	return _camera_region.grow(-padding)
+
+
+func _set_offset(offset: Vector2) -> void:
+	var chart_bounds := _chart_pan_bounds()
+	var lower := chart_bounds.position
+	var upper := chart_bounds.end
+	if _camera_region.has_area() and _world_bounds.has_area():
+		# Let edge worlds pan clear of the controls floating over the map.
+		var clearance := _camera_clearance()
+		lower = lower.min(clearance.end - _world_bounds.end * zoom)
+		upper = upper.max(clearance.position - _world_bounds.position * zoom)
+	camera_offset = offset.clamp(lower, upper)
+	queue_redraw()
+
+
+func zoom_at(factor: float, anchor: Vector2, next_anchor: Vector2) -> void:
+	var previous := zoom
+	zoom = clampf(previous * factor, ZOOM_MIN, ZOOM_MAX)
+	_set_offset(next_anchor - (anchor - camera_offset) * (zoom / previous))
 
 
 func _gui_input(event: InputEvent) -> void:
-	var view := get_parent() as ScrollContainer
+	if event is InputEventScreenTouch:
+		_touch(event)
+		accept_event()
+		return
+	if event is InputEventScreenDrag:
+		_touch_drag(event.index, event.position)
+		accept_event()
+		return
+	if event.device == InputEvent.DEVICE_ID_EMULATION:
+		return
+	if event is InputEventMagnifyGesture:
+		zoom_at(event.factor, event.position, event.position)
+		accept_event()
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		var factor := pow(1.15, maxf(1.0, event.factor))
+		zoom_at(factor if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / factor, event.position, event.position)
+		accept_event()
+		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			_pointer_down = true
 			_moved = false
-			_pointer_origin = event.global_position
-			_scroll_origin = Vector2(view.scroll_horizontal, view.scroll_vertical)
+			_pointer_origin = event.position
+			_pan_origin = camera_offset
+			mouse_default_cursor_shape = Control.CURSOR_MOVE
 		elif _pointer_down:
 			_pointer_down = false
+			mouse_default_cursor_shape = Control.CURSOR_DRAG
 			if not _moved:
-				_pick(event.position / zoom)
+				_pick((event.position - camera_offset) / zoom)
 		accept_event()
 	elif event is InputEventMouseMotion and _pointer_down:
-		var movement: Vector2 = event.global_position - _pointer_origin
-		_moved = _moved or movement.length() > 7
-		if _moved:
-			view.scroll_horizontal = int(_scroll_origin.x - movement.x)
-			view.scroll_vertical = int(_scroll_origin.y - movement.y)
+		_pan_pointer(event.position)
 		accept_event()
+
+
+func _pan_pointer(point: Vector2) -> void:
+	var movement := point - _pointer_origin
+	_moved = _moved or movement.length() > DRAG_THRESHOLD
+	if _moved:
+		_set_offset(_pan_origin + movement)
+
+
+func _touch(event: InputEventScreenTouch) -> void:
+	if event.pressed:
+		_touches[event.index] = event.position
+		if _touches.size() == 1:
+			_pointer_origin = event.position
+			_pan_origin = camera_offset
+			_moved = false
+		else:
+			_moved = true
+	elif _touches.erase(event.index):
+		if _touches.is_empty() and not _moved and not event.canceled:
+			_pick((event.position - camera_offset) / zoom)
+		elif _touches.size() == 1:
+			_pointer_origin = _touches.values()[0]
+			_pan_origin = camera_offset
+
+
+func _touch_drag(index: int, point: Vector2) -> void:
+	if not _touches.has(index):
+		return
+	var old: Vector2 = _touches[index]
+	_touches[index] = point
+	if _touches.size() == 1:
+		_pan_pointer(point)
+		return
+	var fingers := _touches.keys()
+	if not index in fingers.slice(0, 2):
+		return
+	var other: Vector2 = _touches[fingers[1] if fingers[0] == index else fingers[0]]
+	var distance := old.distance_to(other)
+	if distance > 1.0:
+		zoom_at(point.distance_to(other) / distance, (old + other) * 0.5, (point + other) * 0.5)
 
 
 func _pick(point: Vector2) -> void:

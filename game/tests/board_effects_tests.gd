@@ -200,8 +200,8 @@ func _run() -> void:
 	screen.fx_layer.child_entered_tree.disconnect(observe)
 	check(shots.size() in [2, 4, 6] and shots.all(func(name): return name == "Bolt Yellow")
 		and impacts.size() == shots.size(), "A neutral vehicle uses yellow sheets and pairs every bolt with a hit")
-	check(UnitToken._frame_color(["command", "heroism"]) == UnitToken._frame_color(["command"])
-		and UnitToken._frame_color(["aggression", "villainy"]) != UnitToken._frame_color(["command"]),
+	check(UnitToken.frame_color(["command", "heroism"]) == UnitToken.frame_color(["command"])
+		and UnitToken.frame_color(["aggression", "villainy"]) != UnitToken.frame_color(["command"]),
 		"Arena frames use the card's color aspect even when it has an alignment")
 	await _test_attachment_slide(screen, tie)
 

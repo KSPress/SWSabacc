@@ -68,7 +68,8 @@ func _ready() -> void:
 
 func _load_art() -> void:
 	var art: String = inst.data.get("art", inst.id)
-	var t := Art.request(art, func(tx): _tex = tx; queue_redraw(), inst.deployed)
+	var deployed_art := inst.deployed and (not inst.is_commander() or Art.has_art(art, true))
+	var t := Art.request(art, func(tx): _tex = tx; queue_redraw(), deployed_art)
 	if t:
 		_tex = t
 
@@ -165,7 +166,7 @@ func _process(dt: float) -> void:
 			inspect_requested.emit(self)
 
 
-func _silhouette(rect: Rect2) -> PackedVector2Array:
+static func silhouette(rect: Rect2) -> PackedVector2Array:
 	var corners := PackedVector2Array([
 		Vector2(0.5, 0), Vector2(1, 0.24), Vector2(1, 0.76),
 		Vector2(0.5, 1), Vector2(0, 0.76), Vector2(0, 0.24),
@@ -187,12 +188,12 @@ func center_global() -> Vector2:
 
 
 func _draw() -> void:
-	var pts := _silhouette(FACE)
+	var pts := silhouette(FACE)
 	var aspects := inst.aspects()
-	var frame_col := _frame_color(aspects)
+	var frame_col := frame_color(aspects)
 	var pulse := 0.5 + 0.5 * sin(_t * 4.0)
 	_draw_attachments(frame_col)
-	_draw_alignment_edge(pts, aspects)
+	draw_alignment_edge(self, pts, aspects)
 	var highlight_color := Color.TRANSPARENT
 	match highlight:
 		Hi.CAN_ACT:
@@ -205,10 +206,10 @@ func _draw() -> void:
 			highlight_color = Color(Appearance.color_at(0), 0.9)
 	if highlight_color.a > 0.0:
 		for i in 3:
-			_outline(_silhouette(FACE.grow(3.0 + i * 3.0)), Color(highlight_color, highlight_color.a * (0.9 - i * 0.28)), 3.0)
+			draw_outline(self, silhouette(FACE.grow(3.0 + i * 3.0)), Color(highlight_color, highlight_color.a * (0.9 - i * 0.28)), 3.0)
 
 	var tint := Color("a6a9b6") if inst.exhausted else Color.WHITE
-	_draw_art(FACE, pts, _tex, tint, ART_UV)
+	draw_art(self, FACE, pts, _tex, tint, ART_UV)
 	if _flash > 0.0:
 		draw_colored_polygon(pts, Color(_flash_col, _flash * 0.62))
 	if _light > 0.01:
@@ -217,9 +218,8 @@ func _draw() -> void:
 		var direction := FACE_CENTER.direction_to(local_from)
 		var edge := FACE_CENTER + direction * FACE.size * 0.4
 		draw_circle(edge, 24.0, Color(_light_col.lightened(0.5), 0.22 * _light))
-		_outline(pts, Color(_light_col.lightened(0.4), 0.8 * minf(_light, 1.0)), 8.0)
-	_outline(pts, Color("101620"), 5.0)
-	_outline(pts, frame_col, 2.8)
+		draw_outline(self, pts, Color(_light_col.lightened(0.4), 0.8 * minf(_light, 1.0)), 8.0)
+	draw_face_frame(self, pts, frame_col)
 
 	_stat(Vector2(17, 89), str(inst.power()), false, inst.power() != inst.printed_power())
 	_stat(Vector2(141, 89), str(inst.remaining_hp()), true, inst.max_hp() != inst.printed_hp(), inst.damage > 0)
@@ -237,12 +237,12 @@ func _draw_attachments(frame_col: Color) -> void:
 		var card := _attachments[_attachments.size() - 1 - depth]
 		var rect := Rect2(28, 78 + depth * 13, 102, 60)
 		rect.position.y = lerpf(FACE_CENTER.y - rect.size.y * 0.5, rect.position.y, _attachment_drop.get(card.uid, 1.0))
-		var pts := _silhouette(rect)
+		var pts := silhouette(rect)
 		var aspects := card.aspects()
-		_draw_alignment_edge(pts, aspects)
-		_draw_art(rect, pts, _attachment_art.get(card.uid), Color("dce5ef"), ATTACHMENT_ART_UV)
-		_outline(pts, Color("0b131d"), 4.0)
-		_outline(pts, _frame_color(aspects), 2.2)
+		draw_alignment_edge(self, pts, aspects)
+		draw_art(self, rect, pts, _attachment_art.get(card.uid), Color("dce5ef"), ATTACHMENT_ART_UV)
+		draw_outline(self, pts, Color("0b131d"), 4.0)
+		draw_outline(self, pts, frame_color(aspects), 2.2)
 	if _attachments.size() > count:
 		var badge := Rect2(16, 139, 28, 15)
 		draw_rect(badge, Color("102031"))
@@ -251,41 +251,46 @@ func _draw_attachments(frame_col: Color) -> void:
 			HORIZONTAL_ALIGNMENT_CENTER, badge.size.x, 10, frame_col)
 
 
-static func _frame_color(aspects: Array) -> Color:
+static func frame_color(aspects: Array) -> Color:
 	for aspect in aspects:
 		if aspect not in ["heroism", "villainy"]:
 			return Sabacc.aspect_color(aspect).lightened(0.16)
 	return Sabacc.aspect_color(aspects[0]).lightened(0.24) if not aspects.is_empty() else Sabacc.C_DIM
 
 
-func _draw_alignment_edge(points: PackedVector2Array, aspects: Array) -> void:
+static func draw_alignment_edge(canvas: CanvasItem, points: PackedVector2Array, aspects: Array, edge_scale := 1.0) -> void:
 	if "villainy" in aspects:
 		var bottom := points.slice(10, 25)
 		for i in bottom.size():
-			bottom[i].y += 4.0
-		draw_polyline(bottom, Color(0, 0, 0, 0.26), 9.0, true)
-		draw_polyline(bottom, Color(0, 0, 0, 0.42), 5.0, true)
+			bottom[i].y += 4.0 * edge_scale
+		canvas.draw_polyline(bottom, Color(0, 0, 0, 0.26), 9.0 * edge_scale, true)
+		canvas.draw_polyline(bottom, Color(0, 0, 0, 0.42), 5.0 * edge_scale, true)
 	if "heroism" in aspects:
 		var top := points.slice(25)
 		top.append_array(points.slice(0, 10))
-		draw_polyline(top, Color(1, 1, 1, 0.10), 10.0, true)
-		draw_polyline(top, Color(1, 1, 1, 0.22), 6.0, true)
+		canvas.draw_polyline(top, Color(1, 1, 1, 0.10), 10.0 * edge_scale, true)
+		canvas.draw_polyline(top, Color(1, 1, 1, 0.22), 6.0 * edge_scale, true)
 
 
-func _draw_art(rect: Rect2, pts: PackedVector2Array, texture: Texture2D, tint: Color, crop: Rect2) -> void:
-	draw_colored_polygon(pts, Color("1a2636"))
+static func draw_art(canvas: CanvasItem, rect: Rect2, pts: PackedVector2Array, texture: Texture2D, tint: Color, crop: Rect2) -> void:
+	canvas.draw_colored_polygon(pts, Color("1a2636"))
 	if not texture or texture == Art.placeholder:
 		return
 	var uv := PackedVector2Array()
 	for point in pts:
 		uv.append(crop.position + (point - rect.position) / rect.size * crop.size)
-	draw_colored_polygon(pts, tint, uv, texture)
+	canvas.draw_colored_polygon(pts, tint, uv, texture)
 
 
-func _outline(points: PackedVector2Array, color: Color, width: float) -> void:
+static func draw_face_frame(canvas: CanvasItem, points: PackedVector2Array, color: Color, edge_scale := 1.0) -> void:
+	draw_outline(canvas, points, Color("101620"), 5.0 * edge_scale)
+	draw_outline(canvas, points, color, 2.8 * edge_scale)
+
+
+static func draw_outline(canvas: CanvasItem, points: PackedVector2Array, color: Color, width: float) -> void:
 	var line := points.duplicate()
 	line.append(points[0])
-	draw_polyline(line, color, width, true)
+	canvas.draw_polyline(line, color, width, true)
 
 
 func _draw_token_markers(pulse: float) -> void:
@@ -315,8 +320,8 @@ func _stat(at: Vector2, value: String, health: bool, modified: bool, damaged := 
 	var color := Color("2477b4") if health else Color("bd2c27")
 	draw_colored_polygon(silhouette, color.darkened(0.24))
 	draw_colored_polygon(PackedVector2Array([Vector2(-10, -6), Vector2(10, -6), Vector2(10, 0), Vector2(-10, 0)]), color.lightened(0.13))
-	_outline(silhouette, Color("121b25"), 4.0)
-	_outline(silhouette, Sabacc.C_GOLD if modified else color.lightened(0.75), 1.6)
+	draw_outline(self, silhouette, Color("121b25"), 4.0)
+	draw_outline(self, silhouette, Sabacc.C_GOLD if modified else color.lightened(0.75), 1.6)
 	UIKit.draw_fit(self, Sabacc.font_title, Vector2(-12, 7), value, HORIZONTAL_ALIGNMENT_CENTER, 24, 19,
 		Color("ffcec7") if damaged else Color.WHITE)
 	draw_set_transform(Vector2.ZERO)

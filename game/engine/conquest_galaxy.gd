@@ -2,10 +2,20 @@ class_name ConquestGalaxy
 extends RefCounted
 
 const FACTIONS := [
-	{"name": "Empire", "leader": "SOR_010", "base": "SOR_023", "home": "Coruscant", "trait": "imperial", "emblem": "galactic_empire", "color": Color("#ff757a")},
-	{"name": "Rebels", "leader": "SOR_005", "base": "SOR_029", "home": "Yavin", "trait": "rebel", "emblem": "rebel_alliance", "color": Color("#72ceff")},
-	{"name": "Underworld", "leader": "LAW_015", "base": "LAW_023", "home": "Nal Hutta", "trait": "underworld", "emblem": "fett_crest", "color": Color("#ffc56d")},
+	{"name": "Empire", "leader": "SOR_010", "base": "SOR_023", "home": "Coruscant", "trait": "imperial", "emblem": "galactic_empire", "color": Color.WHITE},
+	{"name": "Rebels", "leader": "SOR_005", "base": "SOR_029", "home": "Yavin", "trait": "rebel", "emblem": "rebel_alliance", "color": Color("#ff9d41")},
+	{"name": "Hutts", "leader": "LAW_015", "base": "LAW_023", "home": "Nal Hutta", "trait": "underworld", "emblem": "fett_crest", "color": Color("#63d88c")},
 ]
+const LOCAL_CONTROL := {
+	"Kamino": {"name": "Republic", "emblem": "galactic_republic", "color": Color("#f0525e")},
+	"Geonosis": {"name": "Separatists", "emblem": "separatists", "color": Color("#68a5ff")},
+}
+const NEUTRAL := {"name": "Neutral", "color": Color("#9ca9b3")}
+const FACTION_ICONS := ["empire", "rebels", "hutts"]
+const PLANET_ICONS := {
+	"Bespin": "bespin", "Dathomir": "dathomir", "Kashyyyk": "kashyyyk", "Mandalore": "mandalore",
+	"Naboo": "naboo", "Tatooine": "tatooine", "Geonosis": "separatists", "Kamino": "republic",
+}
 
 # World coordinates are in pixels on the supplied 1280 × 960 map.
 const WORLDS := {
@@ -21,6 +31,7 @@ const WORLDS := {
 	"Utapau": Vector2(746, 900), "Ryloth": Vector2(1080, 771), "Eriadu": Vector2(749, 802),
 	"Taris": Vector2(934, 138), "Alderaan": Vector2(708, 410), "Jedha": Vector2(430, 410),
 	"Onderon": Vector2(832, 379),
+	"Sullust": Vector2(732, 772), "Umbara": Vector2(964, 440),
 }
 
 const SPECIALTIES := {
@@ -31,8 +42,31 @@ const SPECIALTIES := {
 const NATIVE_RECRUITS := {
 	"Tatooine": {"native_tusken": "Tusken Raiders", "native_jawa": "Jawas and sandcrawlers"},
 	"Kashyyyk": {"native_wookiee": "Wookiees", "native_wookiee_vehicle": "Wookiee vehicles"},
-	"Geonosis": {"native_battle_droid": "Separatist battle droids"},
+	"Geonosis": {"native_battle_droid": "Separatist battle droids and vehicles"},
 	"Kamino": {"native_clone": "Clone veterans", "native_republic_vehicle": "Republic vehicles"},
+	"Naboo": {"native_naboo": "Naboo security and starfighters", "native_gungan": "Gungan forces"},
+	"Dathomir": {"native_nightsister": "Nightsisters"},
+	"Bespin": {"native_bespin": "Cloud City patrols and smugglers", "native_bounty_hunter": "Bounty hunters and ships"},
+	"Mandalore": {"native_mandalorian": "Mandalorian warriors and ships"},
+}
+const FACTION_RECRUITS := {
+	"Lothal": {
+		0: {"native_lothal_imperial": "Lothal Imperial forces"},
+		1: {"native_spectre": "The Spectres"},
+	},
+	"Endor": {
+		0: {"native_death_star": "Death Star and Tempest forces"},
+		1: {"native_ewok": "Ewok warriors"},
+	},
+}
+const LOCAL_UNIT_PRINTS := {
+	"native_lothal_imperial": ["IC27_024", "SEC_136", "SOR_180", "KYB_007"],
+	"native_death_star": ["SOR_128", "SOR_083", "SHD_085", "SOR_084", "ASH_143", "JTL_107", "SOR_232"],
+	"native_bespin": ["SOR_063", "LAW_108"],
+}
+const LOCAL_VARIANTS := {
+	"Lothal": {0: ["ASH_004", "SEC_011", "LAW_003"], 1: ["SOR_008", "LAW_009", "SOR_014", "LOF_004", "ASH_013"]},
+	"Endor": {0: ["SOR_007", "HMW_004"], 1: ["HMW_014"]},
 }
 
 # Additional commanders are curated by printing. Traits alone also include
@@ -47,8 +81,9 @@ const ERA_COMMANDERS := [
 		"LAW_018", "SHD_005", "SHD_010", "SHD_013", "SHD_015", "SHD_017", "JTL_009", "JTL_015", "SEC_007", "HMW_015"],
 ]
 const LOCAL_COMMANDERS := {
-	"Tatooine": ["HMW_018"], "Kashyyyk": ["HMW_009", "SOR_003", "LAW_013", "HMW_010"],
-	"Mandalore": ["SOR_014", "SHD_001"], "Geonosis": ["KYB_005"], "Kamino": ["TS26_006"],
+	"Tatooine": ["HMW_018", "KYB_006"], "Kashyyyk": ["HMW_009", "SOR_003", "LAW_013", "HMW_010"],
+	"Mandalore": ["SOR_014", "SHD_001", "ASH_010"], "Geonosis": ["KYB_005"], "Kamino": ["TS26_006"],
+	"Dathomir": ["KYB_008"], "Bespin": ["JTL_003", "LAW_018", "SHD_017"],
 }
 const LATER_OR_EARLIER_TRAITS := ["first order", "resistance", "new republic", "high republic", "old republic", "sith eternal"]
 const ERA_NAMED_UNITS := [
@@ -62,25 +97,54 @@ const ERA_NAMED_UNITS := [
 	"Grand Moff Tarkin", "Greedo", "Han Solo", "Hera Syndulla", "Highsinger", "Hondo Ohnaka", "IG-88",
 	"Iden Versio", "Jabba the Hutt", "Jyn Erso", "K-2SO", "K-2S0", "Kanan Jarrus", "Ketsu Onyo",
 	"King Grakchawwaa", "Krrsantan", "L3-37", "Lando Calrissian", "Leia Organa", "Lieutenant Childsen",
-	"Luke Skywalker", "Luthen Rael", "Major Partagaz", "Mas Amedda", "Max Rebo", "Moff Jerjerrod",
+	"Luke Skywalker", "Luthen Rael", "Major Partagaz", "Mas Amedda", "Max Rebo", "Merrin", "Moff Jerjerrod", "Morgan Elsbeth", "Jar Jar Binks",
 	"Mon Mothma", "Owen Lars", "Qi'ra", "R2-D2", "R5-D4", "Rex", "Rio Durant", "Ryder Azadi",
 	"Sabine Wren", "Salacious Crumb", "Saw Gerrera", "Seventh Sister", "Sly Moore", "Syril Karn",
-	"Tarfful", "Teeka", "The Chieftain", "Third Sister", "Tobias Beckett", "Urrr'k", "Vaneé", "Vel Sartha",
-	"Wedge Antilles", "Wicket", "Wolffe", "Yanna", "Zeb Orrelios",
+	"Tarfful", "Teeka", "The Chieftain", "The Ghost", "Phantom", "Third Sister", "Tobias Beckett", "Urrr'k", "Vaneé", "Vel Sartha",
+	"Wedge Antilles", "Wicket", "Wolffe", "Yanna", "Zeb Orrelios", "Arihnda Pryce", "Chief Chirpa", "Teebo",
 ]
 const ERA_EXCLUDED_PRINTS := [
 	"HMW_225", "TWI_211", "ASH_033", "ASH_060", "ASH_158",
 ]
 const HOME_NAMES := {"Yavin": "Yavin 4"}
+const LEGACY_ORBITAL_ART := {"Kessel": "kessel", "Mustafar": "mustafar", "Felucia": "felucia"}
 
 
 static func display_name(world: String) -> String:
 	return HOME_NAMES.get(world, world)
 
 
+static func territory_identity(world: String, owner: int) -> Dictionary:
+	return FACTIONS[owner] if owner >= 0 else LOCAL_CONTROL.get(world, NEUTRAL)
+
+
+static func territory_icon(world: String, owner: int) -> String:
+	match world:
+		"Endor", "Lothal":
+			return world.to_lower() + ("-empire" if owner == 0 else "-rebels")
+		"Mandalore":
+			if owner == 2:
+				return "shadow-collective"
+	return PLANET_ICONS.get(world, FACTION_ICONS[owner] if owner >= 0 else "")
+
+
+static func worlds_for_size(count: int) -> Array:
+	var worlds := WORLDS.keys().slice(0, count)
+	if count == 32:
+		worlds[worlds.find("Crait")] = "Sullust"
+		worlds[worlds.find("Taris")] = "Umbara"
+	return worlds
+
+
+static func supplied_planet(world: String) -> Texture2D:
+	var path := "res://assets/conquest/planets/%s.png" % world.to_lower().replace(" ", "-")
+	return load(path) as Texture2D if ResourceLoader.exists(path, "Texture2D") else null
+
+
 static func leader_variants(lib: CardLibrary, faction: int, world := "", starters := false) -> Array:
 	var original := lib.get_card(FACTIONS[faction]["leader"])
 	var local: Array = LOCAL_COMMANDERS.get(world, [])
+	var local_alignment: Array = LOCAL_VARIANTS.get(world, {}).get(faction, [])
 	var found := []
 	for id in lib.cards:
 		var card := lib.get_card(id)
@@ -88,7 +152,7 @@ static func leader_variants(lib: CardLibrary, faction: int, world := "", starter
 			continue
 		var eligible: bool = not card.get("custom", false) and card["name"] == original["name"]
 		if not starters:
-			eligible = eligible or id in ERA_COMMANDERS[faction] or id in local
+			eligible = eligible or id in ERA_COMMANDERS[faction] or id in local or id in local_alignment
 		if eligible:
 			found.append(id)
 	found.sort_custom(func(a, b):
@@ -109,16 +173,34 @@ static func era_unit(card: Dictionary) -> bool:
 	return card["name"] in ERA_NAMED_UNITS or card["id"] in ["TWI_085", "TWI_097", "SEC_048", "IC27_041"]
 
 
+static func native_recruits(world: String, faction: int) -> Dictionary:
+	return FACTION_RECRUITS.get(world, {}).get(faction, NATIVE_RECRUITS.get(world, {}))
+
+
 static func native_match(card: Dictionary, roster: String) -> bool:
 	var traits: Array = card["traits"]
+	if LOCAL_UNIT_PRINTS.has(roster):
+		return card["id"] in LOCAL_UNIT_PRINTS[roster]
 	match roster:
 		"native_tusken": return "tusken" in traits
 		"native_jawa": return "jawa" in traits or card["id"] == "LAW_238"
 		"native_wookiee": return "wookiee" in traits
 		"native_wookiee_vehicle": return card["id"] in ["HMW_093", "SOR_195"]
-		"native_battle_droid": return "droid" in traits and "separatist" in traits
+		"native_battle_droid":
+			return "separatist" in traits and ("droid" in traits or "vehicle" in traits) and (not card["unique"] or card["id"] == "TWI_085")
 		"native_clone": return "clone" in traits and "trooper" in traits and not "imperial" in traits
 		"native_republic_vehicle": return "republic" in traits and "vehicle" in traits
+		"native_spectre": return "spectre" in traits and "rebel" in traits
+		"native_ewok": return "ewok" in traits
+		"native_naboo": return "naboo" in traits and ("vehicle" in traits or "trooper" in traits)
+		"native_gungan": return "gungan" in traits and (not card["unique"] or card["id"] == "SEC_111")
+		"native_nightsister":
+			return "night" in traits and not "undead" in traits and (not card["unique"] or card["id"] in ["LOF_160", "ASH_050"])
+		"native_bounty_hunter":
+			return "bounty hunter" in traits or ("underworld" in traits and "vehicle" in traits and card["arena"] == "space")
+		"native_mandalorian":
+			return "mandalorian" in traits and (not card["unique"] or card["name"] in [
+				"Sabine Wren", "Gar Saxon", "Ketsu Onyo", "Fenn Rau", "Bo-Katan Kryze", "Mandalorian Warrior"])
 	return false
 
 # Long routes connect through intervening junctions on the map.
@@ -144,6 +226,8 @@ const LANES := [
 	["Alderaan", "Onderon"], ["Onderon", "Yavin"], ["Onderon", "Kashyyyk"],
 	["Dathomir", "Taris"], ["Taris", "Mandalore"], ["Taris", "Felucia", Vector2(1008, 180)],
 	["Felucia", "Mon Cala"], ["Mon Cala", "Lothal"], ["Lothal", "Kessel"], ["Felucia", "Kashyyyk"],
+	["Eriadu", "Sullust"], ["Sullust", "Naboo"],
+	["Onderon", "Umbara"], ["Umbara", "Kashyyyk"], ["Umbara", "Naboo", Vector2(947, 635)],
 ]
 
 

@@ -73,8 +73,12 @@ func _ready() -> void:
 
 func bind(ps: PlayerState) -> void:
 	_ps = ps
-	base_view.set_base(ps.base)
-	leader_view.set_leader(ps.leader)
+	var commander := ps.base.is_commander()
+	base_view.visible = not commander
+	leader_view.visible = not commander and ps.leader != null
+	if not commander:
+		base_view.set_base(ps.base)
+		leader_view.set_leader(ps.leader)
 	refresh()
 
 
@@ -83,7 +87,7 @@ func refresh() -> void:
 		return
 	base_view.queue_redraw()
 	var upgrades: Array = _ps.base.upgrades
-	fortification_tab.visible = not upgrades.is_empty()
+	fortification_tab.visible = not _ps.base.is_commander() and not upgrades.is_empty()
 	if not upgrades.is_empty():
 		fortification_tab.text = upgrades[0].name() if upgrades.size() == 1 else "Fortifications (%d)" % upgrades.size()
 		fortification_tab.tooltip_text = "\n".join(upgrades.map(func(up): return up.name()))
@@ -136,6 +140,10 @@ func arrange(r: Rect2, horizontal: bool) -> void:
 		info.size.x = maxf(20, w - 82)
 	fortification_tab.position = base_view.position + Vector2(3, 3)
 	fortification_tab.size = Vector2(maxf(40, base_view.size.x - 6), 26)
+	if _ps and _ps.base.is_commander():
+		# The deployed commander occupies one slot, using the space of both old tiles.
+		base_view.position = Vector2.ZERO
+		base_view.size = Vector2(res_view.position.x - 16.0, r.size.y - 22.0) if horizontal else Vector2(r.size.x, r.size.y * 0.70)
 	leader_view.queue_redraw()
 	base_view.queue_redraw()
 

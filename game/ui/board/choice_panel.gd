@@ -12,6 +12,8 @@ var _sel: Array = []
 var _views: Dictionary = {}
 var _confirm: SabaccButton
 var _count: Label
+var _card_grid: GridContainer
+var _card_scroll: ScrollContainer
 
 
 static func open(host: Node, p_match: Match, p_pending: Dictionary) -> ChoicePanel:
@@ -109,6 +111,14 @@ func _fit() -> void:
 	var v: Control = get_node("Box")
 	v.position = Vector2(vs.x * 0.04, vs.y * 0.08)
 	v.size = Vector2(vs.x * 0.92, vs.y * 0.84)
+	if _card_grid:
+		var card_scale := _scale()
+		_card_grid.columns = _cols()
+		_card_scroll.custom_minimum_size.y = (CardView.PORTRAIT.y * card_scale + 32) * _rows()
+		for card: CardView in _views.values():
+			card.get_parent().custom_minimum_size = CardView.PORTRAIT * card_scale + Vector2(0, 20)
+			card.home_scale = Vector2.ONE * card_scale
+			card.scale = card.home_scale
 
 
 func _title_for(kind: String) -> String:
@@ -143,6 +153,8 @@ func _add_cards(v: VBoxContainer, uids: Array, selectable: bool) -> void:
 	scroll.add_child(center)
 	# portrait: two rows of cards so they stay readable; landscape: one row
 	var row := GridContainer.new()
+	_card_grid = row
+	_card_scroll = scroll
 	row.columns = _cols()
 	row.add_theme_constant_override("h_separation", 12)
 	row.add_theme_constant_override("v_separation", 12)

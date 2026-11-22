@@ -103,7 +103,7 @@ static func score_action(m: Match, p: int, a: Dictionary) -> float:
 		"attack":
 			var at := m.card(a["uid"])
 			var t := m.card(a["target"])
-			if t.zone == "base":
+			if t.is_base():
 				var dmg := at.power(true)
 				var s: float = dmg * 0.9 * w["face"]
 				if dmg >= foe.base_remaining():
@@ -268,7 +268,7 @@ static func choose(m: Match) -> Array:
 
 static func _damage_assignment_score(card: CardInst, assigned: Dictionary, hostile: bool) -> float:
 	var left := card.remaining_hp() - int(assigned.get(card.uid, 0))
-	if card.zone == "base":
+	if card.is_base():
 		if left <= 1:
 			return 100.0 if hostile else -100.0
 		return 2.0 if hostile else minf(left * 0.75, 5.0)
@@ -298,7 +298,7 @@ static func _choose_targets(m: Match, pd: Dictionary) -> Array:
 		var c := m.card(uid)
 		var s := 0.0
 		var mine := c.controller == p
-		if c.zone == "base":
+		if c.is_base():
 			s = (3.0 if not mine else -3.0) if hostile else (2.0 if mine else -2.0)
 		else:
 			var v := unit_value(c)

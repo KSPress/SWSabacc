@@ -103,22 +103,29 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 		for leader in ps.leaders():
 			_apply_leader_mods(leader, pc.get("leader_mods", {}).get(leader.id, []))
 		if rules.name == "conquest":
-			var command_id := "CONQUEST_COMMAND_%d" % i
-			ps.base = _register_inst(command_id, {"name": pc.get("command_name", "Local command"), "type": "base",
-				"hp": int(pc["command_hp"]), "conquest_command": true}, i)
+			if ps.leader:
+				ps.base = ps.leader
+			else:
+				var command_id := "CONQUEST_COMMAND_%d" % i
+				ps.base = _register_inst(command_id, {"name": pc.get("command_name", "Local command"), "type": "base",
+					"hp": int(pc["command_hp"]), "conquest_command": true}, i)
 			ps.base.command_hp = int(pc["command_hp"])
 			ps.base.command_shields = int(pc.get("command_shields", 0))
 			if ps.leader:
-				ps.leader.command_hp = ps.base.command_hp
+				ps.leader.deployed = true
+				var arena := ps.leader.arena()
+				_put_in_play(ps.leader, arena if arena in rules.arenas else str(rules.arenas[0]), false, false)
+			else:
+				ps.base.zone = "base"
 		else:
 			ps.base = _new_inst(pc.get("base", ""), i)
-		ps.base.zone = "base"
-		var hp_target := rules.base_hp_override if rules.base_hp_override > 0 else ps.base.printed_hp()
-		if int(pc.get("base_hp", 0)) > 0:
-			hp_target = int(pc["base_hp"])
-		hp_target += int(pc.get("base_hp_bonus", 0))
-		if hp_target != ps.base.printed_hp():
-			ps.base.mods.append({"h": hp_target - ps.base.printed_hp(), "dur": "permanent"})
+			ps.base.zone = "base"
+			var hp_target := rules.base_hp_override if rules.base_hp_override > 0 else ps.base.printed_hp()
+			if int(pc.get("base_hp", 0)) > 0:
+				hp_target = int(pc["base_hp"])
+			hp_target += int(pc.get("base_hp_bonus", 0))
+			if hp_target != ps.base.printed_hp():
+				ps.base.mods.append({"h": hp_target - ps.base.printed_hp(), "dur": "permanent"})
 		var oil_bath_card: String = pc.get("oil_bath_card", "")
 		for cid in pc.get("deck", []):
 			if not lib.has(cid):
@@ -134,8 +141,6 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 			ps.deck.append(c)
 		_shuffle(ps.deck)
 		ps.base.damage = int(pc.get("base_damage", 0))
-		if ps.leader and rules.name == "conquest":
-			ps.leader.damage = ps.base.damage
 		ps.first_unit_experience = int(pc.get("first_unit_experience", 0))
 		ps.first_unit_shield = int(pc.get("first_unit_shield", 0))
 		ps.card_upgrades = pc.get("card_upgrades", {})
@@ -165,7 +170,7 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 	objective = Objective.create(cfg.get("objective", {"type": "standard"}))
 	objective.setup(self)
 	for p in 2:
-		if cfg["players"][p].get("deploy_leader_at_start", false) and players[p].leader:
+		if cfg["players"][p].get("deploy_leader_at_start", false) and players[p].leader and not players[p].leader.is_commander():
 			var leader: CardInst = players[p].leader
 			leader.deployed = true
 			leader.epic_used = true
@@ -191,6 +196,10 @@ func setup(p_lib: CardLibrary, cfg: Dictionary) -> void:
 		seq.append({"op": "_setup_resources", "p": p, "n": rules.starting_resources})
 		if int(pcs[p].get("extra_resources", 0)) > 0:
 			seq.append({"op": "_deck_to_resources", "p": p, "n": int(pcs[p]["extra_resources"])})
+	if rules.name == "conquest":
+		for p in [initiative, 1 - initiative]:
+			if players[p].base.is_commander():
+				seq.append({"op": "_command_deployed", "p": p})
 	seq.append({"op": "_start_action"})
 	push_frame(seq, {"ctl": initiative})
 	pump()
@@ -255,7 +264,8 @@ func all_units() -> Array:
 func trigger_sources() -> Array:
 	var result := all_units()
 	for player in players:
-		result.append(player.base)
+		if not player.base.is_commander():
+			result.append(player.base)
 		for leader in player.leaders():
 			if not leader.deployed:
 				result.append(leader)
@@ -336,7 +346,9 @@ func _play_discount(p: int, c: CardInst, aspects: Array, opts: Dictionary) -> in
 			elif rule.has("base_damage_divisor"):
 				count = floori(float(ps.base.damage) / float(rule["base_damage_divisor"]))
 			total += int(rule["n"]) * count
-	var sources: Array = ps.units + [ps.base]
+	var sources: Array = ps.units.duplicate()
+	if not ps.base.is_commander():
+		sources.append(ps.base)
 	for leader in ps.leaders():
 		if not leader.deployed:
 			sources.append(leader)
@@ -418,6 +430,8 @@ func _attack_targets(u: CardInst, allow_exhausted: bool, units_only: bool) -> Ar
 	for e in enemies:
 		if not e.zone in allowed_arenas or e.flags.get("untargetable", false) or e.flags.get("story_duelist", false):
 			continue
+		if e.is_commander() and not units_only:
+			continue
 		if not e.has_kw("sentinel"):
 			if screened:
 				continue
@@ -428,8 +442,14 @@ func _attack_targets(u: CardInst, allow_exhausted: bool, units_only: bool) -> Ar
 			if e.mods.any(func(modifier): return modifier.get("cannot_be_attacked", false)):
 				continue
 		out.append(e.uid)
-	if not screened and not no_base and not units_only and (p == 1 or objective.enemy_base_damage_allowed()):
-		out.append(players[opp(p)].base.uid)
+	var base: CardInst = players[opp(p)].base
+	var commander_sentinel := base.is_commander() and base.zone == u.zone and base.has_kw("sentinel")
+	if (not screened or commander_sentinel) and not no_base and not units_only and (p == 1 or objective.enemy_base_damage_allowed()):
+		if not base.is_commander() or (not base.flags.get("untargetable", false)
+			and not (base.has_kw("hidden") and base.entered_phase == phase_serial)
+			and continuous_bonus(base, "cannot_be_attacked", "") <= 0
+			and not base.mods.any(func(modifier): return modifier.get("cannot_be_attacked", false))):
+			out.append(base.uid)
 	return out
 
 
@@ -902,7 +922,11 @@ func end_round() -> void:
 
 
 func _expire(dur: String) -> void:
-	for u in all_units() + [players[0].base, players[1].base]:
+	var on_board := all_units()
+	for ps in players:
+		if not ps.base.is_commander():
+			on_board.append(ps.base)
+	for u in on_board:
 		var keep: Array = []
 		for m in u.mods:
 			if m.get("dur", "") != dur:
@@ -1354,10 +1378,9 @@ func deal_damage(target: CardInst, n: int, source: CardInst, unpreventable := fa
 		return 0
 	if not combat and source and source.controller != target.controller and target.has_constant("enemy_damage_immune"):
 		return 0
-	var command := _command_for(target)
-	if command and not unpreventable and command.command_shields > 0:
-		command.command_shields -= 1
-		events.append({"t": "shield_break", "uid": target.uid, "remaining": command.command_shields})
+	if not unpreventable and target.command_shields > 0:
+		target.command_shields -= 1
+		events.append({"t": "shield_break", "uid": target.uid, "remaining": target.shield_count()})
 		return 0
 	if target.in_play():
 		for up in target.upgrades:
@@ -1366,7 +1389,7 @@ func deal_damage(target: CardInst, n: int, source: CardInst, unpreventable := fa
 				return 0
 	elif target.zone != "base":
 		return 0
-	elif not unpreventable and n >= 5:
+	if target.is_base() and not unpreventable and n >= 5:
 		for up in target.upgrades:
 			if up.abilities_with("constant").any(func(a): return a.get("flag") == "base_damage_shield"):
 				defeat(up)
@@ -1374,48 +1397,31 @@ func deal_damage(target: CardInst, n: int, source: CardInst, unpreventable := fa
 				events.append({"t": "shield_break", "uid": target.uid, "remaining": 0})
 				return 0
 	target.damage += n
-	_sync_command_damage(target)
 	if target.in_play() and target.remaining_hp() <= 0:
 		target.flags["lethal_source"] = source.uid if source and source.controller != target.controller else 0
 	target.flags["last_damaged_phase"] = phase_serial
 	if source and not combat:
 		player_trigger(source.controller, "noncombat_damage", {"trigger_amount": n})
 	events.append({"t": "damage", "uid": target.uid, "n": n, "src": source.uid if source else 0})
-	if target.zone == "base":
+	if target.is_base():
 		if source:
 			source.flags["last_base_damage_phase"] = phase_serial
 			if source.controller != target.controller:
 				enemy_base_damage_dealt[source.controller] += n
 		player_trigger(target.controller, "own_base_damaged")
-	elif target.remaining_hp() > 0:
+	if target.in_play() and target.remaining_hp() > 0:
 		for ability in target.abilities_with("survived_damage"):
 			push_ability(target, ability, {"trigger_amount": n})
 	return n
 
 
-func _command_for(target: CardInst) -> CardInst:
-	if rules.name != "conquest" or target.command_hp == 0:
-		return null
-	return players[target.owner].base
-
-
-func _sync_command_damage(target: CardInst) -> void:
-	var command := _command_for(target)
-	if command:
-		command.damage = target.damage
-		var commander: CardInst = players[target.owner].leader
-		if commander:
-			commander.damage = target.damage
-
-
 func heal(target: CardInst, n: int) -> int:
-	if target.zone == "base" and (target.mods.any(func(modifier): return modifier.get("cannot_heal", false)) \
+	if target.is_base() and (target.mods.any(func(modifier): return modifier.get("cannot_heal", false)) \
 		or all_units().any(func(unit): return unit.has_constant("prevent_base_heal"))):
 		return 0
 	var h := mini(n, target.damage)
 	if h > 0:
 		target.damage -= h
-		_sync_command_damage(target)
 		if target.remaining_hp() > 0:
 			target.flags.erase("lethal_source")
 		target.flags["last_healed_phase"] = phase_serial
@@ -1495,10 +1501,13 @@ func defeat(u: CardInst, departing_host := false, skip_replacement := false) -> 
 	_log("%s is defeated." % u.title())
 	u.mods.clear()
 	if u.is_leader():
-		u.deployed = false
 		u.zone = "leader"
 		u.exhausted = true
-		u.damage = 0
+		if u.is_commander():
+			u.damage = maxi(u.damage, u.max_hp())
+		else:
+			u.deployed = false
+			u.damage = 0
 	elif u.is_token:
 		u.zone = "removed"
 	else:
@@ -1525,9 +1534,6 @@ func _record_roster_loss(unit: CardInst) -> void:
 		return
 	if unit.is_leader():
 		roster_leader_lost[unit.owner] = true
-		var command := _command_for(unit)
-		if command:
-			command.damage = maxi(command.damage, command.max_hp())
 	else:
 		roster_losses[unit.owner].append(unit.id)
 
@@ -1667,14 +1673,14 @@ func exhaust(u: CardInst, v := true) -> void:
 
 # ---------------------------------------------------------------- combat
 
-func begin_attack(a: CardInst, t: CardInst, using_ambush := false) -> void:
+func begin_attack(a: CardInst, t: CardInst, using_ambush := false, units_only := false) -> void:
 	var p := a.controller
 	exhaust(a)
 	attack = {"a": a.uid, "t": t.uid, "attacker_entry": a.entry_serial, "attack_arena": a.arena(), "ambush": using_ambush,
 		"defender_cost": t.cost(), "defender_nonleader": t.in_play() and not t.is_leader_unit(),
-		"defending_player": t.controller}
+		"defending_player": t.controller, "base_attack": t.is_base() and not (using_ambush or units_only)}
 	attacked_with[p].append(a.uid)
-	if t.zone == "base" and t.controller != p:
+	if attack["base_attack"] and t.controller != p:
 		base_attacked_this_phase[t.controller] = true
 		var base_attack_phases: Dictionary = a.flags.get("base_attack_phases", {})
 		base_attack_phases[t.controller] = phase_serial
@@ -1687,7 +1693,9 @@ func begin_attack(a: CardInst, t: CardInst, using_ambush := false) -> void:
 	for ability in t.abilities_with("when_attacked"):
 		triggers.append(_ability_frame(t, ability, {"it": a.uid}))
 	# "When a friendly <Trait> unit attacks" on the attacker's base and other units
-	var attack_sources: Array = [players[p].base] + players[p].units
+	var attack_sources: Array = players[p].units.duplicate()
+	if not players[p].base.is_commander():
+		attack_sources.push_front(players[p].base)
 	for leader in players[p].leaders():
 		if not leader.deployed:
 			attack_sources.append(leader)
@@ -1727,7 +1735,7 @@ func resolve_combat() -> void:
 		return
 	if t == null:
 		return
-	if t.zone == "base":
+	if attack.get("base_attack", t.zone == "base"):
 		var n := deal_damage(t, attack_power, a, false, true)
 		if n > 0:
 			_notify_base_combat_damage(a, t, n)
@@ -1759,7 +1767,7 @@ func resolve_combat() -> void:
 		defeat(t)
 	elif not defender_first:
 		deal_damage(a, t.power(false) if early_damage else dp, t, false, true)
-	if not t_shielded:
+	if not t_shielded and not t.is_commander():
 		_overwhelm(a, ap - t_rem, follow_through_index)
 
 
@@ -1879,6 +1887,8 @@ func _use_action_ability(p: int, c: CardInst, idx: int) -> void:
 func _deploy_leader(p: int, l: CardInst = null) -> void:
 	if l == null:
 		l = players[p].leader
+	if l.deployed:
+		return
 	l.deployed = true
 	l.epic_used = true
 	var was_exhausted := l.exhausted
@@ -1954,7 +1964,8 @@ func continuous_bonus(target: CardInst, field: String, keyword: String) -> int:
 		for leader in player.leaders():
 			if not leader.deployed:
 				sources.append(leader)
-		sources.append(player.base)
+		if not player.base.is_commander():
+			sources.append(player.base)
 	for source in sources:
 		for ability in source.abilities_with("continuous"):
 			var amount := int(ability.get(field, 0))

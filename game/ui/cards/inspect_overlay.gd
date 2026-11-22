@@ -417,6 +417,7 @@ func _make_panels() -> void:
 	_panels.clear()
 	var d := _card_data()
 	var pilot := _inst != null and _inst.is_pilot_upgrade()
+	var commander := _inst != null and _inst.is_commander()
 	var face: Dictionary = d["pilot"] if pilot else (d.get("leader_unit", {}) if _back else d)
 	var kind: String = "upgrade" if pilot else d.get("type", "")
 	var aspects: Array = _inst.aspects() if _inst else d.get("aspects", [])
@@ -424,7 +425,7 @@ func _make_panels() -> void:
 	_text(profile, d.get("name", _id))
 	if d.get("subtitle", "") != "":
 		_text(profile, d["subtitle"], Sabacc.C_DIM)
-	var role := "Pilot upgrade" if pilot else UIKit.type_label(kind)
+	var role := "Commander · Leader and base" if commander else ("Pilot upgrade" if pilot else UIKit.type_label(kind))
 	_text(profile, "%s · %s" % [role, ", ".join(d.get("traits", [])).capitalize()])
 	_text(profile, "Aspects: " + ", ".join(aspects).capitalize())
 	var icons := HBoxContainer.new()
@@ -438,20 +439,22 @@ func _make_panels() -> void:
 	_text(profile, "Your leader and base supply aspect icons. Each unmatched printed icon adds 2 resources to this card's cost in traditional battles.")
 	var stats: Array[String] = []
 	var cost: Dictionary = face if pilot else d
-	if cost.has("cost"):
+	if cost.has("cost") and not commander:
 		stats.append(("Deploy threshold %d" if kind == "leader" else "Cost %d") % int(cost["cost"]))
 	if face.has("power"):
 		stats.append(("Power %+d" if kind == "upgrade" else "Power %d") % int(face["power"]))
 	if face.has("hp"):
 		stats.append(("HP %+d" if kind == "upgrade" else "HP %d") % int(face["hp"]))
 	_text(profile, " · ".join(stats), _accent(1))
-	if cost.has("cost"):
+	if cost.has("cost") and not commander:
 		_text(profile, "Deployment threshold: control this many resources to meet the leader's Epic Action requirement. The threshold does not spend those resources; check any printed additional costs." if kind == "leader" else "Cost: resources exhausted to play the card, before applicable discounts or aspect penalties.", Sabacc.C_DIM)
 	if face.has("power"):
 		_text(profile, "Power modifier: added to the attached unit's combat power." if kind == "upgrade" else "Power: combat damage dealt when attacking or defending.", Sabacc.C_DIM)
 	if face.has("hp"):
 		_text(profile, "HP modifier: added to the attached unit's HP; the upgrade does not take damage itself." if kind == "upgrade" else ("HP: damage this base can sustain before you lose." if kind == "base" else "HP: damage capacity. A unit with damage equal to or above its current HP is defeated."), Sabacc.C_DIM)
-	if kind == "leader":
+	if commander:
+		_text(profile, "Deployed from the start. Defeating this commander wins the battle.")
+	elif kind == "leader":
 		_text(profile, "Leader deployment: its Epic Action can be used once per game when you meet its resource threshold (%d). Flip to inspect the unit side." % int(d.get("epic_cost", d.get("cost", 0))))
 	if kind == "unit" or kind == "leader":
 		_text(profile, "Arena: " + str(face.get("arena", d.get("arena", "Not an arena unit"))).capitalize() + ". Ground and space units normally attack in their own arena.", Sabacc.C_DIM)
@@ -461,6 +464,9 @@ func _make_panels() -> void:
 	var rules := _panel("Printed ability", 1)
 	var printed: String = face.get("text", d.get("text", "") if pilot else "")
 	_text(rules, printed if printed != "" else "No printed ability on this side.")
+	if commander and _back and d.get("text", "") != "":
+		_text(rules, "Leader side")
+		_text(rules, str(d["text"]))
 	var glossary := _panel("Keywords & timing", 2)
 	var keywords: Array = _inst.keyword_list() if _inst else face.get("keywords", [])
 	for keyword in keywords:

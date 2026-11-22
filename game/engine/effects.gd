@@ -287,7 +287,7 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			for t in targets:
 				if not _enemy_effect_immune(t, ctl, op):
 					ctx["defeated_power"] = t.power()
-					if t.zone == "base":
+					if t.is_base():
 						m.deal_damage(t, t.remaining_hp(), src, true)
 					else:
 						if t.in_play():
@@ -721,8 +721,9 @@ static func candidates(m: Match, t: Dictionary, ctx: Dictionary) -> Array:
 	if kind == "unit" or kind == "unit_or_base":
 		pool.append_array(m.all_units())
 	if kind == "base" or kind == "unit_or_base":
-		pool.append(m.players[0].base)
-		pool.append(m.players[1].base)
+		for player in m.players:
+			if not player.base in pool:
+				pool.append(player.base)
 	if kind == "leader":
 		for player in m.players:
 			for leader in player.leaders():
@@ -740,7 +741,7 @@ static func candidates(m: Match, t: Dictionary, ctx: Dictionary) -> Array:
 
 static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bool:
 	var ctl: int = ctx.get("ctl", 0)
-	if t.get("attacking_unit_or_base", false) and c.uid != int(ctx.get("subject", 0)) and c.zone != "base":
+	if t.get("attacking_unit_or_base", false) and c.uid != int(ctx.get("subject", 0)) and not c.is_base():
 		return false
 	var src: CardInst = m.card(ctx.get("src", 0))
 	var side: String = t.get("side", "any")
@@ -750,7 +751,7 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 		return false
 	if side == "friendly" and c.controller != ctl:
 		return false
-	if c.zone == "base":
+	if c.zone == "base" or (c.is_commander() and t.get("kind") == "base"):
 		return c.remaining_hp() <= int(t.get("max_hp", 999999)) and (not t.has("trait") or c.has_trait(t["trait"]))
 	if c.flags.get("story_duelist", false):
 		return false
@@ -1205,7 +1206,7 @@ static func _indirect_damage(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 	if state["remaining"] > 0:
 		var options := [ps.base.uid]
 		for unit in ps.units:
-			if unit.remaining_hp() > int(assigned.get(unit.uid, 0)):
+			if unit != ps.base and unit.remaining_hp() > int(assigned.get(unit.uid, 0)):
 				options.append(unit.uid)
 		if options.size() > 1:
 			var allocations := PackedStringArray()
@@ -1224,7 +1225,7 @@ static func _indirect_damage(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 	for uid in assigned:
 		var target := m.card(uid)
 		if m.deal_damage(target, assigned[uid], src, true) > 0:
-			if target.zone == "base":
+			if target.is_base():
 				ctx["indirect_base_hit"] = true
 			else:
 				ctx["indirect_units"].append(target)
@@ -1503,7 +1504,7 @@ static func _attack_with(m: Match, e: Dictionary, ctx: Dictionary, attackers: Ar
 					a.mods.append({"p": 1, "dur": "attack"})
 			if e.get("falcon_first_strike", false) and a.name() == "Millennium Falcon":
 				a.mods.append({"abilities": [{"trigger": "constant", "flag": "first_strike"}], "dur": "attack"})
-			m.begin_attack(a, tgt)
+			m.begin_attack(a, tgt, false, selector.get("units_only", false))
 			ctx["did"] = true
 			return DONE
 	if attackers.is_empty():
@@ -1551,6 +1552,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		"_saboteur_shields":
 			var defender := m.card(e["uid"])
 			if defender and defender.in_play():
+				defender.command_shields = 0
 				for upgrade in defender.upgrades.duplicate():
 					if upgrade.is_token and upgrade.name() == "Shield":
 						m.defeat(upgrade)
@@ -1863,6 +1865,9 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		"_start_action":
 			m.phase = "action"
 			m.start_action_phase()
+		"_command_deployed":
+			var p := int(e["p"])
+			m._notify_leader_deployed(p, m.players[p].leader, true)
 		"_regroup_triggers":
 			for p in [m.initiative, m.opp(m.initiative)]:
 				var base: CardInst = m.players[p].base
@@ -1904,7 +1909,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		"_choose_combat_order":
 			var attacker := m.card(m.attack.get("a", 0))
 			var defender := m.card(m.attack.get("t", 0))
-			if not attacker or not defender or not attacker.in_play() or not defender.in_play() or m.attack.get("combat_cancelled", false):
+			if not attacker or not defender or not attacker.in_play() or not defender.in_play() or m.attack.get("combat_cancelled", false) or m.attack.get("base_attack", false):
 				return DONE
 			if not attacker.has_constant("may_defender_strike_first"):
 				return DONE
@@ -1971,9 +1976,7 @@ static func _system(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			var opts: Array = []
 			var was := u.exhausted
 			u.exhausted = false
-			for t in m.attack_targets(u):
-				if m.card(t).zone != "base":
-					opts.append(t)
+			opts = m.attack_targets(u, false, true)
 			u.exhausted = was
 			if opts.is_empty():
 				return DONE

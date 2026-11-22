@@ -191,31 +191,130 @@ func _run() -> void:
 
 
 func _test_conquest() -> void:
-	await _size(540, 960)
+	await _size(360, 640)
 	await _go("play", {"selected": 2})
 	await _click(_button(get_tree().current_scene, "Galactic Conquest"))
 	var screen := get_tree().current_scene
 	await _click(_button(screen, "Rebels"))
 	await _click(_button(screen, "16 planets"))
 	check(screen._leader_name.text.begins_with("Luke Skywalker"), "Selecting Rebels equips Luke")
+	check(get_viewport().get_visible_rect().encloses(_button(screen, "Start conquest").get_global_rect()),
+		"Faction setup fits a compact portrait screen")
 	for index in screen._leader_picker.item_count:
 		if screen._leader_picker.get_item_metadata(index) == "JTL_012":
 			screen._leader_picker.item_selected.emit(index)
 			break
 	await _shot("conquest-faction")
 	await _click(_button(screen, "Start conquest"))
+	for side in Conquest.run.state["factions"]:
+		side["next_order"] = 9999
+	Conquest.run.state["next_income"] = 9999
 	check(Conquest.run.state["worlds"].size() == 16 and Conquest.run.state["player"] == 1, "Create the selected galaxy")
 	check(Conquest.run.fleet(1)["leader"] == "JTL_012", "The chosen leader printing commands the first fleet")
+	check(screen._map._planet_art.has("Mandalore") and screen._map._planet_art.has("Hoth"), "Supplied cutouts load on the galaxy map")
+	var deployed_art := Art.get_now(CardDB.card("JTL_012")["art"], true)
+	check(deployed_art != Art.placeholder and screen._map._deployed_leader_art("JTL_012") == deployed_art,
+		"The fleet displays its selected leader's deployed artwork")
+	_check_conquest_layout(screen, true)
+	await _shot("conquest-compact-portrait")
+	await _size(540, 960)
+	await _test_factory_catalog(screen)
 	await _shot("conquest-portrait")
-	var center: Vector2 = screen._viewport.get_global_rect().get_center()
-	var scroll_x: int = screen._viewport.scroll_horizontal
-	await _drag(center, center - Vector2(115, 0))
-	check(screen._viewport.scroll_horizontal > scroll_x, "Dragging pans the strategic galaxy map")
+	var map_top := Vector2(get_viewport().get_visible_rect().size.x * 0.5, screen.header.position.y - 8.0)
+	var top_offset: float = screen._map.camera_offset.x
+	await _drag(map_top, map_top - Vector2(65, 0))
+	check(screen._map.camera_offset.x < top_offset, "Drag input works above the header")
 	await _click(_button(screen, "Locate fleet"))
-	var target: Vector2 = screen._map.get_global_transform() * (ConquestGalaxy.WORLDS["Mandalore"] * screen._map.zoom)
-	await _drag(target, target)
+	var center: Vector2 = screen._map.get_global_rect().get_center()
+	var initial_x: float = screen._map.camera_offset.x
+	await _drag(center, center - Vector2(115, 0))
+	check(screen._map.camera_offset.x < initial_x, "Dragging pans the strategic galaxy map")
+	await _click(_button(screen, "Locate fleet"))
+	var initial_zoom: float = screen._map.zoom
+	var anchor := center + Vector2(50, 30)
+	var anchor_local: Vector2 = screen._map.get_global_transform().affine_inverse() * anchor
+	var coordinate: Vector2 = (anchor_local - screen._map.camera_offset) / screen._map.zoom
+	for button in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		var wheel := InputEventMouseButton.new()
+		wheel.pressed = true
+		wheel.button_index = button
+		wheel.position = anchor
+		wheel.global_position = anchor
+		get_viewport().push_input(wheel, true)
+		if button == MOUSE_BUTTON_WHEEL_UP:
+			check(screen._map.zoom > initial_zoom and (coordinate * screen._map.zoom + screen._map.camera_offset).distance_to(anchor_local) < 2.0,
+				"Mouse wheel zooms in around the cursor")
+		wheel.pressed = false
+		get_viewport().push_input(wheel, true)
+	check(is_equal_approx(screen._map.zoom, initial_zoom), "Mouse wheel zooms back out")
+	var selected: String = screen._selected
+	_conquest_touch(0, center - Vector2(55, 0), true)
+	_conquest_touch(1, center + Vector2(55, 0), true)
+	var pinch := InputEventScreenDrag.new()
+	pinch.index = 1
+	pinch.position = center + Vector2(110, 0)
+	get_viewport().push_input(pinch, true)
+	check(screen._map.zoom > initial_zoom, "Spreading two fingers zooms in")
+	pinch.position = center + Vector2(55, 0)
+	get_viewport().push_input(pinch, true)
+	check(is_equal_approx(screen._map.zoom, initial_zoom), "Pinching two fingers zooms out")
+	_conquest_touch(1, center + Vector2(55, 0), false)
+	_conquest_touch(0, center - Vector2(55, 0), false)
+	check(screen._selected == selected, "Releasing a pinch does not select a planet")
+	var pan_before: Vector2 = screen._map.camera_offset
+	_conquest_touch(0, center, true)
+	pinch.index = 0
+	pinch.position = center - Vector2(70, 0)
+	get_viewport().push_input(pinch, true)
+	_conquest_touch(0, pinch.position, false)
+	check(screen._map.camera_offset.x < pan_before.x and screen._selected == selected, "One-finger dragging pans without selecting")
+	await _click(_button(screen, "Locate fleet"))
+	var target: Vector2 = screen._map.get_global_transform() * screen._map.world_position("Mandalore")
+	_conquest_touch(0, target, true)
+	_conquest_touch(0, target, false)
 	check(screen._selected == "Mandalore" and not screen._orders.disabled, "Tap a neighbor to select the marked planet")
 	await _size(1280, 720)
+	_check_conquest_layout(screen, false)
+	for edge in ["Dathomir", "Hoth", "Kamino"]:
+		screen._map.center_on(edge)
+		check(screen._map._camera_region.has_point(screen._map.world_position(edge)),
+			"Centering %s clears the command overlays" % edge)
+	var map_center: Vector2 = screen._map.size * 0.5
+	var map_zoom: float = screen._map.zoom
+	check(screen._map._symbols.has("mandalore") and screen._map._symbols.has("rebels"),
+		"Special worlds and factions load the supplied transparent icons")
+	var colors := {
+		"Coruscant": ["Empire", Color.WHITE], "Yavin": ["Rebels", Color("#ff9d41")],
+		"Nal Hutta": ["Hutts", Color("#63d88c")], "Kamino": ["Republic", Color("#f0525e")],
+		"Geonosis": ["Separatists", Color("#68a5ff")],
+	}
+	for world in colors:
+		screen._selected = world
+		screen._refresh()
+		check(colors[world][0] in screen._world_info.text
+			and screen._world_info.get_theme_color("font_color") == colors[world][1],
+			"Planet control panel uses %s colors" % colors[world][0])
+	var kamino: Dictionary = Conquest.run.state["worlds"]["Kamino"]
+	kamino["owner"] = 1
+	screen._selected = "Kamino"
+	screen._refresh()
+	check("Rebels" in screen._world_info.text and screen._world_info.get_theme_color("font_color") == colors["Yavin"][1],
+		"Capturing a local territory gives it the victor's color")
+	kamino["owner"] = -1
+	screen._selected = "Mandalore"
+	screen._refresh()
+	screen._map.zoom_at(0.75 / map_zoom, map_center, map_center)
+	screen._map.center_on("Nal Hutta")
+	var worlds: Dictionary = Conquest.run.state["worlds"]
+	for pair in [["Corellia", 0], ["Mandalore", 1], ["Kashyyyk", 2]]:
+		worlds[pair[0]]["owner"] = pair[1]
+	await get_tree().process_frame
+	await _shot("conquest-faction-colors")
+	for world in ["Corellia", "Mandalore", "Kashyyyk"]:
+		worlds[world]["owner"] = -1
+	screen._map.zoom_at(map_zoom / screen._map.zoom, map_center, map_center)
+	screen._map.center_on("Mandalore")
+	await get_tree().process_frame
 	await _shot("conquest-landscape")
 	await _click(screen._orders)
 	var task := Conquest.run.fleet(1)
@@ -223,14 +322,61 @@ func _test_conquest() -> void:
 	task["arrival"] = Conquest.run.state["time"]
 	await _wait(0.55)
 	check(screen._battle.visible, "Arrival prepares the battle")
+	await _size(390, 844)
+	_check_conquest_layout(screen, true)
+	await _shot("conquest-battle-ready-portrait")
 	await _click(screen._battle)
 	var match_screen := get_tree().current_scene
 	check(match_screen.params.get("mode") == "conquest" and match_screen.m.players[1].leader == null,
 		"Militia battle opens in the actual match scene with a leaderless defender")
 	check(match_screen.params.get("battle_world") == "Mandalore", "Battle loads the selected planet backdrop")
+	check(match_screen.theme_bg._planet == ConquestGalaxy.supplied_planet("Mandalore"), "The battle uses the same supplied planet art")
 	check(match_screen.m.players[0].base.max_hp() == 30 and match_screen.m.players[0].base.name() == "Luke Skywalker",
 		"The match HUD uses 30 HP command instead of a base card")
+	await _wait_for_conquest_turn(match_screen)
+	var commander: CardInst = match_screen.m.players[0].base
+	var token: UnitToken = match_screen.tokens.get(commander.uid)
+	check(token != null and token.inst == match_screen.m.players[0].leader and commander.deployed
+		and not match_screen.hud[0].leader_view.visible and not match_screen.hud[0].base_view.visible
+		and match_screen._command_slot.has_point(token.center_global()),
+		"One deployed Sabacc commander occupies the command slot")
+	_check_commander_slot(match_screen, token)
+	await _size(1280, 720)
+	_check_commander_slot(match_screen, token)
+	await _shot("conquest-commander-landscape")
+	await _size(390, 844)
+	await _wait(0.8)
 	await _shot("conquest-battle-background")
+	if token:
+		await _click(token, UnitToken.FACE_CENTER / token.size)
+		if match_screen.menu_popup:
+			await _click(_button(match_screen.menu_popup, "Attack"))
+		check(match_screen._selected == token, "Tapping the commander selects it as attacker")
+		await _click(match_screen.hud[1].base_view)
+		check(commander.exhausted and match_screen.m.players[1].base.damage > 0, "The commander attacks from the base slot")
+		await _wait(0.8)
+	await _wait_for_conquest_turn(match_screen)
+	check(not match_screen.retreat_btn.disabled, "The commander can retreat during their action")
+	await _click(match_screen.retreat_btn)
+	var withdraw := _button(match_screen, "Withdraw to Yavin 4")
+	check(withdraw != null, "Retreat confirms the departure world")
+	if withdraw:
+		await _click(withdraw)
+		await _click(_button(match_screen, "Return to galaxy"))
+		await _wait(0.3)
+		screen = get_tree().current_scene
+		check(task["retreating"] and task["route"] == ["Yavin"] and task["leader_alive"], "Retreat returns a living commander through hyperspace")
+		task["arrival"] = Conquest.run.state["time"]
+		await _wait(0.45)
+		check(task["world"] == "Yavin" and not task["retreating"], "The fleet arrives back at its departure world")
+		screen._selected = "Mandalore"
+		screen._refresh()
+		await _click(screen._orders)
+		task["arrival"] = Conquest.run.state["time"]
+		await _wait(0.55)
+		await _click(screen._battle)
+		match_screen = get_tree().current_scene
+		await _wait_for_conquest_turn(match_screen)
 	match_screen.m.set_winner(0, "Conquest smoke test")
 	match_screen._game_over()
 	await _wait(0.4)
@@ -278,6 +424,77 @@ func _test_conquest() -> void:
 	Conquest.run.state["worlds"]["Mandalore"]["owner"] = -1
 	check(Conquest.load_slot(1) and Conquest.run.state["worlds"]["Mandalore"]["owner"] == 1,
 		"Loading restores the saved map and overwrites only the autosave")
+
+
+func _wait_for_conquest_turn(screen: Control) -> void:
+	for attempt in 20:
+		if screen.m.can_act(0) and not screen.busy:
+			return
+		if not screen.busy and screen.m.phase == "setup":
+			_resolve_setup(screen)
+		await _wait(0.25)
+
+
+func _check_commander_slot(screen: Control, token: UnitToken) -> void:
+	var rect := token.get_global_rect()
+	var center := get_viewport().get_visible_rect().get_center().x
+	check(absf(token.center_global().x - center) < 2.0 and token.scale.x > 1.25,
+		"The enlarged horizontal commander is centered (position %s, scale %s)" % [token.center_global(), token.scale])
+	check(rect.position.y >= screen._arena_area.end.y and rect.end.y <= screen._hand_top
+		and not rect.intersects(screen.retreat_btn.get_global_rect()),
+		"The commander fits between the arena and hand without covering Retreat")
+
+
+func _conquest_touch(index: int, at: Vector2, down: bool) -> void:
+	var touch := InputEventScreenTouch.new()
+	touch.index = index
+	touch.position = at
+	touch.pressed = down
+	get_viewport().push_input(touch, true)
+
+
+func _check_conquest_layout(screen: Control, stacked: bool) -> void:
+	var viewport := get_viewport().get_visible_rect()
+	var panel: Rect2 = screen._command_panel.get_global_rect()
+	var buttons: Rect2 = screen._command_scroll.get_global_rect().grow(1.0)
+	check(screen._map.get_global_rect().is_equal_approx(viewport), "The map reaches all four screen edges")
+	check(viewport.encloses(panel) and viewport.encloses(screen.header.get_global_rect()) and
+		viewport.encloses(screen._toolbar.get_global_rect()), "Map controls fit inside the screen")
+	check(screen._command_grid.columns == (2 if stacked else 1)
+		and screen._command_grid.get_children().all(func(control):
+			return not control.visible or buttons.encloses(control.get_global_rect())),
+		"Visible commands fit the %s panel" % ("portrait" if stacked else "landscape"))
+
+
+func _test_factory_catalog(screen: Control) -> void:
+	await _click(_button(screen, "Planet production"))
+	var barracks := _button(screen, "Build barracks")
+	var scroller: Node = barracks.get_parent()
+	while scroller and not scroller is ScrollContainer:
+		scroller = scroller.get_parent()
+	if scroller:
+		scroller.ensure_control_visible(barracks)
+		await _wait(0.2)
+	await _click(barracks)
+	await _click(_button(screen, "Factory catalog"))
+	var factory_script := preload("res://ui/kit/conquest_factory_card.gd")
+	var cards := screen.find_children("*", "Button", true, false).filter(func(button):
+		return button.is_visible_in_tree() and button.get_script() == factory_script)
+	check(not cards.is_empty(), "Factory menu shows manufacture choices as Sabacc cards")
+	if cards.is_empty():
+		return
+	var choice: Button = cards[0]
+	var id: String = choice.card["id"]
+	var run := Conquest.run
+	var credits: int = run.state["factions"][1]["credits"]
+	var reserve: Array = run.state["worlds"]["Yavin"]["cards"]
+	var copies := reserve.count(id)
+	await _shot("conquest-factory-cards")
+	await _click(choice)
+	check(reserve.count(id) == copies + 1 and int(run.state["factions"][1]["credits"]) == credits - choice.credits,
+		"Tapping a priced factory card adds the exact choice to planetary reserves")
+	await _click(_button(screen, "Back"))
+	await _click(_button(screen, "Back"))
 
 
 func _test_sabacc_war() -> void:

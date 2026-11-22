@@ -127,6 +127,90 @@
         "keywords": [{"k": "sentinel"}],
         "abilities": []
       }
+    },
+    "KYB_006": {
+      "id": "KYB_006",
+      "set": "KYB",
+      "number": "006",
+      "name": "Teeka",
+      "subtitle": "Sandcrawler Boss",
+      "type": "leader",
+      "arena": "ground",
+      "cost": 5,
+      "epic_cost": 5,
+      "power": 3,
+      "hp": 6,
+      "aspects": ["cunning"],
+      "traits": ["jawa"],
+      "unique": true,
+      "art": "HMW_221",
+      "text": "Action [Exhaust]: Give a friendly Jawa unit Sentinel for this phase.",
+      "abilities": [{
+        "trigger": "action",
+        "cost": {"exhaust": true},
+        "text": "Action [Exhaust]: Give a friendly Jawa unit Sentinel for this phase.",
+        "effects": [{"op": "gain_kw", "kw": "sentinel", "dur": "phase", "t": {"s": "choose", "kind": "unit", "side": "friendly", "trait": "jawa", "other": true}}]
+      }],
+      "leader_unit": {
+        "arena": "ground",
+        "power": 3,
+        "hp": 6,
+        "text": "On Attack: Create a Credit token.",
+        "abilities": [{"trigger": "on_attack", "text": "On Attack: Create a Credit token.", "effects": [{"op": "token", "name": "credit", "n": 1}]}]
+      }
+    },
+    "KYB_007": {
+      "id": "KYB_007",
+      "set": "KYB",
+      "number": "007",
+      "name": "AT-DT Walker",
+      "type": "unit",
+      "arena": "ground",
+      "cost": 4,
+      "power": 4,
+      "hp": 3,
+      "aspects": ["command", "villainy"],
+      "traits": ["imperial", "vehicle", "walker"],
+      "art": "",
+      "text": "When Played: You may deal 1 damage to an enemy ground unit.",
+      "abilities": [{
+        "trigger": "when_played",
+        "text": "When Played: You may deal 1 damage to an enemy ground unit.",
+        "effects": [{"op": "damage", "n": 1, "t": {"s": "choose", "kind": "unit", "side": "enemy", "arena": "ground", "opt": true}, "optional": true}]
+      }]
+    },
+    "KYB_008": {
+      "id": "KYB_008",
+      "set": "KYB",
+      "number": "008",
+      "name": "Morgan Elsbeth",
+      "subtitle": "Dathomiri Commander",
+      "type": "leader",
+      "arena": "ground",
+      "cost": 6,
+      "epic_cost": 6,
+      "power": 4,
+      "hp": 6,
+      "aspects": ["aggression"],
+      "traits": ["force", "night"],
+      "unique": true,
+      "art": "ASH_050",
+      "text": "Action [C=1, Exhaust]: Give an Experience token to a friendly Night unit.",
+      "abilities": [{
+        "trigger": "action",
+        "cost": {"resources": 1, "exhaust": true},
+        "text": "Action [C=1, Exhaust]: Give an Experience token to a friendly Night unit.",
+        "effects": [{"op": "experience", "n": 1, "t": {"s": "choose", "kind": "unit", "side": "friendly", "trait": "night", "other": true}}]
+      }],
+      "leader_unit": {
+        "arena": "ground",
+        "power": 4,
+        "hp": 6,
+        "text": "On Attack: You may give a Shield token to another friendly Night unit.",
+        "abilities": [{"trigger": "on_attack", "text": "On Attack: You may give a Shield token to another friendly Night unit.", "effects": [
+          {"op": "shield", "t": {"s": "choose", "kind": "unit", "side": "friendly", "trait": "night", "other": true, "opt": true}, "optional": true}
+        ]}]
+      }
     }
   }
 }

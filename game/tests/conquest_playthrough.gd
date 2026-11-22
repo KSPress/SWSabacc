@@ -121,20 +121,27 @@ func give_orders(run: ConquestRun, player: int) -> void:
 						run.send_replacement(player, source, index, run.eligible_commanders(player, source)[0])
 						break
 				continue
+			var opening_unit := ""
+			var opening_score := -INF
+			for id in fleet["cards"]:
+				var card := lib.get_card(id)
+				if card.get("type") != "unit":
+					continue
+				var score := float(card["power"]) * 2.0 + float(card["hp"]) + float(card["cost"]) * 0.4
+				if card.get("arena") == "space":
+					score += 1.0
+				if score > opening_score:
+					opening_unit = id
+					opening_score = score
+			run.train(player, origin, index, "opening", opening_unit)
 			var ships: int = fleet["cards"].filter(func(id): return lib.get_card(id).get("arena") == "space").size()
 			if ships < 9:
 				run.buy(player, origin, "produce")
 			if site["cards"].size() < 12 and fleet["cards"].size() < 26:
 				run.buy(player, origin, "troops")
 			var take_count := mini(ConquestRun.FLEET_LIMIT - int(fleet["cards"].size()), maxi(0, int(site["cards"].size()) - 6))
-			var take: Array = site["cards"].slice(0, take_count)
+			var take := run.transfer_candidates(player, index, site["cards"]).slice(0, take_count)
 			run.transfer(player, origin, take, index)
-			var best_unit := ""
-			for id in fleet["cards"]:
-				var card := lib.get_card(id)
-				if card.get("type") == "unit" and (best_unit.is_empty() or int(card["cost"]) > int(lib.get_card(best_unit)["cost"])):
-					best_unit = id
-			run.train(player, origin, index, "opening", best_unit)
 			run.train(player, origin, index, "health")
 			run.train(player, origin, index, "command_shield")
 			run.train(player, origin, index, "resources")

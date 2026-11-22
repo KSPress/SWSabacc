@@ -64,7 +64,7 @@ func aspect_pool() -> Array:
 	var out: Array = []
 	for commander in leaders():
 		out.append_array(commander.aspects())
-	if base:
+	if base and base != leader:
 		out.append_array(base.aspects())
 	return out
 

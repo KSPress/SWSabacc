@@ -2,6 +2,7 @@ extends ScreenBase
 
 const GALAXY := preload("res://engine/conquest_galaxy.gd")
 const MAP_VIEW := preload("res://ui/kit/conquest_map.gd")
+const FACTORY_CARD := preload("res://ui/kit/conquest_factory_card.gd")
 
 var _faction := 0
 var _map_size := 8
@@ -24,9 +25,13 @@ var _orders: Button
 var _production: Button
 var _battle: Button
 var _fleet_deck: Button
-var _viewport: ScrollContainer
 var _map: Control
-var _layout: BoxContainer
+var _toolbar: HBoxContainer
+var _command_panel: PanelContainer
+var _command_scroll: ScrollContainer
+var _commands: VBoxContainer
+var _command_grid: GridContainer
+var _overlay_layout_queued := false
 
 
 func build() -> void:
@@ -37,6 +42,8 @@ func build() -> void:
 	bg.set_location("space")
 	Conquest.restore()
 	_root.add_theme_constant_override("separation", 9)
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(_root)
 	Conquest.changed.connect(_refresh)
 	if Conquest.run:
@@ -55,28 +62,69 @@ func request_screen_back() -> bool:
 func relayout(in_portrait: bool, rect: Rect2) -> void:
 	_root.position = Vector2.ZERO
 	_root.size = rect.size
-	if _layout:
-		_layout.vertical = in_portrait
+	if is_instance_valid(_map):
+		var top_padding := header.position.y - safe_rect().position.y
+		header.position.y -= top_padding
+		body.position.y -= top_padding
+		body.size.y += top_padding
+		_root.size = body.size
+		_command_grid.columns = 2 if in_portrait else 1
+		_queue_overlay_layout()
 	if _setup:
 		_setup.custom_minimum_size.x = minf(590, rect.size.x)
 
 
+func _queue_overlay_layout() -> void:
+	if not _overlay_layout_queued:
+		_overlay_layout_queued = true
+		_layout_overlays.call_deferred()
+
+
+func _layout_overlays() -> void:
+	_overlay_layout_queued = false
+	if not is_instance_valid(_map) or not is_instance_valid(_command_panel):
+		return
+	var toolbar_bottom := _toolbar.get_rect().end.y
+	var available := maxf(1.0, body.size.y - toolbar_bottom - 12.0)
+	var panel_width := body.size.x if portrait else clampf(body.size.x * 0.30, 310.0, 360.0)
+	var panel_decoration := _command_panel.get_theme_stylebox("panel").get_minimum_size().y
+	var panel_height := minf(_commands.get_combined_minimum_size().y + panel_decoration, available * (0.48 if portrait else 1.0))
+	_command_panel.size = Vector2(panel_width, panel_height)
+	_command_panel.position = Vector2(0.0, body.size.y - _command_panel.size.y) if portrait else Vector2(body.size.x - panel_width, toolbar_bottom + 12.0)
+	var focus_start := body.position + Vector2(12.0, toolbar_bottom + 12.0)
+	var focus_end := body.position + Vector2(body.size.x - 12.0, _command_panel.position.y - 16.0) if portrait \
+		else body.position + Vector2(_command_panel.position.x - 16.0, body.size.y - 12.0)
+	_map.set_camera_region(Rect2(focus_start, (focus_end - focus_start).max(Vector2.ONE)))
+
+
 func _clear() -> void:
+	for overlay in [_map, _command_panel]:
+		if is_instance_valid(overlay):
+			overlay.get_parent().remove_child(overlay)
+			overlay.queue_free()
 	for node in _root.get_children():
 		_root.remove_child(node)
 		node.queue_free()
-	_layout = null
+	_map = null
+	_command_panel = null
+	_toolbar = null
 	_setup = null
 	_status = null
 
 
 func _show_setup() -> void:
 	_clear()
+	_account_credit.show()
 	_faction_buttons.clear()
 	_map_buttons.clear()
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_root.add_child(scroll)
 	var center := CenterContainer.new()
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_root.add_child(center)
+	scroll.add_child(center)
 	_setup = VBoxContainer.new()
 	_setup.add_theme_constant_override("separation", 16)
 	center.add_child(_setup)
@@ -165,35 +213,28 @@ func _show_galaxy() -> void:
 		if _selected.is_empty():
 			_selected = GALAXY.FACTIONS[faction]["home"]
 	_account_credit.hide()
-	var toolbar := HBoxContainer.new()
-	toolbar.add_theme_constant_override("separation", 10)
-	_root.add_child(toolbar)
+	_toolbar = HBoxContainer.new()
+	_toolbar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_toolbar.add_theme_constant_override("separation", 10)
+	_root.add_child(_toolbar)
+	_toolbar.resized.connect(_queue_overlay_layout)
 	_status = UIKit.label("", 20, Sabacc.C_GOLD)
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	toolbar.add_child(_status)
-	for step in [-0.18, 0.18]:
-		var zoom := SabaccButton.make("−" if step < 0 else "+", SabaccButton.Style.GHOST)
-		zoom.tooltip_text = "Zoom out" if step < 0 else "Zoom in"
+	_toolbar.add_child(_status)
+	for factor in [1.0 / 1.2, 1.2]:
+		var zoom := SabaccButton.make("−" if factor < 1.0 else "+", SabaccButton.Style.GHOST)
+		zoom.tooltip_text = "Zoom out" if factor < 1.0 else "Zoom in"
 		zoom.custom_minimum_size.x = 48
-		zoom.pressed.connect(func(): _zoom(step))
-		toolbar.add_child(zoom)
+		zoom.pressed.connect(func():
+			var anchor: Vector2 = _map.camera_center()
+			_map.zoom_at(factor, anchor, anchor))
+		_toolbar.add_child(zoom)
 	var center := SabaccButton.make("Locate fleet", SabaccButton.Style.GHOST)
 	center.pressed.connect(func():
 		var world: String = run.fleet(faction, _fleet_index)["world"]
-		_center_map(world if not world.is_empty() else _selected))
-	toolbar.add_child(center)
-	_layout = BoxContainer.new()
-	_layout.add_theme_constant_override("separation", 10)
-	_layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_root.add_child(_layout)
-	_viewport = ScrollContainer.new()
-	_viewport.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
-	_viewport.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
-	_viewport.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_viewport.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_viewport.custom_minimum_size.y = 240
-	_layout.add_child(_viewport)
+		_map.center_on(world if not world.is_empty() else _selected))
+	_toolbar.add_child(center)
 	_map = MAP_VIEW.new()
 	_map.run = run
 	_map.fleet_index = _fleet_index
@@ -202,18 +243,25 @@ func _show_galaxy() -> void:
 		_selected = world
 		_map.selected = world
 		_refresh())
-	_viewport.add_child(_map)
-	var panel := UIKit.panel(Color("#0c1925"), Color("#416c84"), 12, 10)
-	_layout.add_child(panel)
-	var commands := VBoxContainer.new()
-	commands.custom_minimum_size.x = 290
-	panel.add_child(commands)
+	add_child(_map)
+	move_child(_map, body.get_index())
+	UIKit.fill_rect(_map)
+	_command_panel = UIKit.panel(Color("#0c1925"), Color("#416c84"), 12, 10)
+	_command_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	body.add_child(_command_panel)
+	_command_scroll = ScrollContainer.new()
+	_command_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_command_panel.add_child(_command_scroll)
+	_commands = VBoxContainer.new()
+	_commands.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_command_scroll.add_child(_commands)
+	_commands.minimum_size_changed.connect(_queue_overlay_layout)
 	_world_info = UIKit.label("", 21, Sabacc.C_TEXT)
 	_world_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	commands.add_child(_world_info)
+	_commands.add_child(_world_info)
 	_report = UIKit.label("", 17, Sabacc.C_DIM)
 	_report.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	commands.add_child(_report)
+	_commands.add_child(_report)
 	_fleet_picker = OptionButton.new()
 	_fleet_picker.fit_to_longest_item = false
 	_fleet_picker.custom_minimum_size.y = 44
@@ -221,20 +269,26 @@ func _show_galaxy() -> void:
 		_fleet_index = index
 		_map.fleet_index = index
 		_refresh())
-	commands.add_child(_fleet_picker)
-	_orders = _button(commands, "", func():
+	_commands.add_child(_fleet_picker)
+	_command_grid = GridContainer.new()
+	_commands.add_child(_command_grid)
+	_orders = _button(_command_grid, "", func():
 		if run.order(faction, _selected, _fleet_index):
 			Conquest.persist())
-	_production = _button(commands, "Planet production", _show_production)
-	_scout = _button(commands, "Send reconnaissance probe", _show_probe_origins)
-	_fleet_deck = _button(commands, "Inspect fleet deck", _show_fleet)
-	_battle = _button(commands, "Enter battle", func(): Conquest.play_battle(run.player_battle()))
-	var change := _button(commands, "New conquest…", _confirm_new)
+	_production = _button(_command_grid, "Planet production", _show_production)
+	_scout = _button(_command_grid, "Send probe", _show_probe_origins)
+	_fleet_deck = _button(_command_grid, "Inspect fleet deck", _show_fleet)
+	_battle = _button(_command_grid, "Enter battle", func(): Conquest.play_battle(run.player_battle()))
+	var change := _button(_command_grid, "New conquest…", _confirm_new)
 	change.add_theme_color_override("font_color", Sabacc.C_DIM)
+	for button in _command_grid.get_children():
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_on_resize()
 	_refresh()
 	await get_tree().process_frame
-	_center_map(_selected)
+	_layout_overlays()
+	_map.center_on(_selected)
 
 
 func _button(parent: Container, text: String, call: Callable) -> Button:
@@ -255,6 +309,7 @@ func _refresh() -> void:
 		return
 	var world: Dictionary = sites[_selected]
 	var holder := int(world["owner"])
+	var territory := GALAXY.territory_identity(_selected, holder)
 	var held := sites.values().filter(func(site): return int(site["owner"]) == faction).size()
 	_status.text = "%d credits   ·   %d/%d planets" % [side["credits"], held, sites.size()]
 	_status.tooltip_text = "+%d credits every %ds from held planets" % [held * ConquestRun.INCOME_PER_WORLD, ConquestRun.INCOME_PERIOD]
@@ -266,8 +321,9 @@ func _refresh() -> void:
 		detail = "%d reserve cards%s" % [world["cards"].size(), " · " + ", ".join(structures) if not structures.is_empty() else ""]
 		if not world["orbital_cards"].is_empty():
 			detail += "\n%d orbital defenders" % world["orbital_cards"].size()
-	_world_info.text = "%s · %s%s\n%s" % [GALAXY.display_name(_selected), GALAXY.FACTIONS[holder]["name"] if holder >= 0 else "Neutral",
+	_world_info.text = "%s · %s%s\n%s" % [GALAXY.display_name(_selected), territory["name"],
 		" · " + specialty.capitalize() if not specialty.is_empty() else "", detail]
+	_world_info.add_theme_color_override("font_color", territory["color"])
 	if not _fleet_picker.get_popup().visible:
 		_fleet_picker.clear()
 		for task in run.fleets(faction):
@@ -305,26 +361,13 @@ func _refresh() -> void:
 	_report.text = report
 
 
-func _zoom(step: float) -> void:
-	var old: float = _map.zoom
-	_map.zoom = clampf(old + step, 0.53, 2.0)
-	_map.custom_minimum_size = Vector2(1280, 960) * _map.zoom
-	await get_tree().process_frame
-	_center_map(_selected)
-
-
-func _center_map(world: String) -> void:
-	var center: Vector2 = GALAXY.WORLDS[world] * _map.zoom - _viewport.size / 2
-	_viewport.scroll_horizontal = roundi(center.x)
-	_viewport.scroll_vertical = roundi(center.y)
-
-
 func _show_fleet() -> void:
 	var run := Conquest.run
 	var faction := int(run.state["player"])
 	var fleet := run.fleet(faction, _fleet_index)
 	var modal := ModalPanel.open(self, 500, Sabacc.C_GOLD)
 	modal.text("Fleet deck · %d cards" % fleet["cards"].size(), 26)
+	modal.text("Up to 3 copies per card · 1 for unique cards", 16, Sabacc.C_DIM)
 	var leader := CardDB.card(fleet["leader"])
 	if fleet["leader_alive"]:
 		var hp := run.command_max_hp(fleet)
@@ -354,14 +397,19 @@ func _show_production() -> void:
 	modal.text(GALAXY.display_name(world) + " · Production", 26)
 	var info := modal.text("", 19)
 	var items := {}
-	var local_recruits: Dictionary = GALAXY.NATIVE_RECRUITS.get(world, {})
+	var local_recruits := GALAXY.native_recruits(world, faction)
 	for id in local_recruits:
 		items[id] = "Recruit " + str(local_recruits[id])
 	for id in ConquestRun.FACILITIES:
 		if not id in planet["facilities"]:
 			items[id] = "Build " + str(ConquestRun.FACILITIES[id][0]).to_lower()
-	if not run._factory(world).is_empty():
-		items["produce"] = "Produce cards"
+	var catalog := _button(modal.box, "Factory catalog", func():
+		modal.close()
+		_show_factory(world))
+	if not local_recruits.is_empty():
+		_button(modal.box, "Local card catalog", func():
+			modal.close()
+			_show_factory(world, 0, true))
 	if "garrison" in planet["facilities"]:
 		items["troops"] = "Replenish garrison"
 	if "orbital" in planet["facilities"]:
@@ -380,8 +428,8 @@ func _show_production() -> void:
 		var hire := _button(modal.box, "%d planets · commission leader" % milestone, func():
 			modal.close()
 			_show_commanders(world))
-		hire.disabled = planet["cards"].size() < ConquestRun.MIN_FLEET or int(run.state["factions"][faction]["credits"]) < run.price("commission")
-		modal.text("New fleet requires 8 reserve cards and %d credits." % run.price("commission"), 16)
+		hire.disabled = run.commissioning_cards(world).size() < ConquestRun.MIN_FLEET or int(run.state["factions"][faction]["credits"]) < run.price("commission")
+		modal.text("New fleets require 8 eligible reserve cards and %d credits." % run.price("commission"), 16)
 	var options := {}
 	for item in items:
 		var button := _button(modal.box, "%s · %d credits" % [items[item], run.price(item)], func():
@@ -392,6 +440,7 @@ func _show_production() -> void:
 		options[item] = button
 	var transfers := VBoxContainer.new()
 	modal.add(transfers)
+	var transfer_buttons := {}
 	for id in _counts(planet["cards"]):
 		var button := _button(transfers, "Send %s · %d in reserve" % [CardDB.card(id)["name"], planet["cards"].count(id)], func():
 			if run.transfer(faction, world, [id], _fleet_index):
@@ -399,25 +448,88 @@ func _show_production() -> void:
 				modal.close()
 				_show_production())
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		transfer_buttons[id] = button
 	var refresh := func():
 		info.text = "%d credits · %d reserves · %d probes\n%d / 2 building slots · 1 factory maximum" % [
 			run.state["factions"][faction]["credits"], planet["cards"].size(), planet["probes"], planet["facilities"].size()]
 		for item in options:
 			options[item].disabled = not run.can_buy(faction, world, item)
+		catalog.visible = not run._factory(world).is_empty()
+		catalog.disabled = not run._can_manage(faction, world)
 		var task := run.fleet(faction, _fleet_index)
 		replacement.visible = not task["leader_alive"] and not task["world"].is_empty()
 		replacement.disabled = not run.can_send_replacement(faction, world, _fleet_index)
 		training.visible = "training" in planet["facilities"]
 		training.disabled = not run.idle(task) or task["world"] != world or int(planet["owner"]) != faction or run._contested(world)
 		var reachable: bool = run.idle(task) and (task["world"] == world or not run.path(faction, world, task["world"], true).is_empty())
-		for button in transfers.get_children():
-			button.disabled = not reachable or task["cards"].size() >= ConquestRun.FLEET_LIMIT or int(planet["owner"]) != faction or run._contested(world)
+		var eligible := run.transfer_candidates(faction, _fleet_index, planet["cards"])
+		for id in transfer_buttons:
+			var button: Button = transfer_buttons[id]
+			button.disabled = not reachable or not id in eligible or int(planet["owner"]) != faction or run._contested(world)
+			button.tooltip_text = "Fleet or card copy limit reached" if not id in eligible else ""
 	Conquest.changed.connect(refresh)
 	modal.tree_exiting.connect(func():
 		if Conquest.changed.is_connected(refresh):
 			Conquest.changed.disconnect(refresh))
 	refresh.call()
 	modal.add_action(SabaccButton.make("Back", SabaccButton.Style.GHOST)).pressed.connect(modal.close)
+
+
+func _show_factory(world: String, page := 0, local := false) -> void:
+	var run := Conquest.run
+	var faction := int(run.state["player"])
+	var cards := run.factory_catalog(faction, world, local)
+	var factory := run._factory(world)
+	var modal := ModalPanel.open(self, 650, Sabacc.C_GOLD)
+	var factory_name: String = ConquestRun.FACILITIES[factory][0] if not factory.is_empty() else "Factory"
+	if local:
+		factory_name = "Local recruits"
+	modal.text("%s · %s" % [GALAXY.display_name(world), factory_name], 25)
+	var info := modal.text("", 17)
+	if cards.is_empty():
+		modal.text("No cards available to manufacture.", 17)
+	var buttons := {}
+	var offset := page * 10
+	for count in [2, 3, 2, 3]:
+		if offset >= cards.size():
+			break
+		var row := HBoxContainer.new()
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.add_theme_constant_override("separation", 8)
+		modal.add(row)
+		for id in cards.slice(offset, offset + count):
+			var preview := FACTORY_CARD.new()
+			preview.card = CardDB.card(id)
+			preview.credits = run.manufacture_price(id)
+			preview.pressed.connect(func():
+				if run.manufacture(faction, world, id, local):
+					Conquest.persist())
+			row.add_child(preview)
+			buttons[id] = preview
+		offset += count
+	var refresh := func():
+		info.text = "%d credits · %d/%d reserves · Tap a card to manufacture" % [
+			run.state["factions"][faction]["credits"], run.state["worlds"][world]["cards"].size(), ConquestRun.RESERVE_LIMIT]
+		for id in buttons:
+			buttons[id].disabled = not run.can_manufacture(faction, world, id, local)
+			buttons[id].queue_redraw()
+	Conquest.changed.connect(refresh)
+	modal.tree_exiting.connect(func():
+		if Conquest.changed.is_connected(refresh):
+			Conquest.changed.disconnect(refresh))
+	refresh.call()
+	var navigation := HBoxContainer.new()
+	modal.add_action(navigation)
+	for delta in [-1, 1]:
+		var button := _button(navigation, "Previous" if delta < 0 else "Next", func():
+			modal.close()
+			_show_factory(world, page + delta, local))
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.disabled = page + delta < 0 or (page + delta) * 10 >= cards.size()
+	var back := _button(navigation, "Back", func():
+		modal.close()
+		_show_production())
+	back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 
 func _show_training(world: String, perk := "", unit_id := "") -> void:

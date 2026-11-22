@@ -12,6 +12,9 @@ func _init() -> void:
 		var campaign := ConquestRun.start(lib, 0, count, 41)
 		check(campaign.state["worlds"].size() == count, "world count %d" % count)
 		check(campaign.fleet(0)["cards"].size() == 21, "starting fleet")
+		for faction in ConquestGalaxy.FACTIONS.size():
+			var cards: Array = campaign.fleet(faction)["cards"]
+			check(campaign._fitted_cards([], cards) == cards, "starting fleet obeys duplicate caps")
 		var found := {"Coruscant": true}
 		var pending := ["Coruscant"]
 		while not pending.is_empty():
@@ -104,8 +107,13 @@ func _init() -> void:
 	check(m.winner >= 0 and not run.finish_battle(ai_key, m, false).is_empty(), "a bot-only invasion plays to a result in the card engine")
 	test_expanded_conquest()
 	test_era_production()
+	test_fleet_copy_limits()
+	test_factory_catalog()
+	test_playable_commander()
 	test_command_training()
 	test_command_retreat()
+	test_voluntary_withdrawal()
+	test_local_catalogs()
 	test_final_capture()
 	print("CONQUEST: %d checks, %d failed" % [checks, failures])
 	quit(1 if failures else 0)
@@ -166,6 +174,123 @@ func check(value: bool, description: String) -> void:
 		printerr("FAIL: " + description)
 
 
+func test_fleet_copy_limits() -> void:
+	var run := ConquestRun.start(lib, 1, 16, 71)
+	var world := "Yavin"
+	var sibling := "Coruscant"
+	var sites: Dictionary = run.state["worlds"]
+	sites[sibling]["owner"] = 1
+	for side in run.state["factions"]:
+		side["next_order"] = 9999
+	var task := run.fleet(1)
+	task["cards"] = ["SOR_239", "SOR_239", "SOR_196"]
+	sites[world]["cards"] = ["SEC_250", "SOR_196"]
+	sites[sibling]["cards"] = ["SEC_250", "SOR_239"]
+	check(not run.transfer(1, world, ["SOR_196"]), "a unique card has a one-copy fleet cap")
+	check(run.transfer(1, sibling, ["SEC_250"]), "a reprint can fill the third non-unique spot")
+	check(not run.transfer(1, world, ["SEC_250"]) and not run.transfer(1, sibling, ["SOR_239"]),
+		"the in-flight third copy blocks a fourth from either world")
+	check(sites[world]["cards"] == ["SEC_250", "SOR_196"], "blocked transfers leave reserves alone")
+	run.tick(40)
+	check(task["cards"].size() == 4 and task["cards"].back() == "SEC_250", "the legal reserve joins the fleet")
+	run.state["shipments"].append({"faction": 1, "fleet": 0, "world": world, "cards": ["SOR_239"], "route": []})
+	run._deliver(run.state["shipments"][0])
+	check(task["cards"].size() == 4 and sites[world]["cards"].count("SOR_239") == 1,
+		"excess copies from legacy shipments stay in planetary reserve")
+	task["cards"].append_array(["SOR_239", "SOR_196"])
+	var saved_reserve: int = sites[world]["cards"].size()
+	run = ConquestRun.new(lib, JSON.parse_string(JSON.stringify(run.state)))
+	check(run.fleet(1)["cards"].size() == 4 and run.state["worlds"][world]["cards"].size() == saved_reserve + 2,
+		"existing saves move excess copies to planetary reserves")
+	run.state["worlds"][world]["cards"] = ["SOR_239", "SOR_239", "SEC_250", "SEC_250",
+		"SOR_196", "SOR_196", "SOR_095", "SOR_095", "SOR_095"]
+	check(run.commissioning_cards(world).size() == 7, "commissioning counts only roster-eligible copies")
+
+
+func test_factory_catalog() -> void:
+	var run := ConquestRun.start(lib, 0, 8, 74)
+	var home := "Coruscant"
+	check(run.factory_catalog(0, home).is_empty() and not run.manufacture(0, home, "SOR_128"),
+		"Manufacturing requires a factory")
+	check(run.buy(0, home, "troopers"), "Build a barracks for direct manufacturing")
+	var catalog := run.factory_catalog(0, home)
+	check(not catalog.is_empty() and catalog.all(func(id): return run._fits_factory(lib.get_card(id), "troopers")),
+		"The catalog contains the factory's actual products")
+	var reserves: Array = run.state["worlds"][home]["cards"]
+	var count := reserves.size()
+	var credits: int = run.state["factions"][0]["credits"]
+	var id: String = catalog[0]
+	check(not run.manufacture(0, home, "SOR_231") and not run.manufacture(1, home, id),
+		"Out-of-catalog and foreign factory purchases are rejected")
+	check(run.manufacture(0, home, id) and reserves.size() == count + 1 and reserves.back() == id
+		and int(run.state["factions"][0]["credits"]) == credits - run.manufacture_price(id),
+		"Manufacturing adds the selected card and charges its listed price")
+	run.state["factions"][0]["credits"] = 0
+	check(not run.manufacture(0, home, id), "Cannot manufacture without enough credits")
+	run.state["factions"][0]["credits"] = 1000
+	reserves.resize(ConquestRun.RESERVE_LIMIT)
+	check(not run.manufacture(0, home, id), "A full reserve blocks manufacturing")
+
+
+func test_playable_commander() -> void:
+	var run := ConquestRun.start(lib, 0, 8, 74)
+	run._begin_battle(0, "Yavin")
+	var m := Match.new()
+	m.setup(lib, run.battle_config(run.player_battle(), false))
+	while not m.pending.is_empty():
+		AiBot.choose(m)
+	var vader: CardInst = m.players[0].leader
+	var luke: CardInst = m.players[1].leader
+	check(vader == m.players[0].base and vader.in_play() and vader.deployed and not vader.exhausted,
+		"The primary commander starts deployed and ready as the only base")
+	check(m.trigger_sources().count(vader) == 1 and m.all_units().count(vader) == 1
+		and Effects.candidates(m, {"kind": "unit_or_base"}, {"ctl": 0}).count(vader) == 1,
+		"The command card is a single source and choice target")
+	check(vader.abilities_with("action").size() == 1 and vader.abilities_with("on_attack").size() == 1
+		and not {"a": "deploy"} in m.legal_actions(0), "The tactical commander can use front and deployed abilities without another deployment")
+	var foe := m._new_inst("SOR_046", 1)
+	m._put_in_play(foe, "ground", false)
+	var shot := {"a": "attack", "uid": vader.uid, "target": foe.uid}
+	check(shot in m.legal_actions(0) and m.do_action(shot), "Commanders can attack a normal unit")
+	if not m.pending.is_empty():
+		m.submit_choice([])
+	check(vader.exhausted and vader.damage == foe.printed_power() and foe.damage == vader.printed_power(),
+		"Attacking a unit deals and receives normal combat damage")
+	var xwing := m._new_inst("SOR_237", 1)
+	m._put_in_play(xwing, "space", false)
+	check(vader.uid in m.attack_targets(xwing) and vader.uid in m.attack_targets(foe),
+		"Both arenas can attack the commander as their opposing base")
+	var armor := m._new_inst("SOR_069", 0)
+	check(vader in Effects.upgrade_targets(m, 0, armor), "A regular upgrade can target the commander")
+	var max_hp := vader.max_hp()
+	m.attach_upgrade(armor, vader, {"pre_equipped": true})
+	check(armor.attached_to == vader and armor in vader.upgrades and vader.max_hp() == max_hp + armor.printed_hp(),
+		"Attached upgrades modify the same health used by the base")
+	var before := vader.damage
+	m.begin_attack(xwing, vader)
+	m.pump()
+	check(vader.damage == before + xwing.printed_power() and xwing.damage == 0 and luke.damage == 0,
+		"An ordinary base attack damages the commander without defensive retaliation")
+	m.attach_token(vader, "shield")
+	check(m.deal_damage(m.players[0].base, 4, null) == 0 and vader.shield_count() == 0,
+		"A shield attached to the unit protects it from base damage")
+	m = Match.new()
+	m.setup(lib, run.battle_config(run.player_battle(), false))
+	while not m.pending.is_empty():
+		AiBot.choose(m)
+	vader = m.players[0].leader
+	luke = m.players[1].leader
+	var trooper := m._new_inst("SOR_128", 0)
+	trooper.zone = "hand"
+	m.players[0].hand.append(trooper)
+	check(m.do_action({"a": "play", "uid": trooper.uid}) and m.do_action({"a": "pass"}),
+		"A Villainy card primes the commander's front-side action")
+	check(m.do_action({"a": "ability", "uid": vader.uid, "idx": 0})
+		and m.submit_choice([luke.uid]) and m.submit_choice([luke.uid])
+		and vader.exhausted and luke.damage == 2,
+		"The front-side action resolves from the base slot against both unit and base roles")
+
+
 func test_command_training() -> void:
 	var run := ConquestRun.start(lib, 0, 8, 72)
 	for side in run.state["factions"]:
@@ -203,7 +328,7 @@ func test_command_training() -> void:
 	var ps: PlayerState = m.players[0]
 	while not m.pending.is_empty():
 		AiBot.choose(m)
-	var tie: CardInst = ps.units[0]
+	var tie: CardInst = ps.units.filter(func(unit): return unit.id == "SOR_231")[0]
 	check(ps.base.max_hp() == 40 and ps.leader.max_hp() == 40 and ps.resources.size() == 4,
 		"training health and starting resources persist across save and setup")
 	check(tie.id == "SOR_231" and not tie.exhausted and tie.shield_count() == 1
@@ -211,8 +336,7 @@ func test_command_training() -> void:
 		"opening unit starts ready with attached equipment, Experience and Shield")
 	check(m.deal_damage(ps.base, 5, null) == 0 and ps.base.damage == 0, "trained command shield absorbs the first hit")
 	m.deal_damage(ps.base, 16, null)
-	m._deploy_leader(0)
-	check(ps.leader.in_play() and ps.leader.remaining_hp() == 24, "deployment retains command wounds")
+	check(ps.leader.in_play() and ps.leader.remaining_hp() == 24, "The deployed commander uses live base health")
 	m.deal_damage(ps.leader, 3, null)
 	m.heal(ps.leader, 2)
 	check(ps.base.damage == 17 and ps.leader.damage == 17, "deployed commander damage and healing use the same pool")
@@ -250,11 +374,11 @@ func test_command_retreat() -> void:
 	var key := run.player_battle()
 	var m := Match.new()
 	m.setup(lib, run.battle_config(key, false))
-	check(m.players[0].base.max_hp() == 30 and m.players[0].base.data.get("conquest_command", false),
+	check(m.players[0].base.max_hp() == 30 and m.players[0].base.is_commander(),
 		"untrained fleet command starts at 30 HP")
 	m.deal_damage(m.players[0].base, 30, null)
 	m._state_based()
-	check(m.winner == 1 and m.roster_leader_lost[0], "undeployed commander death ends the match")
+	check(m.winner == 1 and m.roster_leader_lost[0], "Depleting commander health ends the match")
 	var survivors: Array = run.fleet(0)["cards"].duplicate()
 	var result := run.finish_battle(key, m, true)
 	check(result["leader_lost"] and run.fleet(0)["retreating"] and run.fleet(0)["route"] == ["Corellia"],
@@ -278,14 +402,13 @@ func test_command_retreat() -> void:
 	run.tick(40)
 	m = Match.new()
 	m.setup(lib, run.battle_config(run.player_battle(), false))
-	m._deploy_leader(0)
 	m.defeat(m.players[0].leader)
 	m._state_based()
 	check(m.winner == 1 and m.roster_leader_lost[0], "direct defeat of the deployed commander also ends battle")
 
 
 func test_era_production() -> void:
-	var campaign := ConquestRun.start(lib, 0, 16, 73)
+	var campaign := ConquestRun.start(lib, 0, 32, 73)
 	var worlds: Dictionary = campaign.state["worlds"]
 	var funds: Dictionary = campaign.state["factions"][0]
 	for group in [["Coruscant", "officers"], ["Corellia", "government"], ["Naboo", "armory"]]:
@@ -344,6 +467,97 @@ func test_era_production() -> void:
 	check(battle.do_action({"a": "ability", "uid": leader.uid, "idx": 0}) and battle.pending["options"] == [droid.uid]
 		and not battle.submit_choice([trooper.uid]) and battle.submit_choice([droid.uid]) and droid.upgrades.size() == 1,
 		"Kalani can give Experience to a Droid in the real battle engine")
+
+
+func test_voluntary_withdrawal() -> void:
+	var run := ConquestRun.start(lib, 0, 8, 81)
+	for side in run.state["factions"]:
+		side["next_order"] = 9999
+	var worlds: Dictionary = run.state["worlds"]
+	worlds["Corellia"]["owner"] = 0
+	var task := run.fleet(0)
+	task["world"] = "Corellia"
+	run._begin_battle(0, "Naboo")
+	var key := run.player_battle()
+	check(run.withdrawal_plan(key) == ["Corellia"], "an invading commander can return to the departure planet")
+	var cards: Array = task["cards"].duplicate()
+	var loss: String = cards.pop_front()
+	var m := Match.new()
+	m.setup(lib, run.battle_config(key, true))
+	_ready_to_act(m)
+	m.roster_losses[0].append(loss)
+	m.deal_damage(m.players[0].base, 16, null)
+	var result := run.withdraw_player(key, m)
+	check(result.get("destination") == "Corellia" and not result["leader_lost"] and result["losses"] == 1
+		and task["cards"] == cards and task["command_damage"] == 16 and task["leader_alive"],
+		"retreat keeps surviving cards and existing commander wounds")
+	check(task["world"] == "Naboo" and task["route"] == ["Corellia"] and worlds["Naboo"]["owner"] == -1,
+		"retreat travels through hyperspace without occupying the target")
+	check(run.finish_battle(key, m, true).is_empty(), "settled retreat cannot be paid or processed twice")
+	run.tick(60)
+	check(run.idle(task) and task["world"] == "Corellia" and task["command_damage"] == 6,
+		"returning fleet can rest, reinforce and move again")
+
+	task["last_world"] = "Coruscant"
+	run._begin_battle(1, "Corellia")
+	key = run.player_battle()
+	check(run.withdrawal_plan(key) == ["Coruscant"], "the defender retreats to its previous friendly planet")
+	worlds["Coruscant"]["owner"] = 1
+	check(run.withdrawal_plan(key).is_empty(), "a fleet cannot withdraw when every other friendly planet has fallen")
+	worlds["Naboo"]["owner"] = 0
+	m = Match.new()
+	m.setup(lib, run.battle_config(key, true))
+	_ready_to_act(m)
+	result = run.withdraw_player(key, m)
+	check(result.get("destination") == "Naboo" and worlds["Corellia"]["owner"] == 1
+		and task["cards"] == cards and task["leader_alive"],
+		"a withdrawing defender yields the planet and falls back to another friendly world when needed")
+
+
+func _ready_to_act(m: Match) -> void:
+	for i in 10:
+		if m.can_act(0):
+			return
+		if m.pending.is_empty():
+			AiBot.act(m)
+		else:
+			AiBot.choose(m)
+
+
+func test_local_catalogs() -> void:
+	var run := ConquestRun.start(lib, 0, 32, 94)
+	var worlds: Dictionary = run.state["worlds"]
+	for item in [
+		[0, "Lothal", ["SOR_180", "SEC_136", "IC27_024", "KYB_007"]],
+		[1, "Lothal", ["SOR_050", "SOR_188", "SEC_155"]],
+		[0, "Endor", ["SOR_128", "SOR_084", "ASH_143"]],
+		[1, "Endor", ["ASH_166", "ASH_034"]],
+		[2, "Naboo", ["LOF_192", "SEC_120", "LOF_247"]],
+		[2, "Dathomir", ["LOF_059", "LOF_160", "ASH_050"]],
+		[2, "Bespin", ["LAW_108", "SOR_063"]],
+		[2, "Mandalore", ["SHD_258"]],
+		[2, "Tatooine", ["HMW_221", "HMW_224"]],
+		[2, "Geonosis", ["TWI_081", "TWI_230"]],
+		[2, "Kamino", ["TWI_241", "TWI_111"]],
+	]:
+		var faction: int = item[0]
+		var world: String = item[1]
+		worlds[world]["owner"] = faction
+		worlds[world]["cards"] = []
+		run.state["factions"][faction]["credits"] = 500
+		var catalog := run.factory_catalog(faction, world, true)
+		var missing: Array = item[2].filter(func(id): return not id in catalog)
+		check(missing.is_empty(), "%s offers the appropriate local printings (missing %s)" % [world, str(missing)])
+		var id: String = item[2][0]
+		check(run.manufacture(faction, world, id, true) and worlds[world]["cards"] == [id],
+			"local purchase produces the selected card on " + world)
+	check("LAW_003" in run.eligible_commanders(0, "Lothal")
+		and not "LAW_003" in run.eligible_commanders(1, "Lothal")
+		and "HMW_014" in run.eligible_commanders(1, "Endor"), "faction-specific commanders follow the roster")
+	check("KYB_006" in run.eligible_commanders(2, "Tatooine") and "KYB_008" in run.eligible_commanders(2, "Dathomir"),
+		"local Jawa and Nightsister commanders are commissionable")
+	check(ConquestGalaxy.territory_icon("Endor", 0) == "endor-empire"
+		and ConquestGalaxy.territory_icon("Lothal", 1) == "lothal-rebels", "planet insignia follow the occupier")
 
 
 func test_final_capture() -> void:

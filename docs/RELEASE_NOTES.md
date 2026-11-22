@@ -1,9 +1,11 @@
-SWU Sabacc 0.7.26
+SWU Sabacc 0.7.27
 
-- Galactic Conquest fleets fight without base cards or aspect penalties. Commanders start with 30 HP, carry damage between battles, and recover 10 HP each minute outside battle.
-- When a commander falls, surviving cards retreat to the nearest friendly planet and defend there until a replacement commander arrives by hyperspace.
-- Build a Training Center to purchase permanent equipment, Experience and Shield tokens, one opening unit, increased command HP, and extra starting resources.
-- Officers' Quarters, Government HQ, and Armories produce officers, officials, and equipment. Occupied lore worlds offer era-appropriate local units and commanders.
-- The Android APK uses version code 36 and the existing signing identity. Extract the Windows ZIP and keep the EXE and PCK together.
+- Galactic Conquest commanders occupy a larger horizontal Sabacc card between the hand and arena. They can attack, take damage, use abilities, and receive upgrades.
+- Retreat during your action to return the commander and surviving fleet to their departure planet. If it has fallen, the fleet can withdraw to another friendly planet. Damage carries over and the commander heals between battles.
+- Hyperspace lanes glow in the controlling faction's color. New animated insignia mark faction territory and worlds with local units.
+- Planets use supplied orbital art on the galaxy map and in battle. Drag and zoom the map with a mouse or pinch on mobile.
+- Factories and local rosters show horizontal Sabacc cards with individual prices. Lothal and Endor offer faction-specific units and leaders. Naboo, Tatooine, Dathomir, Bespin, Mandalore, Geonosis, and Kamino offer local recruits.
+- Fleet decks allow up to three copies of any non-unique card and one copy of each unique card.
+- The Android APK uses version code 37 and the existing signing identity. Extract the Windows ZIP and keep the EXE and PCK together.
 
 Unofficial, non-commercial fan project. Star Wars and Star Wars: Unlimited characters, card text and artwork belong to Lucasfilm Ltd. and Fantasy Flight Games.

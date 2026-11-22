@@ -11,7 +11,7 @@ var controller := 0
 var zone := "deck"          # deck hand discard resource ground space base leader upgrade removed
 var exhausted := false
 var damage := 0
-var command_hp := 0         # Conquest leaders share this fixed HP pool with their command target.
+var command_hp := 0         # Conquest command health before in-battle modifiers.
 var command_shields := 0
 var upgrades: Array = []    # CardInst attached to this unit
 # The unit owns its upgrades. A strong reference back to the unit forms a
@@ -76,6 +76,14 @@ func title() -> String:
 
 func is_leader() -> bool:
 	return data.get("type", "") == "leader"
+
+
+func is_commander() -> bool:
+	return command_hp > 0 and is_leader()
+
+
+func is_base() -> bool:
+	return zone == "base" or is_commander()
 
 
 func is_leader_unit() -> bool:
@@ -174,7 +182,7 @@ func printed_power() -> int:
 	if is_pilot_upgrade():
 		return int(data["pilot"]["power"])
 	if deployed:
-		return int(data.get("leader_unit", {}).get("power", 0))
+		return int(data.get("leader_unit", {}).get("power", 2 if is_commander() else 0))
 	return int(data.get("power", 0))
 
 
@@ -204,6 +212,10 @@ func abilities() -> Array:
 	for a in src:
 		if not a.get("granted", false):
 			out.append(a)
+	if is_commander() and deployed:
+		for a in data.get("abilities", []):
+			if a.get("trigger") == "action" and not a.get("granted", false) and not a in out:
+				out.append(a)
 	for modifier in mods:
 		out.append_array(modifier.get("abilities", []))
 	for u in upgrades:
@@ -285,7 +297,7 @@ func keyword_list() -> Array:
 
 
 func shield_count() -> int:
-	var n := 0
+	var n := command_shields
 	for u in upgrades:
 		if u.data.get("name", "") == "Shield":
 			n += 1
@@ -311,11 +323,11 @@ func power(attacking := false) -> int:
 		if game and game.attack.get("a") == uid:
 			var defender := game.card(game.attack.get("t", 0))
 			if defender:
-				p += _attack_power_modifier(defender)
+				p += _attack_power_modifier(defender, game.attack.get("base_attack", defender.zone == "base"))
 	return maxi(p, 0)
 
 
-func _attack_power_modifier(defender: CardInst) -> int:
+func _attack_power_modifier(defender: CardInst, base_attack: bool) -> int:
 	var total := 0
 	for rule in defender.abilities_with("constant"):
 		if rule.get("flag") == "enemy_attack_power":
@@ -323,7 +335,7 @@ func _attack_power_modifier(defender: CardInst) -> int:
 	for rule in abilities_with("constant"):
 		match rule.get("flag"):
 			"attack_base_bonus":
-				if defender.zone == "base":
+				if base_attack:
 					total += int(rule["p"])
 			"attack_force_bonus":
 				if defender.has_trait("force"):
@@ -332,9 +344,7 @@ func _attack_power_modifier(defender: CardInst) -> int:
 
 
 func max_hp() -> int:
-	if command_hp > 0:
-		return command_hp
-	var h := printed_hp()
+	var h := command_hp if command_hp > 0 else printed_hp()
 	h += _continuous("h")
 	for u in upgrades:
 		if u.data.get("name", "") != "Shield":

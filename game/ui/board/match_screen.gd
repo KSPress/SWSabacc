@@ -24,6 +24,7 @@ var hud: Array = []                  # SideHud x2 (index = player)
 var hand: HandView
 var enemy_hand_label
 var pass_btn: SabaccButton
+var retreat_btn: SabaccButton
 var tray: BoxContainer
 var coin: TableTokens.InitiativeCoin
 var force_orbs: Array = []
@@ -41,6 +42,8 @@ const PORTRAIT_UNITS_PER_ROW := 4
 var arena_bands: Dictionary = {}     # "ground" -> Rect2
 var _arena_labels: Dictionary = {}
 var _hand_top := 0.0
+var _command_slot := Rect2()
+var _withdrawal_result := {}
 
 var _selected: UnitToken
 var _arrow: Fx.TargetArrow
@@ -146,6 +149,11 @@ func _build() -> void:
 	pass_btn.custom_minimum_size = Vector2(150, 64)
 	pass_btn.pressed.connect(_on_pass)
 	ui_layer.add_child(pass_btn)
+	if params.get("mode") == "conquest":
+		retreat_btn = SabaccButton.make("Retreat", SabaccButton.Style.GHOST)
+		retreat_btn.disabled = true
+		retreat_btn.pressed.connect(_open_retreat)
+		ui_layer.add_child(retreat_btn)
 	var log_btn := SabaccButton.make("", SabaccButton.Style.GHOST, "log")
 	log_btn.custom_minimum_size = Vector2(56, 56)
 	log_btn.name = "LogBtn"
@@ -208,10 +216,13 @@ func _build() -> void:
 func _layout() -> void:
 	var vs := get_viewport_rect().size
 	portrait = vs.y >= vs.x
+	var has_commander: bool = m.players[HUMAN].base.is_commander()
+	var command_h := clampf(vs.y * (0.17 if portrait else 0.30), 70, 212) if has_commander else 0.0
+	var command_w := minf(vs.x * (0.55 if portrait else 0.31), 340.0)
 	var arena_area: Rect2
 	if portrait:
 		var top_h := vs.y * 0.105
-		var hud_h := vs.y * 0.1
+		var hud_h := command_h if has_commander else vs.y * 0.1
 		var hand_h := vs.y * 0.13
 		hud[1].arrange(Rect2(Vector2(10, 8), Vector2(vs.x - 20, top_h - 8)), true)
 		hud[0].arrange(Rect2(Vector2(10, vs.y - hand_h - hud_h), Vector2(vs.x - 20, hud_h - 6)), true)
@@ -243,7 +254,7 @@ func _layout() -> void:
 		var hand_h := vs.y * 0.2
 		hud[1].arrange(Rect2(Vector2(12, 12), Vector2(side_w, vs.y * 0.45)), false)
 		hud[0].arrange(Rect2(Vector2(12, vs.y * 0.52), Vector2(side_w, vs.y * 0.45)), false)
-		arena_area = Rect2(Vector2(side_w + 30, 50), Vector2(vs.x - side_w - right_w - 60, vs.y - hand_h - 60))
+		arena_area = Rect2(Vector2(side_w + 30, 50), Vector2(vs.x - side_w - right_w - 60, vs.y - hand_h - 60 - command_h))
 		_hand_top = vs.y - hand_h
 		hand.card_scale = clampf(hand_h * 1.25 / CardView.PORTRAIT.y, 0.4, 1.0)
 		hand.position = Vector2(side_w + 30, vs.y - hand_h)
@@ -253,7 +264,7 @@ func _layout() -> void:
 		pass_btn.custom_minimum_size.x = right_w
 		pass_btn.size = Vector2(right_w, 64)
 		tray.vertical = true
-		tray.position = Vector2(rx, vs.y * 0.5 + 50)
+		tray.position = Vector2(rx, vs.y * 0.5 + (108 if retreat_btn else 50))
 		tracker.position = Vector2(side_w + 30, 12)
 		tracker.size = Vector2(arena_area.size.x, 26)
 		enemy_hand_label.position = Vector2(rx, 20)
@@ -264,6 +275,19 @@ func _layout() -> void:
 		prompt_bar.size = Vector2(arena_area.size.x, 70)
 		log_panel.position = Vector2(vs.x * 0.25, vs.y * 0.1)
 		log_panel.size = Vector2(vs.x * 0.5, vs.y * 0.7)
+	_command_slot = Rect2(Vector2((vs.x - command_w) * 0.5, _hand_top - command_h), Vector2(command_w, command_h - 6))
+	if has_commander and portrait:
+		var rhs: float = _command_slot.end.x + 6.0 - hud[0].position.x
+		var remaining: float = hud[0].size.x - rhs
+		hud[0].res_view.position = Vector2(rhs, 2)
+		hud[0].res_view.size = Vector2(remaining, minf(48, command_h * 0.34))
+		hud[0].info.position = Vector2(rhs, hud[0].res_view.size.y + 4)
+		hud[0].info.size.x = remaining
+	if retreat_btn:
+		var width := minf(_command_slot.position.x - 20, 150.0) if portrait else pass_btn.size.x
+		retreat_btn.custom_minimum_size = Vector2(width, 44)
+		retreat_btn.size = Vector2(width, 44)
+		retreat_btn.position = Vector2(10, _hand_top - maxf(command_h * 0.68, 45)) if portrait else Vector2(pass_btn.position.x, pass_btn.position.y + 84)
 	_arena_area = arena_area
 	hand.spawn_from = hud[0].global_position + hud[0].size
 	coin.position = coin_pos(coin.holder)
@@ -271,6 +295,8 @@ func _layout() -> void:
 		var br: Rect2 = hud[i].base_view.get_rect()
 		var orb: Control = force_orbs[i]
 		orb.position = hud[i].position + br.position + Vector2(br.size.x - orb.size.x - 4, -orb.size.y * 0.35 if i == 0 else br.size.y * 0.3)
+		if i == HUMAN and has_commander:
+			orb.position = Vector2(_command_slot.end.x - orb.size.x, _command_slot.position.y)
 	_layout_arenas()
 	_position_tokens(false)
 	hand.layout()
@@ -291,7 +317,7 @@ func _layout_arenas() -> void:
 		var total := 0.0
 		for a in order:
 			for p in [1, 0]:
-				var count: int = m.players[p].units_in(a).size()
+				var count := _arena_units(p, a).size()
 				var weight := maxf(1.0, ceili(count / float(PORTRAIT_UNITS_PER_ROW)))
 				weights[a + "_" + str(p)] = weight
 				total += weight
@@ -351,7 +377,7 @@ func _token_scale(arena: String, player: int) -> float:
 			continue
 		var r: Rect2 = arena_rects[k]
 		var parts: PackedStringArray = k.split("_")
-		var count: int = m.players[int(parts[1])].units_in(parts[0]).size()
+		var count := _arena_units(int(parts[1]), parts[0]).size()
 		var reserved_columns := 4 if portrait and m.rules.arenas.size() > 1 else 3
 		var columns := _arena_columns(r, maxi(count, reserved_columns))
 		var rows := maxi(1, ceili(count / float(columns)))
@@ -366,15 +392,31 @@ func _arena_columns(rect: Rect2, count: int) -> int:
 	return clampi(floori((rect.size.x - 24.0) / (UnitToken.SIZE.x * 0.58 + 8.0)), 1, maxi(1, count))
 
 
+func _arena_units(player: int, arena: String) -> Array:
+	return m.players[player].units_in(arena).filter(func(unit): return not unit.is_commander())
+
+
 func _position_tokens(animate := true) -> void:
 	for p in 2:
+		var commander: UnitToken = tokens.get(m.players[p].base.uid)
+		if commander and commander.inst.is_commander():
+			var slot: Rect2 = _command_slot if p == HUMAN else hud[p].base_view.get_global_rect()
+			var layers := commander.inst.upgrades.any(func(upgrade): return not upgrade.is_token)
+			var token_height := UnitToken.SIZE.y if layers else UnitToken.FACE.end.y + 8.0
+			var scale_factor := minf((slot.size.x - 6.0) / UnitToken.SIZE.x, (slot.size.y - 2.0) / token_height)
+			commander.custom_minimum_size.y = token_height
+			commander.size.y = token_height
+			commander.scale = Vector2.ONE * scale_factor
+			var at := slot.get_center() - (commander.size * 0.5 - UnitToken.FACE_CENTER) * scale_factor
+			commander.home_pos = board_layer.get_global_transform().affine_inverse() * at - commander.pivot_offset
+			commander.position = commander.home_pos
 		for a in m.rules.arenas:
 			var key: String = a + "_" + str(p)
 			if not arena_rects.has(key):
 				continue
 			var r: Rect2 = arena_rects[key]
 			var sc := _token_scale(a, p)
-			var units: Array = m.players[p].units_in(a)
+			var units := _arena_units(p, a)
 			var n := units.size()
 			var columns := _arena_columns(r, n)
 			var rows := ceili(n / float(columns))
@@ -770,7 +812,7 @@ func _ensure_token(c: CardInst, animate: bool) -> UnitToken:
 	tok.drag_released.connect(_on_token_drag_released)
 	var sc := _token_scale(c.zone, c.controller)
 	tok.scale = Vector2(sc, sc)
-	if animate:
+	if animate and not c.is_commander():
 		tok.pop_in()
 		create_tween().tween_property(tok, "scale", Vector2(sc, sc), Sabacc.anim(0.4)).set_trans(Tween.TRANS_BACK)
 	return tok
@@ -849,6 +891,10 @@ func _sync() -> void:
 	# controls
 	var my_turn := m.can_act(HUMAN)
 	pass_btn.disabled = not my_turn
+	if retreat_btn:
+		var route := Conquest.run.withdrawal_plan(params["battle"]) if Conquest.run else []
+		retreat_btn.disabled = not my_turn or route.is_empty()
+		retreat_btn.tooltip_text = "No available route to a friendly planet." if route.is_empty() else "Withdraw to %s." % ConquestGalaxy.display_name(route.back())
 	pass_btn.breathe = my_turn
 	pass_btn.text = ("END TURN" if m.rules.turn_mode == RuleSet.TurnMode.BURST else "PASS") if my_turn else "ENEMY…"
 	if not m.pending.is_empty() and m.pending["player"] == HUMAN:
@@ -1056,6 +1102,9 @@ func _on_token_pressed(tok: UnitToken) -> void:
 	if tok.inst.controller == HUMAN:
 		var attacks := _legal_for(tok.inst.uid, "attack")
 		var abilities := _legal_for(tok.inst.uid, "ability")
+		if tok.inst.is_commander():
+			for upgrade in tok.inst.upgrades:
+				abilities.append_array(_legal_for(upgrade.uid, "ability"))
 		if abilities.size() > 0:
 			_unit_menu(tok, attacks.size() > 0, abilities)
 			return
@@ -1131,7 +1180,7 @@ func _target_at(at: Vector2) -> int:
 	var legal := m.attack_targets(_selected.inst)
 	for uid in tokens:
 		var tk: UnitToken = tokens[uid]
-		if uid in legal and Rect2(tk.global_position, UnitToken.SIZE * tk.scale).has_point(at):
+		if uid in legal and tk.get_global_rect().has_point(at):
 			return uid
 	var b: CardInst = m.players[1].base
 	if b.uid in legal and hud[1].base_view.get_global_rect().has_point(at):
@@ -1302,8 +1351,10 @@ func _unit_menu(tok: UnitToken, can_attack: bool, abilities: Array) -> void:
 	if can_attack:
 		opts.append(["Attack", {"select": tok.inst.uid}])
 	for a in abilities:
-		var ab: Dictionary = tok.inst.abilities_with("action")[int(a["idx"])]
-		opts.append([ab.get("text", "Action"), a])
+		var source := m.card(a["uid"])
+		var ab: Dictionary = source.abilities_with("action")[int(a["idx"])]
+		var label: String = ab.get("text", "Action")
+		opts.append([label if source == tok.inst else "%s · %s" % [source.name(), label], a])
 	opts.append(["Inspect", {"inspect": tok.inst.uid}])
 	_popup_menu(tok.get_global_rect(), opts)
 
@@ -1341,6 +1392,8 @@ func _popup_menu(anchor: Rect2, opts: Array) -> void:
 				InspectOverlay.open(self, ci.id, anchor, ci)
 			elif act.has("select"):
 				_select_attacker(tokens[act["select"]])
+			elif act.has("retreat"):
+				_confirm_retreat()
 			else:
 				_act(act))
 		v.add_child(b)
@@ -1432,6 +1485,26 @@ func _toggle_log() -> void:
 		UIKit.pop_in(log_panel)
 
 
+func _open_retreat() -> void:
+	if busy or not m.can_act(HUMAN) or not Conquest.run:
+		return
+	var route := Conquest.run.withdrawal_plan(params["battle"])
+	if not route.is_empty():
+		_popup_menu(retreat_btn.get_global_rect(), [
+			["Withdraw to %s" % ConquestGalaxy.display_name(route.back()), {"retreat": true}],
+		])
+
+
+func _confirm_retreat() -> void:
+	if busy:
+		return
+	_withdrawal_result = Conquest.withdraw_player_battle(params["battle"], m)
+	if not _withdrawal_result.is_empty():
+		_step()
+	else:
+		_sync()
+
+
 func _open_menu() -> void:
 	_popup_menu(Rect2(get_viewport_rect().size / 2.0, Vector2.ZERO), [
 		["Concede", {"concede": true}],
@@ -1492,8 +1565,9 @@ func _game_over() -> void:
 	v.add_theme_constant_override("separation", 18)
 	UIKit.fill_rect(v)
 	root.add_child(v)
-	v.add_child(UIKit.aurebesh("victory" if won else "defeat", 30))
-	var t := UIKit.title("Victory" if won else ("Draw" if m.winner == 2 else "Defeat"), 72, Sabacc.C_GOLD if won else Sabacc.C_EMPIRE)
+	var withdrawn := not _withdrawal_result.is_empty()
+	v.add_child(UIKit.aurebesh("retreat" if withdrawn else ("victory" if won else "defeat"), 30))
+	var t := UIKit.title("Fleet withdrew" if withdrawn else ("Victory" if won else ("Draw" if m.winner == 2 else "Defeat")), 64 if withdrawn else 72, Sabacc.C_GOLD if won else Sabacc.C_EMPIRE)
 	v.add_child(t)
 	UIKit.pop_in(t)
 	v.add_child(UIKit.label(m.log_lines.back() if not m.log_lines.is_empty() else "", 20, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
@@ -1516,7 +1590,7 @@ func _game_over() -> void:
 		v.add_child(reward)
 		v.move_child(reward, row.get_index())
 	if conquest_battle:
-		var result := Conquest.finish_player_battle(params["battle"], m)
+		var result := _withdrawal_result if withdrawn else Conquest.finish_player_battle(params["battle"], m)
 		if not result.is_empty():
 			v.add_child(UIKit.label(Conquest.run.state["report"], 22, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
 		var cont := SabaccButton.make("Return to galaxy", SabaccButton.Style.PRIMARY, "back", true)

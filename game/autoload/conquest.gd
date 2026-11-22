@@ -85,6 +85,15 @@ func finish_player_battle(key: String, match_game: Match) -> Dictionary:
 	return result
 
 
+func withdraw_player_battle(key: String, match_game: Match) -> Dictionary:
+	if not run:
+		return {}
+	var result := run.withdraw_player(key, match_game)
+	if not result.is_empty():
+		persist()
+	return result
+
+
 func _process(delta: float) -> void:
 	if not run or run.state["status"] != "active":
 		return
