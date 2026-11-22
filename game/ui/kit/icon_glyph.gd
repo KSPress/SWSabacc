@@ -7,7 +7,7 @@ var glyph := "dot":
 	set(v):
 		glyph = v
 		queue_redraw()
-var color := Kyber.C_KYBER:
+var color := Sabacc.C_ACCENT:
 	set(v):
 		color = v
 		queue_redraw()
@@ -171,6 +171,39 @@ func _draw() -> void:
 				var tr := Transform2D(a, c + Vector2(0, r * .3))
 				var p2 := PackedVector2Array([Vector2(-r * .3, -r * .9), Vector2(r * .3, -r * .9), Vector2(r * .3, 0), Vector2(-r * .3, 0), Vector2(-r * .3, -r * .9)])
 				draw_polyline(tr * p2, col, w * .7, true)
+		"orbit":
+			draw_arc(c, r * .52, 0, TAU, 32, col, w * .72, true)
+			var orbit := PackedVector2Array()
+			var tilt := Transform2D(-0.51, c)
+			for i in 41:
+				var a := i * TAU / 40.0
+				orbit.append(tilt * Vector2(cos(a) * r * .94, sin(a) * r * .35))
+			draw_polyline(orbit, col, w * .72, true)
+			draw_circle(orbit[19], r * .15, col)
+			draw_line(c + Vector2(0, -r), c + Vector2(0, -r * .62), col, w * .65, true)
+			draw_line(c + Vector2(0, r * .62), c + Vector2(0, r), col, w * .65, true)
+		"crossed_sabers":
+			for side in [-1, 1]:
+				var blade := Vector2(side * r * .74, -r * .76)
+				draw_line(c + blade, c - blade * .48, col, w * .8, true)
+				draw_line(c - blade * .52, c - blade * .89, col, w * 2.1, true)
+				draw_line(c - blade * .51 - blade.orthogonal() * .16, c - blade * .51 + blade.orthogonal() * .16, col, w * .8, true)
+		"booster":
+			var pack := Rect2(c - Vector2(r * .62, r * .83), Vector2(r * 1.24, r * 1.66))
+			draw_rect(pack, col, false, w * .7)
+			for offset in [-0.59, 0.59]:
+				draw_line(c + Vector2(-r * .62, r * offset), c + Vector2(r * .62, r * offset), col, w * .7, true)
+			for i in 4:
+				var a := i * TAU / 8.0
+				var ray := Vector2.from_angle(a) * r * (.37 if i % 2 == 0 else .24)
+				draw_line(c - ray, c + ray, col, w * .72, true)
+		"sliders":
+			for i in 3:
+				var pt := c + Vector2(0, (i - 1) * r * .55)
+				var knob := pt + Vector2([-.12, .42, -.4][i] * r, 0)
+				draw_line(pt - Vector2(r * .92, 0), knob - Vector2(r * .16, 0), col, w * .8, true)
+				draw_line(knob + Vector2(r * .16, 0), pt + Vector2(r * .92, 0), col, w * .8, true)
+				draw_rect(Rect2(knob - Vector2.ONE * r * .15, Vector2.ONE * r * .3), col, false, w * .8)
 		"fight":  # crossed sabers
 			draw_line(c + Vector2(-r * .7, r * .7), c + Vector2(r * .6, -r * .6), col, w * 1.2, true)
 			draw_line(c + Vector2(r * .7, r * .7), c + Vector2(-r * .6, -r * .6), col, w * 1.2, true)
@@ -217,6 +250,10 @@ func _draw() -> void:
 				var a := -PI / 2 + k * PI / 5.0
 				sp.append(c + Vector2(cos(a), sin(a)) * r * (0.85 if k % 2 == 0 else 0.38))
 			draw_colored_polygon(sp, col)
+		"stats":
+			for i in 3:
+				var height := r * (0.55 + i * 0.38)
+				draw_rect(Rect2(c + Vector2((i - 1.5) * r * 0.6, r * 0.72 - height), Vector2(r * 0.38, height)), col)
 		"collection":
 			for k in 4:
 				var x := (k % 2) * r * .65 - r * .6

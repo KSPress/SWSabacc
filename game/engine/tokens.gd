@@ -24,8 +24,11 @@ const PLAN := {
 
 const KRAYT_CALL := {
 	"id": "krayt_call", "name": "Krayt Call", "icon": "krayt", "side_claimable": "player",
-	"desc": "Obi-Wan's krayt dragon call: defeat an enemy non-leader Tusken unit. Ends your actions this round.",
-	"effects": [{"op": "defeat", "t": {"s": "choose", "kind": "unit", "side": "enemy", "nonleader": true, "trait": "tusken"}}],
+	"desc": "Once per round, return an enemy non-leader Tusken to its owner's hand. Uses your action.",
+	"ends_round": false,
+	"target_required": true,
+	"effects": [{"op": "bounce", "prompt": "Krayt Call · Choose an enemy Tusken to return to hand",
+		"t": {"s": "choose", "kind": "unit", "side": "enemy", "nonleader": true, "trait": "tusken"}}],
 }
 
 const ALARM := {

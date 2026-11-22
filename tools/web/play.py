@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plays the SWU Kyber web build in your browser.
+"""Plays the SWU Sabacc web build in your browser.
 
 Godot web builds can't be opened straight from disk (file://); they need a
 tiny local web server. This serves the folder this script sits in on
@@ -56,7 +56,7 @@ socketserver.ThreadingTCPServer.allow_reuse_address = True
 socketserver.ThreadingTCPServer.daemon_threads = True
 with socketserver.ThreadingTCPServer(("0.0.0.0" if LAN else "127.0.0.1", PORT), Handler) as httpd:
     url = f"http://localhost:{PORT}/index.html"
-    print(f"SWU Kyber is running at {url}  (Ctrl+C to stop)")
+    print(f"SWU Sabacc is running at {url}  (Ctrl+C to stop)")
     if LAN:
         print(f"On your phone (same Wi-Fi): http://{lan_ip()}:{PORT}/index.html")
     if OPEN:

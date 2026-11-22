@@ -1,0 +1,55 @@
+extends Node
+## A stalled frame must not leave expired effects drawing invalid geometry.
+var checks := 0
+var failures := 0
+
+
+func check(ok: bool, label: String) -> void:
+	checks += 1
+	if not ok:
+		failures += 1
+		printerr("FAIL: ", label)
+
+
+func _pixels() -> PackedByteArray:
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	return get_viewport().get_texture().get_image().get_data()
+
+
+func _ready() -> void:
+	var background := ColorRect.new()
+	background.color = Color("081020")
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(background)
+	var baseline := await _pixels()
+	var cases := [[Fx.FxImpact, "_t", 0.5], [Fx.FxShockwave, "_t", 0.6]]
+	for fixture in cases:
+		var effect: Node2D = fixture[0].new()
+		effect.position = get_viewport().get_visible_rect().size / 2
+		add_child(effect)
+		effect.set_process(false)
+		effect.set(fixture[1], fixture[2] * 0.3)
+		effect.queue_redraw()
+		var alive := await _pixels()
+		check(alive != baseline, "live effect visible " + str(fixture[0]))
+		effect.set(fixture[1], fixture[2] + 0.25)
+		effect.queue_redraw()
+		var expired := await _pixels()
+		check(expired == baseline, "expired effect leaves no pixels " + str(fixture[0]))
+		effect.queue_free()
+		await get_tree().process_frame
+	for sheet in ["Slash Blue 1", "Slash Blue 2", "Slash Blue 3", "Slash Green 1", "Slash Green 2",
+			"Slash Green 3", "Slash Red 1", "Slash Red 2", "Claw Slash",
+			"Bolt Green", "Bolt Yellow", "Bolt Red", "Bolt Green HIT", "Bolt Yellow HIT", "Bolt Red HIT"]:
+		var sprite := CombatSprite.spawn(background, sheet, get_viewport().get_visible_rect().size / 2, 120.0, 1.0)
+		sprite.set_process(false)
+		sprite._age = 0.42
+		sprite.queue_redraw()
+		var pixels := await _pixels()
+		check(pixels != baseline, sheet + " renders its supplied sprite")
+		sprite._process(2.0)
+		pixels = await _pixels()
+		check(pixels == baseline, sheet + " clears after a stalled frame")
+	print("FX LIFETIME: %d checks, %d failed" % [checks, failures])
+	get_tree().quit(1 if failures else 0)

@@ -1,0 +1,712 @@
+{
+  "episode": 6,
+  "roman": "VI",
+  "title": "Return of the Jedi",
+  "crawl": "A rescue on Tatooine leads to the final battle over Endor.",
+  "alignment": "heroism",
+  "chapters": [
+    {
+      "id": "ep6_ch1_palace",
+      "episode": 6,
+      "number": 1,
+      "title": "Rescue from Jabba's Palace",
+      "intro": "Infiltrate Jabba's palace, free Han, and get past the Sarlacc.",
+      "leader_options": [
+        "SOR_005",
+        "LAW_010",
+        "SEC_015",
+        "SHD_017"
+      ],
+      "base_sequence": [
+        "HMW_019"
+      ],
+      "starting_deck": [
+        "LAW_034",
+        "LAW_037",
+        "SOR_051",
+        "SOR_189",
+        "SOR_196",
+        "SOR_197",
+        "SOR_236",
+        "SOR_238",
+        "LAW_152",
+        "SEC_110",
+        "LAW_180",
+        "SOR_067",
+        "SOR_223",
+        "SOR_053",
+        "TWI_174",
+        "SHD_205",
+        "JTL_075",
+        "HMW_127"
+      ],
+      "reward_pool": [
+        "HMW_115",
+        "LAW_108",
+        "LAW_037",
+        "SOR_196",
+        "SHD_070",
+        "LOF_261"
+      ],
+      "arenas": [
+        "ground"
+      ],
+      "ruleset": "campaign",
+      "alignment": "heroism",
+      "base_hp_override": 30,
+      "repair_after_win": 5,
+      "unlocks_on_clear": [
+        "SOR_005",
+        "LAW_010",
+        "SEC_015",
+        "SHD_017"
+      ],
+      "two_leaders": true,
+      "board_theme": "saga_tatooine_canyon",
+      "player_extra_resources": 1,
+      "nodes": [
+        {
+          "id": "gate",
+          "title": "Jabba's Palace",
+          "desc": "Leia infiltrates in a Boushh disguise while the rescue party moves into position.",
+          "type": "fight",
+          "enemy": {
+            "name": "Palace Guards",
+            "hp": 14,
+            "deck": [
+              "LAW_159",
+              "LAW_218",
+              "SOR_247",
+              "SOR_181",
+              "LAW_197",
+              "LAW_159",
+              "LAW_218",
+              "SOR_247",
+              "SOR_181",
+              "LAW_197"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "han",
+          "type": "event",
+          "title": "Free Han",
+          "desc": "Get Han out of the carbonite and into the rescue party.",
+          "event": {
+            "choices": [
+              {
+                "label": "Bring Han with you",
+                "effect": {
+                  "add_cards": [
+                    "LAW_037",
+                    "SHD_070"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "barge",
+          "title": "Sail Barge Guards",
+          "desc": "Deal with guards and bounty hunters at the Great Pit.",
+          "type": "fight",
+          "enemy": {
+            "name": "Jabba's Retinue",
+            "hp": 15,
+            "deck": [
+              "SOR_247",
+              "LAW_214",
+              "LAW_197",
+              "SOR_181",
+              "LAW_218",
+              "SOR_247",
+              "LAW_214",
+              "LAW_197",
+              "SOR_181",
+              "LAW_218"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "supplies",
+          "type": "rest",
+          "title": "Rescue Supplies",
+          "desc": "Rearm before confronting the Sarlacc.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit Experience",
+              "cost": 20
+            }
+          ]
+        },
+        {
+          "id": "boss",
+          "title": "The Great Pit of Carkoon",
+          "desc": "Defeat the Sarlacc and escape Jabba's entourage.",
+          "type": "boss",
+          "enemy": {
+            "name": "Jabba's Entourage",
+            "hp": 26,
+            "deck": [
+              "SOR_247",
+              "LAW_214",
+              "LAW_218",
+              "LAW_159",
+              "SOR_247",
+              "LAW_214",
+              "LAW_218",
+              "LAW_159"
+            ],
+            "preplaced": [
+              {
+                "id": "LAW_163",
+                "ready": false,
+                "hp": 8
+              }
+            ]
+          },
+          "objective": {
+            "type": "clear_wave",
+            "params": {
+              "targets": [
+                "LAW_163"
+              ],
+              "text": "Defeat the Sarlacc.",
+              "objective_only": true
+            }
+          },
+          "ending": "Han and the rescue party escape aboard the Falcon."
+        }
+      ],
+      "map": {
+        "rows": [
+          [
+            "gate"
+          ],
+          [
+            "han"
+          ],
+          [
+            "barge"
+          ],
+          [
+            "supplies"
+          ],
+          [
+            "boss"
+          ]
+        ],
+        "edges": {
+          "gate": [
+            "han"
+          ],
+          "han": [
+            "barge"
+          ],
+          "barge": [
+            "supplies"
+          ],
+          "supplies": [
+            "boss"
+          ]
+        }
+      },
+      "next_chapter": "ep6_ch2_endor"
+    },
+    {
+      "id": "ep6_ch2_endor",
+      "episode": 6,
+      "number": 2,
+      "title": "The Shield Generator",
+      "intro": "Infiltrate Endor, earn the Ewoks' trust, and destroy the shield generator.",
+      "leader_options": [
+        "SOR_017",
+        "SOR_009",
+        "HMW_009",
+        "SEC_015",
+        "HMW_014"
+      ],
+      "base_sequence": [
+        "HMW_023"
+      ],
+      "starting_deck": [
+        "SOR_198",
+        "SOR_189",
+        "SOR_196",
+        "SOR_236",
+        "SOR_238",
+        "ASH_034",
+        "HMW_163",
+        "HMW_116",
+        "HMW_257",
+        "ASH_166",
+        "HMW_177",
+        "SOR_067",
+        "SOR_240",
+        "LAW_254",
+        "TWI_174",
+        "TWI_256",
+        "JTL_075",
+        "HMW_127"
+      ],
+      "reward_pool": [
+        "HMW_116",
+        "HMW_177",
+        "HMW_257",
+        "HMW_163",
+        "ASH_034",
+        "LAW_180",
+        "LOF_215",
+        "LAW_201"
+      ],
+      "arenas": [
+        "ground"
+      ],
+      "ruleset": "campaign",
+      "alignment": "heroism",
+      "base_hp_override": 30,
+      "repair_after_win": 5,
+      "unlocks_on_clear": [
+        "SOR_017",
+        "SOR_009",
+        "HMW_009",
+        "SEC_015",
+        "HMW_014"
+      ],
+      "two_leaders": true,
+      "board_theme": "forest",
+      "player_extra_resources": 1,
+      "nodes": [
+        {
+          "id": "forest",
+          "title": "Forest Reconnaissance",
+          "desc": "Get the Rebel strike team past the Imperial scouts.",
+          "type": "fight",
+          "enemy": {
+            "name": "Endor Scouts",
+            "hp": 14,
+            "deck": [
+              "SOR_128",
+              "HMW_107",
+              "HMW_108",
+              "ASH_176",
+              "TWI_256",
+              "SOR_128",
+              "HMW_107",
+              "HMW_108",
+              "ASH_176",
+              "TWI_256"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "ewoks",
+          "type": "event",
+          "title": "Bright Tree Village",
+          "desc": "Recruit Ewoks and prepare the strike on the bunker.",
+          "event": {
+            "choices": [
+              {
+                "label": "Rally the Ewok warriors",
+                "effect": {
+                  "add_cards": [
+                    "ASH_034",
+                    "HMW_116",
+                    "HMW_177"
+                  ]
+                }
+              },
+              {
+                "label": "Rally the archers",
+                "effect": {
+                  "add_cards": [
+                    "HMW_257",
+                    "HMW_163",
+                    "ASH_166"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "patrol",
+          "title": "Bunker Perimeter",
+          "desc": "Force a route through the Imperial perimeter.",
+          "type": "fight",
+          "enemy": {
+            "name": "Bunker Patrol",
+            "hp": 16,
+            "deck": [
+              "SOR_128",
+              "HMW_107",
+              "HMW_108",
+              "SOR_230",
+              "ASH_176",
+              "SOR_128",
+              "HMW_107",
+              "HMW_108",
+              "SOR_230",
+              "ASH_176"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "cache",
+          "type": "rest",
+          "title": "Rebel Weapons Cache",
+          "desc": "Repair and take equipment to the bunker.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit Experience",
+              "cost": 20
+            }
+          ]
+        },
+        {
+          "id": "boss",
+          "title": "Shield Generator Complex",
+          "desc": "Destroy the bunker to drop the Death Star's shield.",
+          "type": "boss",
+          "enemy": {
+            "name": "Bunker Garrison",
+            "hp": 18,
+            "deck": [
+              "SOR_128",
+              "HMW_107",
+              "HMW_108",
+              "ASH_176",
+              "SOR_230",
+              "SOR_234",
+              "SOR_128",
+              "HMW_107",
+              "HMW_108",
+              "ASH_176",
+              "SOR_230",
+              "SOR_234"
+            ],
+            "preplaced": [
+              {
+                "id": "HMW_107",
+                "ready": false
+              }
+            ],
+            "base": "JTL_020"
+          },
+          "objective": {
+            "type": "standard"
+          },
+          "ending": "The generator falls and the Rebel fleet sees an opening."
+        }
+      ],
+      "map": {
+        "rows": [
+          [
+            "forest"
+          ],
+          [
+            "ewoks"
+          ],
+          [
+            "patrol"
+          ],
+          [
+            "cache"
+          ],
+          [
+            "boss"
+          ]
+        ],
+        "edges": {
+          "forest": [
+            "ewoks"
+          ],
+          "ewoks": [
+            "patrol"
+          ],
+          "patrol": [
+            "cache"
+          ],
+          "cache": [
+            "boss"
+          ]
+        }
+      },
+      "next_chapter": "ep6_ch3_reactor"
+    },
+    {
+      "id": "ep6_ch3_reactor",
+      "episode": 6,
+      "number": 3,
+      "title": "Destruction of Death Star II",
+      "intro": "Survive the Imperial trap and strike the reactor when the shield drops.",
+      "leader_options": [
+        "JTL_003",
+        "JTL_016",
+        "JTL_008"
+      ],
+      "base_sequence": [
+        "JTL_026"
+      ],
+      "starting_deck": [
+        "SHD_204",
+        "SOR_237",
+        "LAW_253",
+        "SEC_213",
+        "JTL_051",
+        "JTL_095",
+        "ASH_078",
+        "JTL_199",
+        "SOR_144",
+        "JTL_101",
+        "JTL_149",
+        "JTL_093",
+        "JTL_076",
+        "JTL_075",
+        "JTL_123",
+        "SOR_125",
+        "JTL_171",
+        "JTL_172"
+      ],
+      "reward_pool": [
+        "JTL_093",
+        "ASH_037",
+        "ASH_153",
+        "ASH_157",
+        "ASH_043",
+        "JTL_122",
+        "JTL_092",
+        "JTL_120"
+      ],
+      "arenas": [
+        "space"
+      ],
+      "ruleset": "campaign",
+      "alignment": "heroism",
+      "base_hp_override": 30,
+      "repair_after_win": 5,
+      "unlocks_on_clear": [
+        "JTL_003",
+        "JTL_016",
+        "JTL_008"
+      ],
+      "two_leaders": true,
+      "lando_space_campaign": true,
+      "board_theme": "space",
+      "player_extra_resources": 2,
+      "nodes": [
+        {
+          "id": "trap",
+          "title": "It's a Trap!",
+          "desc": "The shield is still up. Hold the fleet together while the Imperial ships close.",
+          "type": "objective",
+          "enemy": {
+            "name": "Imperial Fleet",
+            "hp": 26,
+            "deck": [
+              "SOR_132",
+              "ASH_215",
+              "LAW_175",
+              "SHD_082",
+              "JTL_033",
+              "SOR_132",
+              "ASH_215",
+              "LAW_175",
+              "SHD_082",
+              "JTL_033"
+            ],
+            "preplaced": [
+              {
+                "id": "ASH_215",
+                "ready": false
+              }
+            ]
+          },
+          "objective": {
+            "type": "survive_n",
+            "params": {
+              "rounds": 4,
+              "text": "Hold the fleet for four rounds until the shield drops.",
+              "objective_only": true
+            }
+          },
+          "player_preplaced": [
+            {
+              "id": "SHD_204",
+              "ready": true
+            }
+          ],
+          "deploy_from_deck": [
+            "SHD_204"
+          ],
+          "battle_rules": {
+            "deck_out_damage": 0
+          }
+        },
+        {
+          "id": "shield_drop",
+          "type": "event",
+          "title": "The Shield Is Down",
+          "desc": "The Endor strike team destroys the generator.",
+          "event": {
+            "choices": [
+              {
+                "label": "Bring Nien Nunb aboard",
+                "effect": {
+                  "add_cards": [
+                    "JTL_093"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "fleet",
+          "title": "Imperial Fleet Screen",
+          "desc": "Break through the fleet before the reactor run.",
+          "type": "fight",
+          "enemy": {
+            "name": "Fleet Screen",
+            "hp": 15,
+            "deck": [
+              "JTL_033",
+              "ASH_215",
+              "LAW_175",
+              "SHD_082",
+              "SOR_132",
+              "JTL_033",
+              "ASH_215",
+              "LAW_175",
+              "SHD_082",
+              "SOR_132"
+            ],
+            "preplaced": []
+          },
+          "objective": {
+            "type": "standard"
+          }
+        },
+        {
+          "id": "refit",
+          "type": "rest",
+          "title": "Fleet Refit",
+          "desc": "Prepare for the final push into the station.",
+          "shop": true,
+          "offers": [
+            {
+              "id": "repair",
+              "label": "Repair up to 8 base damage",
+              "cost": 20,
+              "amount": 8
+            },
+            {
+              "id": "experience",
+              "label": "Give a unit Experience",
+              "cost": 20
+            }
+          ]
+        },
+        {
+          "id": "boss",
+          "title": "Into the Reactor",
+          "desc": "Fly through the station and destroy the reactor.",
+          "type": "boss",
+          "enemy": {
+            "name": "Death Star II",
+            "hp": 16,
+            "deck": [
+              "SOR_132",
+              "ASH_215",
+              "LAW_175",
+              "SHD_082",
+              "JTL_033",
+              "SOR_132",
+              "ASH_215",
+              "LAW_175",
+              "SHD_082",
+              "JTL_033"
+            ],
+            "preplaced": [
+              {
+                "id": "JTL_033",
+                "ready": false
+              }
+            ],
+            "base": "KYB_003"
+          },
+          "objective": {
+            "type": "standard"
+          },
+          "ending": "The Falcon escapes as the Death Star II reactor erupts."
+        }
+      ],
+      "map": {
+        "rows": [
+          [
+            "trap"
+          ],
+          [
+            "shield_drop"
+          ],
+          [
+            "fleet"
+          ],
+          [
+            "refit"
+          ],
+          [
+            "boss"
+          ]
+        ],
+        "edges": {
+          "trap": [
+            "shield_drop"
+          ],
+          "shield_drop": [
+            "fleet"
+          ],
+          "fleet": [
+            "refit"
+          ],
+          "refit": [
+            "boss"
+          ]
+        }
+      }
+    }
+  ]
+}

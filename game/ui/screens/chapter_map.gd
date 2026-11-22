@@ -6,7 +6,8 @@ var chapter: Dictionary
 var run: Dictionary
 var _map: Control
 var _nodes: Dictionary = {}       # node id -> NodeButton
-var _hud: HBoxContainer
+var _hud: HFlowContainer
+var _resolving := false
 var _panel: ModalPanel
 var _start_box: VBoxContainer
 
@@ -14,15 +15,16 @@ var _start_box: VBoxContainer
 func build() -> void:
 	chapter = CardDB.chapter(Router.params.get("chapter_id", "ep4_ch1_tatooine"))
 	set_header("Ep %s · %s" % [CampaignFlow.episode_data(int(chapter.get("episode", 4))).get("roman", ""), chapter.get("title", "")], "episodes")
-	var theme_img: String = {"tatooine": "tatooine", "deathstar": "deathstar"}.get(chapter.get("board_theme", ""), "")
-	if theme_img != "":
-		bg.backdrop = Art.ui_texture(theme_img)
-		bg.backdrop_alpha = 0.35
+	bg.set_location(chapter.get("board_theme", "space"))
 	run = Save.run()
 	var active: bool = run.get("chapter", "") == chapter["id"] and run.get("status", "") == "active"
-	if not active:
+	if not active or CampaignFlow.needs_new_route(run, chapter):
 		_build_start(Router.params.get("failed", false))
 	else:
+		if CampaignRun.update_starter_deck(run, chapter):
+			Save.set_run(run)
+		chapter = CampaignRun.route(chapter, run)
+		bg.set_location(CampaignRun.scene_for(run, chapter, CampaignRun.node_by_id(chapter, run.get("current", ""))))
 		_build_map()
 
 
@@ -33,19 +35,43 @@ func _build_start(failed: bool) -> void:
 	_start_box.add_theme_constant_override("separation", 14)
 	body.add_child(_start_box)
 	if failed:
-		var f := UIKit.title("Run failed", 40, Kyber.C_EMPIRE)
+		var f := UIKit.title("Run failed", 40, Sabacc.C_EMPIRE)
 		_start_box.add_child(f)
-		_start_box.add_child(UIKit.label("Your base fell. The chapter resets — try a different route.", 18, Kyber.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
-	var intro := UIKit.label(chapter.get("intro", ""), 20, Kyber.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+		var payout := int(Router.params.get("payout", 0))
+		if payout > 0:
+			_start_box.add_child(UIKit.credit_label("+%d credits to Collection Vault" % payout))
+		_start_box.add_child(UIKit.label("The chapter resets. You can try a different route on your next run.", 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	if CampaignFlow.needs_new_route(run, chapter):
+		var notice := UIKit.label("This chapter has a new route. Starting it pays out the credits from your previous run.", 18, Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
+		notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_start_box.add_child(notice)
+	var next: String = chapter.get("next_chapter", "")
+	if run.get("chapter") == chapter["id"] and CampaignFlow.can_continue(run, next):
+		_start_box.add_child(UIKit.credit_label("%d credits available to cash out" % CampaignFlow.payout(run)))
+		var advance := SabaccButton.make("Continue to next chapter", SabaccButton.Style.PRIMARY)
+		advance.pressed.connect(func(): Router.go("chapter", {"chapter_id": next}))
+		_start_box.add_child(advance)
+		var claim := SabaccButton.make("Cash out episode run", SabaccButton.Style.GOLD)
+		claim.pressed.connect(func():
+			CampaignFlow.cash_out(run)
+			Router.go("collection"))
+		_start_box.add_child(claim)
+	elif CampaignFlow.can_continue(run, chapter["id"]):
+		_start_box.add_child(UIKit.credit_label("%d run credits carry into this chapter" % int(run.get("credits", 0))))
+	var intro := UIKit.label(chapter.get("intro", ""), 20, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_start_box.add_child(intro)
-	_start_box.add_child(UIKit.label("Choose your leader", 22, Kyber.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	var leaders := CampaignFlow.eligible_leaders(chapter)
+	if chapter.get("two_leaders", false) or leaders.size() > 3:
+		_build_leader_picker(leaders)
+		return
+	_start_box.add_child(UIKit.label("Choose your leader", 22, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 16)
 	row.name = "Leaders"
 	_start_box.add_child(row)
-	for lid in chapter.get("leader_options", []):
+	for lid in leaders:
 		if not CardDB.lib.has(lid):
 			continue
 		var holder := VBoxContainer.new()
@@ -61,28 +87,61 @@ func _build_start(failed: bool) -> void:
 		cv.tapped.connect(func(c): InspectOverlay.open(self, c.card_id, c.get_global_rect()))
 		slot.add_child(cv)
 		holder.add_child(slot)
-		var b := KyberButton.make("Lead with %s" % CardDB.card(lid).get("name", lid), KyberButton.Style.PRIMARY, "play", true)
+		var b := SabaccButton.make("Lead with %s" % CardDB.card(lid).get("name", lid), SabaccButton.Style.PRIMARY, "play", true)
 		b.pressed.connect(func():
 			CampaignFlow.start_run(chapter, lid)
 			Router.go("chapter", {"chapter_id": chapter["id"]}))
 		holder.add_child(b)
+		if chapter.has("leader_companions"):
+			var cards := CampaignRun.starting_deck(chapter, lid)
+			var preview := SabaccButton.make("View deck (%d)" % cards.size(), SabaccButton.Style.GHOST, "deck")
+			preview.pressed.connect(func(): _show_deck(cards))
+			holder.add_child(preview)
 		row.add_child(holder)
 		UIKit.pop_in(holder)
-	var deck := KyberButton.make("View starting deck (%d)" % chapter.get("starting_deck", []).size(), KyberButton.Style.GHOST, "deck")
-	deck.pressed.connect(func(): _show_deck(chapter.get("starting_deck", [])))
-	_start_box.add_child(deck)
+	if not chapter.has("leader_companions"):
+		var deck := SabaccButton.make("View starting deck (%d)" % chapter.get("starting_deck", []).size(), SabaccButton.Style.GHOST, "deck")
+		deck.pressed.connect(func(): _show_deck(chapter.get("starting_deck", [])))
+		_start_box.add_child(deck)
+
+
+func _build_leader_picker(ids: Array) -> void:
+	var twin: bool = chapter.get("two_leaders", false)
+	_start_box.add_child(UIKit.label("Choose two different leaders" if twin else "Choose your leader",
+		22, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	var first := OptionButton.new()
+	var second := OptionButton.new()
+	for picker in [first, second] if twin else [first]:
+		picker.custom_minimum_size.y = 60
+		for id in ids:
+			picker.add_item("%s · %s" % [CardDB.card(id).get("name", id), CardDB.card(id).get("subtitle", "")])
+		_start_box.add_child(picker)
+	first.select(0)
+	if twin:
+		second.select(1)
+	var go := SabaccButton.make("Start run", SabaccButton.Style.PRIMARY)
+	if twin:
+		var validate := func(_index: int): go.disabled = first.selected == second.selected
+		first.item_selected.connect(validate)
+		second.item_selected.connect(validate)
+	go.pressed.connect(func():
+		CampaignFlow.start_run(chapter, ids[first.selected], ids[second.selected] if twin else "")
+		Router.go("chapter", {"chapter_id": chapter["id"]}))
+	_start_box.add_child(go)
 
 
 # ---------------------------------------------------------------- map
 
 func _build_map() -> void:
-	_hud = HBoxContainer.new()
-	_hud.add_theme_constant_override("separation", 14)
+	Appearance.set_deck(run.get("leader", ""), chapter.get("base_sequence", [""])[0], run.get("deck", []))
+	_hud = HFlowContainer.new()
+	_hud.add_theme_constant_override("h_separation", 10)
 	body.add_child(_hud)
 	var maxhp := CampaignRun.max_base_hp(run, chapter)
 	var hp := maxhp - int(run.get("base_damage", 0))
-	_hud.add_child(_chip("resource", "Base %d/%d" % [hp, maxhp], Kyber.C_HP))
-	var deck_btn := KyberButton.make("Deck %d" % run["deck"].size(), KyberButton.Style.GHOST, "deck")
+	_hud.add_child(_chip("resource", "Base %d/%d" % [hp, maxhp], Sabacc.C_HP))
+	_hud.add_child(UIKit.credit_label("%d run credits" % int(run.get("credits", 0))))
+	var deck_btn := SabaccButton.make("Deck %d" % run["deck"].size(), SabaccButton.Style.GHOST, "deck")
 	deck_btn.pressed.connect(func(): _show_deck(run["deck"]))
 	_hud.add_child(deck_btn)
 	var tre: Array = run.get("treasures", [])
@@ -91,12 +150,14 @@ func _build_map() -> void:
 		var tdefs := CampaignFlow.treasures_for(chapter)
 		for t in tre:
 			names.append(tdefs.get(t, {}).get("name", t))
-		_hud.add_child(_chip("star", ", ".join(names), Kyber.C_GOLD))
-	var abandon := KyberButton.make("Abandon", KyberButton.Style.EMPIRE)
+		_hud.add_child(_chip("star", ", ".join(names), Sabacc.C_GOLD))
+	var abandon := SabaccButton.make("Abandon", SabaccButton.Style.EMPIRE)
 	abandon.pressed.connect(func():
-		run["status"] = "lost"
-		Save.set_run(run)
-		Router.go("chapter", {"chapter_id": chapter["id"]}))
+		if abandon.text != "Tap again to cash out":
+			abandon.text = "Tap again to cash out"
+			return
+		var payout := CampaignFlow.cash_out(run)
+		Router.go("chapter", {"chapter_id": chapter["id"], "failed": true, "payout": payout}))
 	_hud.add_child(abandon)
 	_map = Control.new()
 	_map.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -111,6 +172,8 @@ func _build_map() -> void:
 		nb.pressed.connect(func(): _open_node(n))
 		_map.add_child(nb)
 		_nodes[n["id"]] = nb
+	_hud.resized.connect(_on_resize, CONNECT_DEFERRED)
+	_on_resize.call_deferred()
 
 
 func _chip(glyph: String, text: String, col: Color) -> Control:
@@ -134,7 +197,7 @@ func _draw_links() -> void:
 			var pa: Vector2 = _nodes[a].position + _nodes[a].size / 2.0
 			var pb: Vector2 = _nodes[b].position + _nodes[b].size / 2.0
 			var lit: bool = a in visited
-			var col := Color(Kyber.C_KYBER, 0.8) if lit else Color(1, 1, 1, 0.18)
+			var col := Color(Sabacc.C_ACCENT, 0.8) if lit else Color(1, 1, 1, 0.18)
 			# dashed holo-line
 			var d := pb - pa
 			var n := int(d.length() / 14.0)
@@ -151,19 +214,25 @@ func relayout(p: bool, r: Rect2) -> void:
 	if _hud == null:
 		return
 	_hud.position = Vector2.ZERO
-	_hud.size = Vector2(r.size.x, 56)
-	_map.position = Vector2(0, 70)
-	_map.size = Vector2(r.size.x, r.size.y - 70)
+	_hud.size.x = r.size.x
+	var top := maxf(_hud.get_combined_minimum_size().y, _hud.size.y) + 14
+	_map.position = Vector2(0, top)
+	_map.size = Vector2(r.size.x, r.size.y - top)
 	var rows: Array = chapter.get("map", {}).get("rows", [])
 	var n := rows.size()
+	if n == 0:
+		return
+	var step_extent := (_map.size.y if p else _map.size.x) / float(n)
 	for ri in n:
 		var row: Array = rows[ri]
 		for ci in row.size():
 			var nb: NodeButton = _nodes.get(row[ci])
 			if nb == null:
 				continue
-			var s := clampf(minf(_map.size.x, _map.size.y) * 0.13, 70, 120)
+			var s := minf(clampf(minf(_map.size.x, _map.size.y) * 0.13, 48, 120), maxf(28, step_extent - 26))
+			nb.label_width = (_map.size.x / float(row.size() + 1) if p else step_extent) - 8
 			nb.size = Vector2(s, s)
+			nb._fit()
 			var along := (ci + 1.0) / (row.size() + 1.0)
 			var step := (ri + 0.5) / float(n)
 			if p:
@@ -184,83 +253,240 @@ func _open_node(n: Dictionary) -> void:
 	var nb: NodeButton = _nodes[n["id"]]
 	if nb.state != "available":
 		return
-	var mp := ModalPanel.open(self, 620.0, Kyber.C_EMPIRE if n.get("type") == "boss" else Kyber.C_GOLD)
+	if n["id"] == "cantina_war":
+		Router.go("sabacc_war", {"chapter_id": chapter["id"], "node_id": n["id"]})
+		return
+	bg.set_location(CampaignRun.scene_for(run, chapter, n))
+	var mp := ModalPanel.open(self, 620.0, Sabacc.C_EMPIRE if n.get("type") == "boss" else Sabacc.C_GOLD)
 	mp.dismiss_on_backdrop = true
 	_panel = mp
 	mp.add(UIKit.aurebesh(n.get("type", ""), 18))
-	var t := mp.text(n.get("title", "").to_upper(), 30, Kyber.C_GOLD)
-	t.add_theme_font_override("font", Kyber.font_title)
+	var t := mp.text(n.get("title", "").to_upper(), 30, Sabacc.C_GOLD)
+	t.add_theme_font_override("font", Sabacc.font_title)
 	mp.text(n.get("desc", ""), 18)
 	match n.get("type", "fight"):
 		"event":
-			for ch in n.get("event", {}).get("choices", []):
-				var b := _wrap_button(ch.get("label", ""), KyberButton.Style.PRIMARY, "event")
-				b.pressed.connect(func(): _resolve_event(n, ch))
-				mp.add(b)
+			var choices: Array = n.get("event", {}).get("choices", [])
+			if run.get("pending_event_battle") == n["id"]:
+				choices = [{"label": "Fight the patrol", "effect": {"battle": true}}]
+			if n.has("combined_recruit") and "TWI_168" in run["deck"]:
+				choices = choices + [{"label": "Use Old Access Codes · recruit both groups",
+					"effect": {"remove_id": "TWI_168", "add_cards": n["combined_recruit"]}}]
+			var card_row: HBoxContainer
+			var answers: PanelContainer
+			if n.get("optional_choice", false) and choices.any(func(choice): return not choice.has("answer")):
+				card_row = HBoxContainer.new()
+				card_row.add_theme_constant_override("separation", 8)
+				mp.add(card_row)
+			var faces := [
+				preload("res://assets/branding/play_campaigns.png"),
+				preload("res://assets/branding/play_conquest.png"),
+				preload("res://assets/branding/play_battles.png"),
+			]
+			for i in choices.size():
+				var choice: Dictionary = choices[i]
+				var styles := [SabaccButton.Style.GOLD, SabaccButton.Style.REBEL, SabaccButton.Style.EMPIRE]
+				var b := _wrap_button(choice["label"], styles[i % styles.size()], "deck")
+				b.disabled = int(choice.get("cost", 0)) > int(run.get("credits", 0))
+				if choice.get("requires_r2", false):
+					b.disabled = b.disabled or int(run.get("disabled_battles", 0)) > 0
+				if choice.has("pick"):
+					b.disabled = b.disabled or _event_candidates(choice["pick"]).is_empty()
+				if choice.has("answer"):
+					if not answers:
+						answers = preload("res://ui/kit/event_choice_cards.gd").new()
+						mp.add(answers)
+					answers.add_choice(choice["answer"], choice["label"], b.disabled, func(): _resolve_event(n, choice))
+					b.free()
+					continue
+				b.pressed.connect(func(): _resolve_event(n, choice))
+				if card_row:
+					var card := VBoxContainer.new()
+					card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+					var art := TextureButton.new()
+					art.texture_normal = faces[i % faces.size()]
+					if n["id"] == "officer_quarters":
+						art.texture_normal = faces[2]
+					art.ignore_texture_size = true
+					art.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+					art.custom_minimum_size.y = 140
+					art.disabled = b.disabled
+					art.pressed.connect(func(): b.pressed.emit())
+					card.add_child(art)
+					b.glyph = ""
+					b.custom_minimum_size.y = 74
+					card.add_child(b)
+					card_row.add_child(card)
+				else:
+					mp.add(b)
 		"rest":
-			var opts: Array = n.get("rest", {}).get("options", ["heal"])
+			if n.get("shop", false):
+				_cantina(mp, n)
+			var opts: Array = [] if n.get("shop", false) else n.get("rest", {}).get("options", ["heal"])
 			if "heal" in opts:
-				var h := _wrap_button("Repair base (heal 8)", KyberButton.Style.PRIMARY, "heal")
+				var h := _wrap_button("Repair base (heal 8)", SabaccButton.Style.PRIMARY, "heal")
 				h.pressed.connect(func(): _finish_simple(n, {"heal": 8}))
 				mp.add(h)
 			if "upgrade_hp" in opts:
-				var u := _wrap_button("Reinforce (+3 max base HP)", KyberButton.Style.GOLD, "sentinel")
+				var u := _wrap_button("Reinforce (+3 max base HP)", SabaccButton.Style.GOLD, "sentinel")
 				u.pressed.connect(func(): _finish_simple(n, {"base_hp_bonus": 3}))
 				mp.add(u)
 			if "remove_card" in opts:
-				var rm := _wrap_button("Trim your deck (remove a card)", KyberButton.Style.GHOST, "deck")
+				var rm := _wrap_button("Trim your deck (remove a card)", SabaccButton.Style.GHOST, "deck")
 				rm.pressed.connect(func(): _remove_card_then(n))
 				mp.add(rm)
 		_:
 			var o := Objective.create(n.get("objective", {"type": "standard"}))
-			mp.text("Objective: " + o.describe(), 18, Kyber.C_KYBER)
-			var en: Dictionary = n.get("enemy", {})
-			mp.text("Enemy: %s · %d HP · %s" % [en.get("name", "?"), int(en.get("hp", 12)), en.get("ai_profile", "tempo")], 16, Kyber.C_DIM)
+			mp.text("Objective: " + o.describe(), 18, Sabacc.C_ACCENT)
+			var en := CampaignRun.encounter_enemy(run, n)
+			var enemy_hp := CampaignRun.enemy_base_hp(en, n.get("objective", {}))
+			mp.text("Enemy: %s · %d HP · %s" % [en.get("name", "?"), enemy_hp, en.get("ai_profile", "tempo")], 16, Sabacc.C_DIM)
 			if n.has("claimable_tokens"):
 				var names: Array = []
 				for tk in Tokens.resolve(n["claimable_tokens"]):
 					names.append(tk.get("name", ""))
-				mp.text("Claimable: " + ", ".join(names), 16, Kyber.C_GOLD)
-			if n.has("player_preplaced") or n.has("pickup"):
+				mp.text("Claimable: " + ", ".join(names), 16, Sabacc.C_GOLD)
+			if n.has("player_preplaced"):
 				var allies: Array = []
 				for pp in n.get("player_preplaced", []):
 					allies.append(CardDB.card(pp["id"]).get("name", ""))
 				if allies.size() > 0:
-					mp.text("Allies on the field: " + ", ".join(allies), 16, Kyber.C_GOOD)
-			var go := _wrap_button("Engage", KyberButton.Style.EMPIRE if n.get("type") == "boss" else KyberButton.Style.PRIMARY, "fight", true)
+					mp.text("Allies on the field: " + ", ".join(allies), 16, Sabacc.C_GOOD)
+			if n.has("pickups"):
+				var rewards := PackedStringArray()
+				for id in n["pickups"]:
+					rewards.append(CardDB.card(id).get("name", id))
+				mp.text("Victory adds " + ", ".join(rewards) + " to your deck.", 16, Sabacc.C_GOOD)
+			var go := _wrap_button("Engage", SabaccButton.Style.EMPIRE if n.get("type") == "boss" else SabaccButton.Style.PRIMARY, "fight", true)
 			go.custom_minimum_size.y = 68
 			go.pressed.connect(func(): CampaignFlow.start_node(chapter, n))
 			mp.add(go)
-	var close := _wrap_button("Back", KyberButton.Style.GHOST)
+	var close := _wrap_button("Back", SabaccButton.Style.GHOST)
 	close.pressed.connect(func():
 		mp.close()
 		_panel = null)
 	mp.add(close)
 
 
-func _wrap_button(label: String, style: KyberButton.Style, glyph := "", breathe := false) -> KyberButton:
-	var b := KyberButton.make(label, style, glyph, breathe)
+func _cantina(panel: ModalPanel, node: Dictionary) -> void:
+	if node.get("shop", false):
+		_service_menu(panel, node)
+		return
+	var funds := int(run.get("credits", 0))
+	panel.add(UIKit.credit_label("%d run credits" % funds))
+	var repair := _wrap_button("Repair 8 base damage · 20 credits", SabaccButton.Style.PRIMARY)
+	repair.disabled = funds < 20 or int(run.get("base_damage", 0)) == 0
+	repair.pressed.connect(func(): _finish_simple(node, {"heal": 8, "cost": 20}))
+	panel.add(repair)
+	var upgrades: Dictionary = run.get("card_upgrades", {})
+	var units: Array = run["deck"].filter(func(id):
+		return CardDB.card(id).get("type") == "unit" and not upgrades.has(id))
+	var upgrade := _wrap_button("Upgrade a unit with Experience · 20 credits", SabaccButton.Style.GOLD)
+	upgrade.disabled = funds < 20 or units.is_empty()
+	upgrade.pressed.connect(func():
+		_show_deck(units, func(id: String): _finish_simple(node, {"upgrade": id, "cost": 20}), "Choose a unit to upgrade"))
+	panel.add(upgrade)
+	var skip := _wrap_button("Continue without spending", SabaccButton.Style.GHOST)
+	skip.pressed.connect(func(): _finish_simple(node, {}))
+	panel.add(skip)
+
+
+func _service_menu(panel: ModalPanel, node: Dictionary) -> void:
+	var funds := int(run.get("credits", 0))
+	panel.add(UIKit.credit_label("%d run credits" % funds))
+	for offer in CampaignRun.shop_offers(run, node):
+		var used := CampaignRun.service_used(run, node, offer)
+		var cost := int(offer["cost"])
+		var label: String = offer["label"]
+		if offer.has("leader_id") and run.has("support_leader"):
+			label += " · " + CardDB.card(offer["leader_id"]).get("name", "")
+		var button := _wrap_button("%s · %s" % [label, "Purchased" if used else "%d credits" % cost], SabaccButton.Style.GOLD)
+		var candidates: Array = []
+		if offer["id"] == "duplicate" or offer["id"] == "experience":
+			var seen := {}
+			for id in run["deck"]:
+				if seen.has(id):
+					continue
+				if offer["id"] == "experience" and (CardDB.card(id).get("type") != "unit" or run.get("card_upgrades", {}).has(id)):
+					continue
+				candidates.append(id)
+				seen[id] = true
+			button.disabled = candidates.is_empty()
+			button.pressed.connect(func():
+				_show_deck(candidates, func(id: String): _buy_service(node, offer, id), offer["label"]))
+		else:
+			button.disabled = offer["id"] == "repair" and int(run.get("base_damage", 0)) == 0
+			button.pressed.connect(func(): _buy_service(node, offer))
+		button.disabled = button.disabled or used or funds < cost
+		panel.add(button)
+	var done := _wrap_button("Continue", SabaccButton.Style.PRIMARY)
+	done.pressed.connect(func(): _finish_simple(node, {}))
+	panel.add(done)
+
+
+func _buy_service(node: Dictionary, offer: Dictionary, id := "") -> void:
+	if not _resolving and CampaignRun.buy_service(run, chapter, node, offer, id):
+		Save.set_run(run)
+		Sfx.play("deploy")
+		_open_node(node)
+
+
+func _wrap_button(label: String, style: SabaccButton.Style, glyph := "", breathe := false) -> SabaccButton:
+	var b := SabaccButton.make(label, style, glyph, breathe)
 	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	b.add_theme_font_size_override("font_size", 20)
 	return b
 
 
 func _resolve_event(n: Dictionary, choice: Dictionary) -> void:
-	var e: Dictionary = choice.get("effect", {})
+	if _resolving or int(choice.get("cost", 0)) > int(run.get("credits", 0)):
+		return
+	var e := CampaignRun.event_effect(run, n, choice)
+	if e.get("battle", false):
+		run["pending_event_battle"] = n["id"]
+		Save.set_run(run)
+		CampaignFlow.start_node(chapter, n)
+		return
+	if choice.has("pick"):
+		var kind: String = choice["pick"]
+		_show_deck(_event_candidates(kind), func(id: String):
+			e["remove_id" if kind == "upgrade" else "experience_id"] = id
+			_finish_simple(n, e), "Choose an upgrade to trade" if kind == "upgrade" else "Choose a droid for the oil bath")
+		return
 	if e.has("remove_card"):
 		_remove_card_then(n)
 		return
 	_finish_simple(n, e)
 
 
+func _event_candidates(kind: String) -> Array:
+	return run["deck"].filter(func(id):
+		var data := CardDB.card(id)
+		return data.get("type") == "upgrade" if kind == "upgrade" else (
+			data.get("type") == "unit" and "droid" in data.get("traits", [])))
+
+
 func _finish_simple(n: Dictionary, e: Dictionary) -> void:
+	var cost := int(e.get("cost", 0))
+	if _resolving or cost > int(run.get("credits", 0)):
+		return
+	_resolving = true
+	run["credits"] = int(run.get("credits", 0)) - cost
+	if e.has("upgrade"):
+		var upgrades: Dictionary = run.get("card_upgrades", {})
+		upgrades[e["upgrade"]] = ["experience"]
+		run["card_upgrades"] = upgrades
 	var msg := CampaignRun.apply_effect(run, chapter, e)
+	if int(run.get("base_damage", 0)) >= CampaignRun.max_base_hp(run, chapter):
+		var payout := CampaignFlow.cash_out(run)
+		Router.go("chapter", {"chapter_id": chapter["id"], "failed": true, "payout": payout})
+		return
 	CampaignRun.complete_node(run, n["id"])
 	Save.set_run(run)
 	Sfx.play("deploy")
 	if msg != "":
-		Fx.banner(self, n.get("title", ""), Kyber.C_GOLD, msg)
-	await get_tree().create_timer(Kyber.anim(1.0)).timeout
+		Fx.banner(self, n.get("title", ""), Sabacc.C_GOLD, msg)
+	await get_tree().create_timer(Sabacc.anim(1.0)).timeout
 	Router.go("chapter", {"chapter_id": chapter["id"]})
 
 
@@ -271,15 +497,15 @@ func _remove_card_then(n: Dictionary) -> void:
 
 
 ## Deck viewer; with `pick` set, tapping a card selects it. Reflows on rotation.
-func _show_deck(ids: Array, pick := Callable()) -> void:
-	var mp := ModalPanel.open(self, 2000.0, Kyber.C_GOLD, true)
-	var t := mp.text(("Choose a card to remove" if pick.is_valid() else "Deck (%d)" % ids.size()).to_upper(), 28, Kyber.C_GOLD)
-	t.add_theme_font_override("font", Kyber.font_title)
+func _show_deck(ids: Array, pick := Callable(), prompt := "Choose a card to remove") -> void:
+	var mp := ModalPanel.open(self, 2000.0, Sabacc.C_GOLD, true)
+	var t := mp.text((prompt if pick.is_valid() else "Deck (%d)" % ids.size()).to_upper(), 28, Sabacc.C_GOLD)
+	t.add_theme_font_override("font", Sabacc.font_title)
 	var grid := GridContainer.new()
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
 	mp.add(grid)
-	var close := _wrap_button("Close", KyberButton.Style.GHOST)
+	var close := _wrap_button("Close", SabaccButton.Style.GHOST)
 	close.pressed.connect(mp.close)
 	mp.add(close)
 	var fill := func():
@@ -323,6 +549,7 @@ class NodeButton extends Control:
 	var state := "locked"
 	var _t := 0.0
 	var _icon: IconGlyph
+	var label_width := 0.0
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
@@ -331,11 +558,13 @@ class NodeButton extends Control:
 		_icon.frame = true
 		_icon.pulse = state == "available"
 		_icon.spin = state == "available" and node_def.get("type", "") == "boss"
-		var col: Color = {"boss": Kyber.C_EMPIRE, "elite": Kyber.C_GOLD, "rest": Kyber.C_GOOD, "event": Kyber.C_KYBER, "objective": Kyber.C_GOLD, "shop": Kyber.C_COST, "treasure": Kyber.C_GOLD}.get(node_def.get("type", ""), Kyber.C_REBEL)
+		var col: Color = {"boss": Sabacc.C_EMPIRE, "elite": Sabacc.C_GOLD, "rest": Sabacc.C_GOOD, "event": Sabacc.C_ACCENT, "objective": Sabacc.C_GOLD, "shop": Sabacc.C_COST, "treasure": Sabacc.C_GOLD}.get(node_def.get("type", ""), Sabacc.C_REBEL)
 		_icon.color = col if state != "locked" else Color(0.4, 0.45, 0.5)
 		add_child(_icon)
-		var l := UIKit.label(node_def.get("title", ""), 14, Kyber.C_TEXT if state != "locked" else Kyber.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
+		var l := UIKit.label(node_def.get("title", ""), 14, Sabacc.C_TEXT if state != "locked" else Sabacc.C_DIM, HORIZONTAL_ALIGNMENT_CENTER)
 		l.name = "L"
+		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		tooltip_text = l.text
 		add_child(l)
 		resized.connect(_fit)
 		_fit()
@@ -351,8 +580,9 @@ class NodeButton extends Control:
 		pivot_offset = size / 2.0
 		_icon.size = size
 		var l: Label = get_node("L")
-		l.position = Vector2(-40, size.y + 2)
-		l.size = Vector2(size.x + 80, 20)
+		var width := label_width if label_width > 0 else size.x + 80
+		l.position = Vector2((size.x - width) / 2.0, size.y + 2)
+		l.size = Vector2(width, 20)
 
 	func _process(dt: float) -> void:
 		if state == "available":
@@ -362,9 +592,9 @@ class NodeButton extends Control:
 	func _draw() -> void:
 		if state == "available":
 			var k := 0.5 + 0.5 * sin(_t * 3.0)
-			draw_arc(size / 2.0, size.x * (0.55 + 0.08 * k), 0, TAU, 32, Color(Kyber.C_KYBER, 0.5 * (1.0 - k) + 0.2), 3.0, true)
+			draw_arc(size / 2.0, size.x * (0.55 + 0.08 * k), 0, TAU, 32, Color(Sabacc.C_ACCENT, 0.5 * (1.0 - k) + 0.2), 3.0, true)
 		elif state == "visited":
-			UIKit.draw_fit(self, Kyber.font_title, Vector2(size.x * 0.62, size.y * 0.3), "✓", HORIZONTAL_ALIGNMENT_LEFT, -1, int(size.x * 0.3), Kyber.C_GOOD)
+			UIKit.draw_fit(self, Sabacc.font_title, Vector2(size.x * 0.62, size.y * 0.3), "✓", HORIZONTAL_ALIGNMENT_LEFT, -1, int(size.x * 0.3), Sabacc.C_GOOD)
 
 	func _gui_input(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and not ev.pressed:

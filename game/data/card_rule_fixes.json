@@ -1,0 +1,1882 @@
+{
+  "SHD_009": {
+    "implemented": "full",
+    "unparsed": [],
+    "text": "Action [C=1, Exhaust]: Reveal a resource you control. If it shares a name with a friendly Cunning unit, return that resource to its owner's hand and resource the top card of your deck.",
+    "abilities": [{
+      "trigger": "action", "cost": {"exhaust": true, "resources": 1},
+      "text": "Reveal a resource. If it shares a name with a friendly Cunning unit, return it to hand and resource the top card of your deck.",
+      "effects": [{"op": "hunter_resource"}]
+    }],
+    "leader_unit": {
+      "arena": "ground", "power": 5, "hp": 8,
+      "text": "Overwhelm\nOn Attack: You may reveal a resource. If it shares a name with a friendly Cunning unit, return it to hand and resource the top card of your deck.",
+      "keywords": [{"k": "overwhelm"}],
+      "abilities": [{"trigger": "on_attack", "effects": [{"op": "hunter_resource", "optional_reveal": true}]}]
+    }
+  },
+  "HMW_003": {
+    "implemented": "full",
+    "unparsed": [],
+    "abilities": [{
+      "trigger": "action", "cost": {"exhaust": true, "resources": 1},
+      "text": "Give a Weakness token to a unit without one.",
+      "effects": [{"op": "weakness", "t": {"s": "choose", "kind": "unit", "without_token": "weakness"}}]
+    }],
+    "leader_unit": {
+      "arena": "ground", "power": 3, "hp": 6,
+      "text": "On Attack: You may give a Weakness token to a unit.",
+      "keywords": [],
+      "abilities": [{
+        "trigger": "on_attack", "text": "You may give a Weakness token to a unit.",
+        "effects": [{"op": "weakness", "t": {"s": "choose", "kind": "unit", "opt": true}, "optional": true}]
+      }]
+    }
+  },
+  "HMW_001": {
+    "implemented": "full",
+    "unparsed": [],
+    "abilities": [{
+      "trigger": "action",
+      "cost": {"exhaust": true},
+      "text": "Action [Exhaust]: Attack with a unit. For this attack, swap its Raid and Restore.",
+      "effects": [{"op": "attack_with", "swap_raid_restore": true, "t": {"s": "choose", "kind": "unit", "side": "friendly", "ready": true, "can_attack": true}}]
+    }],
+    "leader_unit": {
+      "arena": "ground", "power": 3, "hp": 6,
+      "text": "Restore 2\nAction: Attack with a unit. For this attack, replace any Raid it has or gains with Restore, or vice versa.",
+      "keywords": [{"k": "restore", "v": 2}],
+      "replace_command_action": true,
+      "abilities": [{
+        "trigger": "action",
+        "text": "Attack with a unit and swap its Raid and Restore for the attack.",
+        "effects": [{"op": "attack_with", "swap_raid_restore": true, "t": {"s": "choose", "kind": "unit", "side": "friendly", "ready": true, "can_attack": true}}]
+      }]
+    }
+  },
+  "LOF_005": {
+    "implemented": "full",
+    "unparsed": [],
+    "abilities": [{
+      "trigger": "action",
+      "cost": {"exhaust": true},
+      "text": "Action [Exhaust]: Choose a friendly unit that attacked this phase. Play a unit from your hand that shares a keyword with it for 1 less.",
+      "effects": [
+        {"op": "select", "t": {"s": "choose", "kind": "unit", "side": "friendly", "attacked_keyword_discount": 1}},
+        {"op": "play_from_hand", "kind": "unit", "discount": 1, "shares_selected_keyword": true}
+      ]
+    }],
+    "leader_unit": {
+      "arena": "ground", "power": 3, "hp": 6,
+      "text": "On Attack: The next unit you play this phase costs 1 less if it shares a Keyword with a friendly unit.",
+      "keywords": [],
+      "abilities": [{
+        "trigger": "on_attack",
+        "text": "On Attack: The next unit you play this phase costs 1 less if it shares a keyword with a friendly unit.",
+        "effects": [{"op": "discount_next", "n": 1, "filter": {"kind": "unit"}, "shared_unit_keyword": true}]
+      }]
+    }
+  },
+  "ASH_043": {
+    "abilities": [
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "buff",
+            "p": -2,
+            "h": 0,
+            "dur": "phase",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "any",
+              "opt": true
+            },
+            "optional": true
+          }
+        ],
+        "text": "On Attack: You may give a unit -2/-0 for this phase."
+      },
+      {
+        "trigger": "when_defeated",
+        "effects": [
+          {
+            "op": "defeat",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "nonleader": true,
+              "max_power": 0
+            },
+            "optional": true
+          }
+        ],
+        "text": "When Defeated: You may defeat a non‑leader unit with 0 power."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "ASH_156": {
+    "abilities": [
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "defeat_target_upgrades",
+            "t": {
+              "s": "defender"
+            }
+          }
+        ],
+        "text": "On Attack: Defeat all upgrades on the defending unit."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "ASH_176": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "damage",
+            "n": 3,
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "arena": "ground"
+            },
+            "optional": true,
+            "resolve_defeat": true
+          },
+          {
+            "op": "advantage",
+            "t": {
+              "s": "self"
+            },
+            "n": 3,
+            "if_did": true,
+            "if": {
+              "selected_defeated": true
+            }
+          }
+        ],
+        "text": "When Played: You may deal 3 damage to a ground unit. If it's defeated this way, give 3 Advantage tokens to this unit."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "ASH_210": {
+    "abilities": [
+      {
+        "trigger": "attach_restriction",
+        "target": {
+          "s": "choose",
+          "kind": "unit",
+          "side": "any",
+          "not_trait": "vehicle"
+        },
+        "text": "Attach to a non-Vehicle unit."
+      },
+      {
+        "trigger": "when_attacked",
+        "effects": [
+          {
+            "op": "damage",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "same_arena": true
+            },
+            "n": 1,
+            "optional": true
+          },
+          {
+            "op": "exhaust",
+            "t": {
+              "s": "it"
+            },
+            "if_did": true
+          }
+        ],
+        "text": "Attached unit gains: \"On Defense: You may deal 1 damage to a unit in this unit's arena and exhaust it.\"",
+        "granted": true
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "ASH_229": {
+    "abilities": [
+      {
+        "trigger": "host_attack_end",
+        "effects": [
+          {
+            "op": "play_from_hand",
+            "source_zone": "deck_top",
+            "free": true,
+            "max_cost": 2,
+            "optional": true
+          }
+        ],
+        "text": "Attached unit gains: \"When Attack Ends: Look at the top card of your deck. If it costs 2 or less, you may play it for free.\""
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "HMW_014": {
+    "abilities": [
+      {
+        "trigger": "friendly_attack",
+        "effects": [
+          {
+            "op": "exhaust",
+            "t": {
+              "s": "self"
+            },
+            "optional": true
+          },
+          {
+            "op": "draw",
+            "if_did": true
+          }
+        ],
+        "text": "When a friendly unit attacks a unit that costs more than it: You may exhaust this leader. If you do, draw a card.",
+        "higher_cost_target": true
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "HMW_077": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "defeat",
+            "t": {
+              "s": "choose",
+              "kind": "upgrade",
+              "side": "friendly",
+              "token_name": "shield",
+              "attached_trait": "gungan"
+            },
+            "optional": true
+          },
+          {
+            "op": "token",
+            "name": "beast",
+            "if_did": true
+          },
+          {
+            "op": "shield",
+            "t": {
+              "s": "it"
+            },
+            "if_did": true
+          }
+        ],
+        "text": "When Played/On Attack: You may defeat a Shield token on a friendly Gungan unit. If you do, create a Beast token and give a Shield token to it."
+      },
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "defeat",
+            "t": {
+              "s": "choose",
+              "kind": "upgrade",
+              "side": "friendly",
+              "token_name": "shield",
+              "attached_trait": "gungan"
+            },
+            "optional": true
+          },
+          {
+            "op": "token",
+            "name": "beast",
+            "if_did": true
+          },
+          {
+            "op": "shield",
+            "t": {
+              "s": "it"
+            },
+            "if_did": true
+          }
+        ],
+        "text": "When Played/On Attack: You may defeat a Shield token on a friendly Gungan unit. If you do, create a Beast token and give a Shield token to it."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "HMW_108": {
+    "abilities": [
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "name_enemy_trait"
+          }
+        ],
+        "text": "On Attack: Name a Trait. Enemy cards, including those not in play, lose that Trait for this phase."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "HMW_114": {
+    "abilities": [
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "friendly"
+            }
+          },
+          {
+            "op": "damage_from_it",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "enemy",
+              "arena_of_it": true
+            },
+            "overwhelm": true,
+            "if_did": true
+          }
+        ],
+        "text": "A friendly unit deals damage equal to its power to an enemy unit in its arena. If the friendly unit has Overwhelm, deal the excess damage to an enemy base."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "HMW_180": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "reveal_disaster"
+          }
+        ],
+        "text": "When Played: You may reveal a Disaster card from your hand. If you do or if there's a Disaster card in your discard pile, draw a card."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "HMW_192": {
+    "abilities": [
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "friendly"
+            }
+          },
+          {
+            "op": "damage_from_it",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "enemy"
+            },
+            "amount": "raid",
+            "if_did": true
+          }
+        ],
+        "text": "A friendly unit deals damage equal to its Raid to an enemy unit."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "HMW_240": {
+    "abilities": [
+      {
+        "trigger": "own_discount",
+        "n": 1,
+        "condition": {
+          "base_trait": "tatooine"
+        },
+        "text": "While you control a Tatooine base, this event costs 1 less to play."
+      },
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "choose_one",
+            "options": [
+              {
+                "label": "Ground",
+                "arena": "ground",
+                "effects": [
+                  {
+                    "op": "weakness",
+                    "t": {
+                      "s": "each",
+                      "kind": "unit",
+                      "side": "enemy",
+                      "arena": "ground",
+                      "exhausted": true
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Space",
+                "arena": "space",
+                "effects": [
+                  {
+                    "op": "weakness",
+                    "t": {
+                      "s": "each",
+                      "kind": "unit",
+                      "side": "enemy",
+                      "arena": "space",
+                      "exhausted": true
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "Choose an arena. Give a Weakness token to each exhausted enemy unit in that arena."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "IBH_104": {
+    "abilities": [
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "defeat",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "enemy",
+              "max_cost": 3,
+              "count": 2,
+              "upto": true
+            }
+          }
+        ],
+        "text": "Defeat up to 2 enemy units that each cost 3 or less."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "JTL_016": {
+    "abilities": [
+      {
+        "trigger": "action",
+        "cost": {
+          "exhaust": true,
+          "resources": 1
+        },
+        "effects": [
+          {
+            "op": "exhaust",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "any",
+              "nonleader": true
+            }
+          },
+          {
+            "op": "token",
+            "name": "x_wing",
+            "who": "selected_controller",
+            "if_did": true
+          }
+        ],
+        "text": "Action [C=1, Exhaust]: Exhaust a non-leader unit. If you do, its controller creates an X-Wing token."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": [],
+    "leader_unit": {
+      "arena": "ground",
+      "power": 3,
+      "hp": 8,
+      "text": "On Attack: You may exhaust a unit. If you do, its controller creates an X-Wing token.",
+      "keywords": [],
+      "abilities": [
+        {
+          "trigger": "on_attack",
+          "effects": [
+            {
+              "op": "exhaust",
+              "t": {
+                "s": "choose",
+                "kind": "unit",
+                "side": "any",
+                "opt": true
+              },
+              "optional": true
+            },
+            {
+              "op": "token",
+              "name": "x_wing",
+              "who": "selected_controller",
+              "if_did": true
+            }
+          ],
+          "text": "On Attack: You may exhaust a unit. If you do, its controller creates an X-Wing token."
+        }
+      ]
+    }
+  },
+  "JTL_092": {
+    "abilities": [
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "token",
+            "name": "tie_fighter",
+            "n": 8,
+            "ready": true,
+            "no_base_attack": true
+          }
+        ],
+        "text": "Create 8 TIE Fighter tokens and ready them. They can't attack bases for this phase."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "JTL_097": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "attack_with",
+            "optional": true,
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "friendly",
+              "can_attack": true,
+              "pilot_or_piloted": true,
+              "attack_modifiers": [
+                {
+                  "p": 1,
+                  "dur": "attack"
+                },
+                {
+                  "kw": "restore",
+                  "v": 1,
+                  "dur": "attack"
+                }
+              ]
+            }
+          }
+        ],
+        "text": "When Played: You may attack with a Pilot unit or a unit with a Pilot on it. It gets +1/+0 and gains Restore 1 for this attack."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "JTL_122": {
+    "abilities": [
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "exhaust",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "friendly",
+              "arena": "space",
+              "ready": true,
+              "count": 2,
+              "upto": true
+            }
+          },
+          {
+            "op": "token",
+            "name": "x_wing",
+            "count_from": "exhausted_count",
+            "if_did": true
+          }
+        ],
+        "text": "Exhaust up to 2 friendly space units. For each unit exhausted this way, create an X-Wing token."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "JTL_199": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "shield",
+            "t": {
+              "s": "choose",
+              "kind": "unit"
+            },
+            "if": {
+              "control": {
+                "kind": "unit",
+                "side": "enemy",
+                "exhausted": true
+              },
+              "min": 3
+            }
+          }
+        ],
+        "text": "When Played: If another player controls 3 or more exhausted units, give a Shield token to a unit."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "JTL_205": {
+    "abilities": [
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "recover",
+            "destination": "deck",
+            "bottom": true,
+            "other_discard": true,
+            "exclude_source": true
+          },
+          {
+            "op": "token",
+            "name": "x_wing",
+            "if_did": true
+          }
+        ],
+        "text": "Put another card in a discard pile on the bottom of its owner's deck. If you do, create an X-Wing token."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "JTL_240": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "indirect_damage",
+            "n": 2,
+            "player": "choose",
+            "if": {
+              "controls_name": "Boba Fett"
+            }
+          },
+          {
+            "op": "indirect_damage",
+            "n": 1,
+            "player": "choose",
+            "if": {
+              "not": {
+                "controls_name": "Boba Fett"
+              }
+            }
+          }
+        ],
+        "text": "When Played/On Attack: Deal 1 indirect damage to a player. If you control Boba Fett, deal 2 indirect damage instead."
+      },
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "indirect_damage",
+            "n": 2,
+            "player": "choose",
+            "if": {
+              "controls_name": "Boba Fett"
+            }
+          },
+          {
+            "op": "indirect_damage",
+            "n": 1,
+            "player": "choose",
+            "if": {
+              "not": {
+                "controls_name": "Boba Fett"
+              }
+            }
+          }
+        ],
+        "text": "When Played/On Attack: Deal 1 indirect damage to a player. If you control Boba Fett, deal 2 indirect damage instead."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "JTL_260": {
+    "abilities": [
+      {
+        "trigger": "play_discount",
+        "filter": {
+          "kind": "unit"
+        },
+        "n": 2,
+        "first": "round",
+        "text": "The first unit you play each round costs 2 less.",
+        "granted": true
+      },
+      {
+        "trigger": "when_attacked",
+        "effects": [
+          {
+            "op": "transfer_attacked_upgrade"
+          }
+        ],
+        "text": "When attached unit is attacked: The attacking player takes control of this upgrade and attaches it to a unit they control.",
+        "granted": true
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LAW_010": {
+    "abilities": [
+      {
+        "trigger": "action",
+        "effects": [
+          {
+            "op": "buff",
+            "t": {
+              "s": "choose",
+              "kind": "unit"
+            },
+            "p": 1,
+            "h": 1,
+            "dur": "phase",
+            "count_from": "target_aspects"
+          }
+        ],
+        "cost": {
+          "resources": 2,
+          "exhaust": true
+        },
+        "text": "Action [C=2, Exhaust]: For this phase, give a unit +1/+1 for each different aspect it has."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": [],
+    "leader_unit": {
+      "arena": "ground",
+      "power": 2,
+      "hp": 2,
+      "text": "Overwhelm\nWhen Deployed: Choose a unit. Give an Experience token to that unit for each different aspect among units you control.",
+      "keywords": [
+        {
+          "k": "overwhelm"
+        }
+      ],
+      "abilities": [
+        {
+          "trigger": "when_deployed",
+          "effects": [
+            {
+              "op": "experience",
+              "t": {
+                "s": "choose",
+                "kind": "unit"
+              },
+              "count_from": "friendly_unit_aspects"
+            }
+          ],
+          "text": "When Deployed: Choose a unit. Give an Experience token to that unit for each different aspect among units you control."
+        }
+      ]
+    }
+  },
+  "LAW_075": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "exhaust",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "enemy"
+            }
+          },
+          {
+            "op": "discard",
+            "who": "selected_controller",
+            "if_did": true,
+            "if": {
+              "selected_max_cost": 3
+            }
+          }
+        ],
+        "text": "When Played: Exhaust an enemy unit. If you do, and that unit costs 3 or less, its controller discards a card from thier hand."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LAW_088": {
+    "abilities": [
+      {
+        "trigger": "friendly_attack_end",
+        "effects": [
+          {
+            "op": "bounce",
+            "t": {
+              "s": "subject"
+            },
+            "optional": true
+          },
+          {
+            "op": "heal",
+            "n": 2,
+            "t": {
+              "s": "own_base"
+            },
+            "if_did": true
+          }
+        ],
+        "no_other_attacks": true,
+        "combat_result": "attacker_survived",
+        "text": "When a friendly unit's attack ends: If no other units have attacked this phase, you may return it to its owner's hand. If you do, heal 2 damage from your base."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LAW_126": {
+    "abilities": [
+      {
+        "trigger": "attach_restriction",
+        "target": {
+          "s": "choose",
+          "kind": "unit",
+          "side": "any",
+          "not_trait": "vehicle"
+        },
+        "text": "Attach to a non-Vehicle unit."
+      },
+      {
+        "trigger": "action",
+        "effects": [
+          {
+            "op": "set_printed_hp",
+            "n": 1,
+            "dur": "phase",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "nonleader": true,
+              "arena": "ground",
+              "damaged": false,
+              "undamaged": true
+            }
+          }
+        ],
+        "text": "Attached unit gains: \"Action [Exhaust]: Choose an undamaged non-leader ground unit. Its printed HP is considered to be 1 for this phase.\"",
+        "granted": true,
+        "cost": {
+          "exhaust": true
+        }
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LAW_152": {
+    "abilities": [
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "experience",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "other": true,
+              "nonleader": true,
+              "shares_leader_trait": true
+            },
+            "optional": true
+          }
+        ],
+        "text": "On Attack: You may give an Experience token to another non-leader unit that shares a Trait with a friendly leader."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LAW_171": {
+    "abilities": [
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "resource_self"
+          },
+          {
+            "op": "resource_top"
+          }
+        ],
+        "text": "Resource this event and the top card of your deck."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LAW_200": {
+    "abilities": [
+      {
+        "trigger": "attach_restriction",
+        "target": {
+          "s": "choose",
+          "kind": "unit",
+          "side": "any",
+          "not_trait": "vehicle"
+        },
+        "text": "Attach to a non-Vehicle unit."
+      },
+      {
+        "trigger": "constant",
+        "flag": "play_if_discarded_this_phase",
+        "text": "Action: If this upgrade was discarded from your hand or deck this phase, play it from your discard pile."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LAW_201": {
+    "abilities": [
+      {
+        "trigger": "attach_restriction",
+        "target": {
+          "s": "choose",
+          "kind": "unit",
+          "side": "any",
+          "not_trait": "vehicle"
+        },
+        "text": "Attach to a non-Vehicle unit."
+      },
+      {
+        "trigger": "when_defeated",
+        "effects": [
+          {
+            "op": "damage",
+            "n": 2,
+            "t": {
+              "s": "each",
+              "kind": "unit",
+              "side": "enemy",
+              "arena": "ground"
+            },
+            "if": {
+              "was_ready_when_defeated": true
+            }
+          }
+        ],
+        "text": "Attached unit gains: \"When Defeated: If this unit was ready, deal 2 damage to each enemy ground unit.\"",
+        "granted": true
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LAW_225": {
+    "abilities": [
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "mill"
+          },
+          {
+            "op": "token",
+            "name": "credit",
+            "if": {
+              "discarded_odd_cost": true
+            }
+          }
+        ],
+        "text": "Attached unit gains: \"On Attack: Discard a card from your deck. If its cost is odd, create a Credit token.\"",
+        "granted": true
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LOF_065": {
+    "abilities": [
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "choose_one",
+            "who": "opponent",
+            "options": [
+              {
+                "label": "Give a friendly unit Experience",
+                "effects": [
+                  {
+                    "op": "experience",
+                    "t": {
+                      "s": "choose",
+                      "kind": "unit",
+                      "side": "friendly"
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "Draw a card",
+                "effects": [
+                  {
+                    "op": "draw"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "On Attack: An opponent chooses one: You give an Experience token to a friendly unit. ‖ You draw a card."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LOF_197": {
+    "abilities": [
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "repeat_next_when_played"
+          }
+        ],
+        "text": "On Attack: The next time you use a \"When Played\" ability this phase, you may use that ability again."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LOF_200": {
+    "abilities": [
+      {
+        "trigger": "when_defeated",
+        "effects": [
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "any",
+              "nonleader": true,
+              "arena": "ground",
+              "opt": true
+            },
+            "optional": true
+          }
+        ],
+        "text": "When Defeated: You may choose a non-leader ground unit. Its owner puts it on the top or bottom of their deck."
+      },
+      {
+        "trigger": "when_defeated",
+        "effects": [
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "nonleader": true,
+              "arena": "ground"
+            },
+            "optional": true
+          },
+          {
+            "op": "choose_one",
+            "who": "selected_owner",
+            "if_did": true,
+            "options": [
+              {
+                "label": "Top of the deck",
+                "effects": [
+                  {
+                    "op": "bottom_unit",
+                    "t": {
+                      "s": "it"
+                    },
+                    "top": true
+                  }
+                ]
+              },
+              {
+                "label": "Bottom of the deck",
+                "effects": [
+                  {
+                    "op": "bottom_unit",
+                    "t": {
+                      "s": "it"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "When Defeated: You may choose a non-leader ground unit. Its owner puts it on the top or bottom of their deck."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LOF_201": {
+    "abilities": [
+      {
+        "trigger": "attach_restriction",
+        "target": {
+          "s": "choose",
+          "kind": "unit",
+          "side": "friendly",
+          "not_trait": "vehicle"
+        },
+        "text": "Attach to a friendly non-Vehicle unit."
+      },
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "exhaust",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "count": 12,
+              "upto": true
+            },
+            "combined_cost": 6,
+            "if": {
+              "attached_name": "qui-gon jinn"
+            }
+          }
+        ],
+        "text": "When Played: If attached unit is Qui-Gon Jinn, you may exhaust any number of units with combined cost 6 or less."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LOF_209": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "lose_kw",
+            "kw": "hidden",
+            "dur": "phase",
+            "t": {
+              "s": "each",
+              "kind": "unit",
+              "side": "enemy"
+            }
+          }
+        ],
+        "text": "When Played: Each enemy unit loses Hidden for this phase."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "LOF_222": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "enemy",
+              "nonleader": true
+            }
+          },
+          {
+            "op": "choose_one",
+            "if_did": true,
+            "who": "opponent",
+            "options": [
+              {
+                "label": "Return the unit to hand",
+                "effects": [
+                  {
+                    "op": "bounce",
+                    "t": {
+                      "s": "it"
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "It could be worse.",
+                "effects": [
+                  {
+                    "op": "play_from_hand",
+                    "name": "it's worse",
+                    "source_zone": "hand_or_resource",
+                    "free": true,
+                    "optional": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "Return an enemy non-leader unit to its owner's hand unless its controller says, \"It could be worse.\" If they do, you may play a card named It's Worse from your hand or resources for free."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SEC_052": {
+    "abilities": [
+      {
+        "trigger": "when_attacked",
+        "effects": [
+          {
+            "op": "disclose",
+            "aspects": [
+              "vigilance",
+              "vigilance",
+              "heroism",
+              "heroism"
+            ],
+            "optional": true
+          },
+          {
+            "op": "buff",
+            "t": {
+              "s": "attacker"
+            },
+            "p": -2,
+            "h": 0,
+            "dur": "attack",
+            "if_did": true
+          }
+        ],
+        "text": "Attached unit gains: \"When this unit is attacked: You may disclose Vigilance Vigilance Heroism Heroism. If you do, the attacker gets -2/-0 for this attack.\"",
+        "granted": true
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SEC_068": {
+    "abilities": [],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SHD_017": {
+    "abilities": [
+      {
+        "trigger": "action",
+        "effects": [
+          {
+            "op": "play_from_hand",
+            "source_zone": "resource",
+            "smuggle": true,
+            "keyword": "smuggle",
+            "discount": 2
+          },
+          {
+            "op": "defeat_owned_resource",
+            "if_did": true
+          }
+        ],
+        "cost": {
+          "exhaust": true
+        },
+        "text": "Action [Exhaust]: Play a card using SMUGGLE. It costs 2 less. Defeat a resource you own and control."
+      }
+    ],
+    "leader_unit": {
+      "arena": "ground",
+      "power": 2,
+      "hp": 5,
+      "text": "Action: Play a card using SMUGGLE. It costs 2 less. Defeat a resource you own and control. Use this ability only once each round.",
+      "keywords": [],
+      "abilities": [
+        {
+          "trigger": "action",
+          "effects": [
+            {
+              "op": "play_from_hand",
+              "source_zone": "resource",
+              "smuggle": true,
+              "keyword": "smuggle",
+              "discount": 2
+            },
+            {
+              "op": "defeat_owned_resource",
+              "if_did": true
+            }
+          ],
+          "limit": 1,
+          "limit_period": "round",
+          "text": "Action: Play a card using SMUGGLE. It costs 2 less. Defeat a resource you own and control. Use this ability only once each round."
+        }
+      ]
+    },
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SHD_103": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "friendly"
+            }
+          },
+          {
+            "op": "experience",
+            "t": {
+              "s": "it"
+            },
+            "if": {
+              "selected_keyword": "sentinel"
+            }
+          },
+          {
+            "op": "gain_kw",
+            "t": {
+              "s": "it"
+            },
+            "kw": "sentinel",
+            "dur": "phase",
+            "if": {
+              "not": {
+                "selected_keyword": "sentinel"
+              }
+            }
+          }
+        ],
+        "text": "When Played/On Attack: Choose a friendly unit. If it has Sentinel, give an Experience token to it. Otherwise, it gains Sentinel for this phase."
+      },
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "friendly"
+            }
+          },
+          {
+            "op": "experience",
+            "t": {
+              "s": "it"
+            },
+            "if": {
+              "selected_keyword": "sentinel"
+            }
+          },
+          {
+            "op": "gain_kw",
+            "t": {
+              "s": "it"
+            },
+            "kw": "sentinel",
+            "dur": "phase",
+            "if": {
+              "not": {
+                "selected_keyword": "sentinel"
+              }
+            }
+          }
+        ],
+        "text": "When Played/On Attack: Choose a friendly unit. If it has Sentinel, give an Experience token to it. Otherwise, it gains Sentinel for this phase."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SHD_114": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "scan_resources"
+          }
+        ],
+        "text": "When Played: Reveal 3 enemy resources. Defeat each resource with the Smuggle keyword revealed this way. For each resource defeated this way, its controller puts the top card of their deck into play as a resource."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SHD_204": {
+    "abilities": [
+      {
+        "trigger": "constant",
+        "effects": [],
+        "flag": "ambush_from_hand",
+        "text": "If you play this unit from your hand, it gains Ambush."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SHD_205": {
+    "abilities": [
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "choose_one",
+            "who": "opponent",
+            "options": [
+              {
+                "label": "Ready up to six resources",
+                "effects": [
+                  {
+                    "op": "choose_ready_resources",
+                    "n": 6
+                  }
+                ]
+              },
+              {
+                "label": "Ready a friendly unit",
+                "effects": [
+                  {
+                    "op": "ready",
+                    "t": {
+                      "s": "choose",
+                      "kind": "unit",
+                      "side": "friendly"
+                    }
+                  },
+                  {
+                    "op": "attack_with",
+                    "t": {
+                      "s": "it"
+                    },
+                    "pre": [
+                      {
+                        "op": "buff",
+                        "p": 2
+                      }
+                    ],
+                    "if_did": true,
+                    "if": {
+                      "selected_trait": "wookiee"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "An opponent chooses one: You ready up to 6 resources. ‖ You ready a friendly unit. If it's a Wookiee unit, attack with it. It gets +2/+0 for this attack."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SHD_246": {
+    "abilities": [
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "select",
+            "chooser": "opponent",
+            "t": {
+              "s": "choose",
+              "kind": "unit_or_base",
+              "side": "enemy"
+            }
+          },
+          {
+            "op": "damage",
+            "n": 2,
+            "t": {
+              "s": "it"
+            },
+            "optional": true,
+            "if_did": true
+          }
+        ],
+        "text": "On Attack: An opponent chooses a unit or base they control. You may deal 2 damage to it."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SOR_035": {
+    "abilities": [],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SOR_051": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "enemy"
+            }
+          },
+          {
+            "op": "buff",
+            "p": -6,
+            "h": -6,
+            "dur": "phase",
+            "t": {
+              "s": "it"
+            },
+            "if": {
+              "friendly_defeated_this_phase": true
+            }
+          },
+          {
+            "op": "buff",
+            "p": -3,
+            "h": -3,
+            "dur": "phase",
+            "t": {
+              "s": "it"
+            },
+            "if": {
+              "not": {
+                "friendly_defeated_this_phase": true
+              }
+            }
+          }
+        ],
+        "text": "When Played: Give an enemy unit -3/-3 for this phase. If a friendly unit was defeated this phase, give that enemy unit -6/-6 for this phase instead."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SOR_088": {
+    "abilities": [
+      {
+        "trigger": "attack_end",
+        "effects": [
+          {
+            "op": "damage",
+            "amount": "combat_excess",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "enemy",
+              "arena": "ground",
+              "opt": true
+            }
+          }
+        ],
+        "combat_result": "defender_defeated_with_excess",
+        "text": "When this unit attacks and defeats a unit: You may deal the excess damage from this attack to an enemy ground unit."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SOR_193": {
+    "abilities": [
+      {
+        "trigger": "constant",
+        "flag": "enters_ready",
+        "text": "This unit enters play ready."
+      },
+      {
+        "trigger": "regroup_start",
+        "effects": [
+          {
+            "op": "choose_one",
+            "options": [
+              {
+                "label": "Pay 1 to keep the Falcon",
+                "effects": [
+                  {
+                    "op": "pay_resources",
+                    "n": 1
+                  }
+                ],
+                "if": {
+                  "available_resources": 1
+                }
+              },
+              {
+                "label": "Return the Falcon to hand",
+                "effects": [
+                  {
+                    "op": "bounce",
+                    "t": {
+                      "s": "self"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "When you ready cards during the regroup phase: Either pay 1 or return this unit to her owner's hand."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SOR_197": {
+    "abilities": [],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SOR_199": {
+    "abilities": [
+      {
+        "trigger": "constant",
+        "flag": "discard_cunning_instead_of_cost",
+        "text": "You may discard a Cunning card from your hand instead of paying this event's cost."
+      },
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "exhaust",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "any"
+            }
+          },
+          {
+            "op": "return_target_upgrades",
+            "t": {
+              "s": "it"
+            }
+          }
+        ],
+        "text": "Exhaust a unit and return each upgrade on it to its owner's hand."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SOR_223": {
+    "abilities": [
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit"
+            }
+          },
+          {
+            "op": "cocky_reveal",
+            "if_did": true
+          }
+        ],
+        "text": "Choose a unit. One at a time, reveal cards from your deck until you choose to stop or have revealed 7 cards. If the combined cost of the revealed cards is 7 or less, deal that much damage to the chosen unit. Put the revealed cards on the bottom of your deck in a random order."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SOR_234": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "friendly",
+              "trait": "imperial"
+            }
+          },
+          {
+            "op": "remember_target",
+            "key": "first_imperial",
+            "if_did": true
+          },
+          {
+            "op": "damage_from_it",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "any"
+            },
+            "if_did": true
+          },
+          {
+            "op": "remember_target",
+            "key": "firepower_target",
+            "if_did": true
+          },
+          {
+            "op": "select",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "side": "friendly",
+              "trait": "imperial",
+              "exclude_remembered": "first_imperial"
+            },
+            "if_did": true
+          },
+          {
+            "op": "damage_from_it",
+            "t": {
+              "s": "remembered",
+              "key": "firepower_target"
+            },
+            "if_did": true
+          }
+        ],
+        "text": "A friendly IMPERIAL unit deals damage equal to its power to a unit. Then, another friendly IMPERIAL unit deals damage equal to its power to the same unit."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "SOR_238": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "guess_top_cost"
+          }
+        ],
+        "text": "When Played/On Attack: Choose a number, then look at the top card of your deck. If its cost is the chosen number, you may reveal and draw it."
+      },
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "guess_top_cost"
+          }
+        ],
+        "text": "When Played/On Attack: Choose a number, then look at the top card of your deck. If its cost is the chosen number, you may reveal and draw it."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "TWI_041": {
+    "abilities": [
+      {
+        "trigger": "event",
+        "effects": [
+          {
+            "op": "defeat",
+            "t": {
+              "s": "choose",
+              "kind": "unit",
+              "nonleader": true
+            }
+          },
+          {
+            "op": "damage",
+            "amount": "defeated_power",
+            "t": {
+              "s": "own_base"
+            },
+            "if_did": true
+          }
+        ],
+        "text": "Defeat a non-leader unit. Deal damage to your base equal to that unit's power."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "TWI_168": {
+    "abilities": [
+      {
+        "trigger": "when_played",
+        "effects": [
+          {
+            "op": "draw",
+            "if": {
+              "compare_units": "fewer"
+            }
+          }
+        ],
+        "text": "When Played: If an opponent controls more units than you, draw a card."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  },
+  "TWI_202": {
+    "abilities": [
+      {
+        "trigger": "on_attack",
+        "effects": [
+          {
+            "op": "damage",
+            "n": 2,
+            "t": {
+              "s": "choose",
+              "kind": "unit_or_base",
+              "random": true
+            }
+          }
+        ],
+        "text": "On Attack: Deal 2 damage to a random unit or base."
+      }
+    ],
+    "implemented": "full",
+    "unparsed": []
+  }
+}

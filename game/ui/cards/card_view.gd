@@ -28,6 +28,7 @@ var inst: CardInst          # optional live instance (hand cards)
 var face_down := false
 var show_back_side := false # leader unit side
 var draggable := true
+var in_scroll := false
 var hover_lift := true
 var playable := false:
 	set(v):
@@ -98,7 +99,7 @@ func _on_art(t: Texture2D) -> void:
 
 
 func _ready() -> void:
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	mouse_filter = Control.MOUSE_FILTER_PASS if in_scroll else Control.MOUSE_FILTER_STOP
 	mouse_entered.connect(_on_hover.bind(true))
 	mouse_exited.connect(_on_hover.bind(false))
 
@@ -124,13 +125,13 @@ func _draw() -> void:
 	var r := Rect2(Vector2.ZERO, size)
 	if playable or selected:
 		var k := 0.5 + 0.5 * sin(_glow_t * 4.0)
-		var gc := Kyber.C_GOLD if selected else Kyber.C_KYBER
+		var gc := Sabacc.C_GOLD if selected else Sabacc.C_ACCENT
 		for i in 4:
 			var g := 3.0 + i * 3.0 + k * 2.0
 			draw_rect(r.grow(g), Color(gc, 0.16 - i * 0.03), false, 3.0)
 		draw_rect(r.grow(2), Color(gc, 0.9), false, 2.5)
 	if face_down:
-		var back: Texture2D = Art.card_back
+		var back: Texture2D = Cosmetics.texture("cardback")
 		draw_texture_rect(back, r, false)
 		return
 	if _tex and _tex != Art.placeholder:
@@ -140,41 +141,41 @@ func _draw() -> void:
 	if cost_override >= 0 and cost_override != int(data.get("cost", 0)) and not is_landscape():
 		var badge := Rect2(Vector2(size.x * 0.03, size.y * 0.02), Vector2(size.x * 0.19, size.x * 0.19))
 		draw_rect(badge, Color(0.6, 0.05, 0.05, 0.92))
-		var f := Kyber.font_title
+		var f := Sabacc.font_title
 		var fs := int(size.x * 0.13)
 		UIKit.draw_fit(self, f, badge.position + Vector2(0, badge.size.y * 0.78), str(cost_override), HORIZONTAL_ALIGNMENT_CENTER, badge.size.x, fs, Color.WHITE)
 
 
 func _draw_text_card(r: Rect2) -> void:
 	var aspects: Array = data.get("aspects", [])
-	var col := Kyber.aspect_color(aspects[0]) if aspects.size() > 0 else Kyber.C_LINE
+	var col := Sabacc.aspect_color(aspects[0]) if aspects.size() > 0 else Sabacc.C_LINE
 	draw_rect(r, Color("0d1520"))
 	draw_rect(r.grow(-4), Color(col, 0.35), false, 6.0)
-	var f := Kyber.font_body
-	var tf := Kyber.font_title
+	var f := Sabacc.font_body
+	var tf := Sabacc.font_title
 	var w := r.size.x
 	var nm: String = data.get("name", card_id if card_id != "" else "?")
-	UIKit.draw_fit(self, tf, Vector2(0, w * 0.2), nm, HORIZONTAL_ALIGNMENT_CENTER, w, int(w * 0.075), Kyber.C_TEXT)
+	UIKit.draw_fit(self, tf, Vector2(0, w * 0.2), nm, HORIZONTAL_ALIGNMENT_CENTER, w, int(w * 0.075), Sabacc.C_TEXT)
 	var sub: String = data.get("subtitle", "")
 	if sub != "":
-		UIKit.draw_fit(self, f, Vector2(0, w * 0.28), sub, HORIZONTAL_ALIGNMENT_CENTER, w, int(w * 0.05), Kyber.C_DIM)
+		UIKit.draw_fit(self, f, Vector2(0, w * 0.28), sub, HORIZONTAL_ALIGNMENT_CENTER, w, int(w * 0.05), Sabacc.C_DIM)
 	var t: String = data.get("type", "")
 	if t != "base":
-		draw_rect(Rect2(Vector2(8, 8), Vector2(w * 0.17, w * 0.17)), Kyber.C_COST)
+		draw_rect(Rect2(Vector2(8, 8), Vector2(w * 0.17, w * 0.17)), Sabacc.C_COST)
 		UIKit.draw_fit(self, tf, Vector2(8, 8 + w * 0.14), str(data.get("cost", 0)), HORIZONTAL_ALIGNMENT_CENTER, w * 0.17, int(w * 0.12), Color.BLACK)
 	if t in ["unit", "leader", "token_unit"] or (t == "upgrade" and (int(data.get("power", 0)) != 0 or int(data.get("hp", 0)) != 0)):
 		var y := r.size.y * 0.55
-		draw_rect(Rect2(Vector2(8, y), Vector2(w * 0.18, w * 0.18)), Kyber.C_POWER)
+		draw_rect(Rect2(Vector2(8, y), Vector2(w * 0.18, w * 0.18)), Sabacc.C_POWER)
 		UIKit.draw_fit(self, tf, Vector2(8, y + w * 0.14), str(data.get("power", 0)), HORIZONTAL_ALIGNMENT_CENTER, w * 0.18, int(w * 0.12), Color.WHITE)
-		draw_rect(Rect2(Vector2(w - 8 - w * 0.18, y), Vector2(w * 0.18, w * 0.18)), Kyber.C_HP)
+		draw_rect(Rect2(Vector2(w - 8 - w * 0.18, y), Vector2(w * 0.18, w * 0.18)), Sabacc.C_HP)
 		UIKit.draw_fit(self, tf, Vector2(w - 8 - w * 0.18, y + w * 0.14), str(data.get("hp", 0)), HORIZONTAL_ALIGNMENT_CENTER, w * 0.18, int(w * 0.12), Color.WHITE)
 	elif t == "base":
-		UIKit.draw_fit(self, tf, Vector2(0, r.size.y * 0.6), "%d HP" % int(data.get("hp", 0)), HORIZONTAL_ALIGNMENT_CENTER, w, int(w * 0.09), Kyber.C_HP)
+		UIKit.draw_fit(self, tf, Vector2(0, r.size.y * 0.6), "%d HP" % int(data.get("hp", 0)), HORIZONTAL_ALIGNMENT_CENTER, w, int(w * 0.09), Sabacc.C_HP)
 	var text: String = data.get("text", "")
 	if text != "":
 		var y0 := r.size.y * 0.72
-		draw_multiline_string(f, Vector2(10, y0), text, HORIZONTAL_ALIGNMENT_LEFT, w - 20, int(w * 0.048), 6, Kyber.C_TEXT)
-	UIKit.draw_fit(self, f, Vector2(0, r.size.y - 8), ("%s · %s" % [UIKit.type_label(t), " ".join(data.get("traits", []))]).to_upper(), HORIZONTAL_ALIGNMENT_CENTER, w, int(w * 0.04), Kyber.C_DIM)
+		draw_multiline_string(f, Vector2(10, y0), text, HORIZONTAL_ALIGNMENT_LEFT, w - 20, int(w * 0.048), 6, Sabacc.C_TEXT)
+	UIKit.draw_fit(self, f, Vector2(0, r.size.y - 8), ("%s · %s" % [UIKit.type_label(t), " ".join(data.get("traits", []))]).to_upper(), HORIZONTAL_ALIGNMENT_CENTER, w, int(w * 0.04), Sabacc.C_DIM)
 
 
 # ---------------------------------------------------------------- interaction
@@ -189,7 +190,7 @@ func _gui_input(ev: InputEvent) -> void:
 		if mb.button_index != MOUSE_BUTTON_LEFT:
 			return
 		if mb.pressed:
-			if mb.double_click:
+			if mb.double_click and not in_scroll:
 				inspect_requested.emit(self)
 				accept_event()
 				return
@@ -198,16 +199,22 @@ func _gui_input(ev: InputEvent) -> void:
 			_long_fired = false
 			_press_pos = mb.global_position
 			_last_pos = mb.global_position
-			accept_event()
+			if not in_scroll:
+				accept_event()
 		else:
 			if _dragging:
 				_end_drag(mb.global_position)
 			elif _press and not _long_fired:
 				tapped.emit(self)
 			_press = false
-			accept_event()
+			if not in_scroll:
+				accept_event()
 	elif ev is InputEventMouseMotion and _press:
 		var mm := ev as InputEventMouseMotion
+		if in_scroll:
+			if mm.global_position.distance_to(_press_pos) > DRAG_THRESHOLD:
+				_press = false
+			return
 		if not _dragging and draggable and not _long_fired and mm.global_position.distance_to(_press_pos) > DRAG_THRESHOLD:
 			_begin_drag(mm.global_position)
 		if _dragging:
@@ -216,6 +223,11 @@ func _gui_input(ev: InputEvent) -> void:
 			global_position = mm.global_position - _grab
 			drag_moved.emit(self, mm.global_position)
 		accept_event()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_SCROLL_BEGIN and in_scroll:
+		_press = false
 
 
 func _begin_drag(at: Vector2) -> void:
@@ -227,7 +239,7 @@ func _begin_drag(at: Vector2) -> void:
 	z_index = 100
 	_kill_tween()
 	_tw = create_tween()
-	_tw.tween_property(self, "scale", home_scale * 1.12, Kyber.anim(0.12))
+	_tw.tween_property(self, "scale", home_scale * 1.12, Sabacc.anim(0.12))
 	Sfx.play("draw", 1.2)
 	drag_started.emit(self)
 
@@ -253,7 +265,7 @@ func spring_home(elastic := true) -> void:
 	z_index = 0
 	_kill_tween()
 	_tw = create_tween().set_parallel(true)
-	var dur := Kyber.anim(0.45 if elastic else 0.22)
+	var dur := Sabacc.anim(0.45 if elastic else 0.22)
 	var trans := Tween.TRANS_ELASTIC if elastic else Tween.TRANS_QUAD
 	_tw.tween_property(self, "position", home_pos, dur).set_trans(trans).set_ease(Tween.EASE_OUT)
 	_tw.tween_property(self, "rotation", home_rot, dur * 0.7).set_trans(Tween.TRANS_QUAD)
@@ -265,7 +277,7 @@ func move_home(delay := 0.0) -> void:
 		return
 	_kill_tween()
 	_tw = create_tween().set_parallel(true)
-	var d := Kyber.anim(0.28)
+	var d := Sabacc.anim(0.28)
 	var lift := Vector2.ZERO
 	var sc := home_scale
 	var rot := home_rot
@@ -296,8 +308,8 @@ func _kill_tween() -> void:
 ## Flip animation (e.g. reveal from face-down).
 func flip_to(face_up: bool) -> void:
 	var tw := create_tween()
-	tw.tween_property(self, "scale:x", 0.0, Kyber.anim(0.12))
+	tw.tween_property(self, "scale:x", 0.0, Sabacc.anim(0.12))
 	tw.tween_callback(func():
 		face_down = not face_up
 		queue_redraw())
-	tw.tween_property(self, "scale:x", home_scale.x, Kyber.anim(0.12))
+	tw.tween_property(self, "scale:x", home_scale.x, Sabacc.anim(0.12))
