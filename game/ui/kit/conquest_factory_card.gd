@@ -1,31 +1,39 @@
-extends Button
+extends "res://ui/kit/conquest_hold_button.gd"
 ## Selectable Sabacc card in a planet's production catalog.
 
 var card: Dictionary
 var credits: int
+var show_variant := false
 var _art: Texture2D
 var _name_label: Label
-var _price_label: Label
+var _price_label: HBoxContainer
 
 
 func _ready() -> void:
+	super._ready()
 	custom_minimum_size = Vector2(158, 151)
 	for key in ["normal", "hover", "pressed", "disabled", "focus"]:
 		add_theme_stylebox_override(key, StyleBoxEmpty.new())
-	tooltip_text = "%s · %d credits to build · %d resources to play" % [card["name"], credits, card["cost"]]
+	var subtitle: String = card.get("subtitle", "")
+	tooltip_text = "%s · Hold to inspect" % card["name"] if subtitle.is_empty() else "%s · %s · Hold to inspect" % [card["name"], subtitle]
 	if card.get("implemented") in ["partial", "manual"]:
 		tooltip_text += "\nSome printed abilities are pending implementation."
-	_art = Art.request(card.get("art", card["id"]), func(texture):
+	var art_key: String = card.get("art", card["id"])
+	_art = Art.request(art_key, func(texture):
 		_art = texture
-		queue_redraw())
-	_name_label = UIKit.label(card["name"], 17, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+		queue_redraw(), show_variant and Art.has_art(art_key, true))
+	var title: String = card["name"]
+	if show_variant and not subtitle.is_empty():
+		title += "\n" + subtitle
+	_name_label = UIKit.label(title, 17, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 	_name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_name_label.max_lines_visible = 2
 	_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	add_child(_name_label)
-	_price_label = UIKit.label("%d credits" % credits, 16, Sabacc.C_GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	_price_label = UIKit.credit_label(str(credits), true, 18)
 	add_child(_price_label)
+	held.connect(func(): InspectOverlay.open(self, card["id"], get_global_rect()))
 	mouse_entered.connect(queue_redraw)
 	mouse_exited.connect(queue_redraw)
 	button_down.connect(queue_redraw)

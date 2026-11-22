@@ -394,7 +394,8 @@ func _test_conquest() -> void:
 	check(Conquest.run.state["worlds"]["Mandalore"]["owner"] == 1 and Progression.credits() == 0,
 		"Battle captures the planet and pays only conquest credits")
 	await _click(_button(screen, "Planet production"))
-	var garrison := _button(screen, "Build garrison")
+	var world_view: Control = screen._planet_view
+	var garrison: Button = world_view._tiles["garrison"]
 	check(garrison != null and not garrison.disabled, "Production offers a garrison on a captured world")
 	if garrison:
 		var owner: Node = garrison
@@ -404,10 +405,10 @@ func _test_conquest() -> void:
 			owner.ensure_control_visible(garrison)
 			await _wait(0.2)
 		await _click(garrison)
-	check("garrison" in Conquest.run.state["worlds"]["Mandalore"]["facilities"], "Garrison build persists through the real UI")
+	check(Conquest.run.construction_seconds("Mandalore", "garrison") > 0, "Garrison countdown persists through the real UI")
 	Conquest.run.state["factions"][1]["credits"] = 300
 	Conquest.persist()
-	var training_center := _button(screen, "Build training center")
+	var training_center: Button = world_view._tiles["training"]
 	check(training_center != null and not training_center.disabled, "Planet production offers a Training Center")
 	if training_center:
 		var training_scroll: Node = training_center
@@ -417,6 +418,9 @@ func _test_conquest() -> void:
 			training_scroll.ensure_control_visible(training_center)
 			await _wait(0.2)
 		await _click(training_center)
+	Conquest.run.tick(60.0)
+	Conquest.persist()
+	await _click(world_view._manage)
 	var training_button := _button(screen, "Train selected fleet")
 	check(training_button != null and not training_button.disabled, "Stationed fleets can use the Training Center")
 	if training_button:
@@ -459,6 +463,7 @@ func _test_conquest_duel() -> void:
 	map.center_on("Geonosis")
 	await _shot("conquest-world-insignia")
 	await _test_planet_focus(get_tree().current_scene, run)
+	await _test_commission_fleet(get_tree().current_scene, run)
 	await _test_local_card_purchase(get_tree().current_scene, run)
 	run.fleet(0)["cards"] = ["SOR_128", "SOR_128", "SOR_128", "ASH_143", "ASH_143", "ASH_143", "SOR_046", "SOR_046", "SOR_046"]
 	run._begin_battle(0, "Yavin")
@@ -505,9 +510,11 @@ func _test_planet_focus(screen: Control, run: ConquestRun) -> void:
 	var site: Dictionary = run.state["worlds"]["Yavin"]
 	var credits: int = run.state["factions"][1]["credits"]
 	await _click(view._tiles["troopers"])
-	check("troopers" in site["facilities"] and run.state["factions"][1]["credits"] == credits - run.price("troopers")
-		and view._tiles["troopers"].built, "Touching a visual facility tile constructs that facility")
+	check("troopers" in site["construction"] and run.state["factions"][1]["credits"] == credits - run.price("troopers")
+		and not view._tiles["troopers"].built, "Touching a visual facility tile starts construction")
 	await _shot("conquest-planet-construction")
+	run.tick(60.0)
+	Conquest.persist()
 	var planet_center := get_viewport().get_visible_rect().get_center()
 	var start := planet_center + Vector2(100, 0)
 	var finish := planet_center - Vector2(100, 0)
@@ -549,6 +556,7 @@ func _test_local_card_purchase(screen: Control, run: ConquestRun) -> void:
 	screen._selected = "Lothal"
 	screen._refresh()
 	await _click(_button(screen, "Planet production"))
+	await _click(screen._planet_view._manage)
 	await _click(_button(screen, "Local card catalog"))
 	var event: Button
 	for button in screen.find_children("*", "Button", true, false):
@@ -559,11 +567,45 @@ func _test_local_card_purchase(screen: Control, run: ConquestRun) -> void:
 	if event:
 		var id: String = event.card["id"]
 		var credits: int = run.state["factions"][1]["credits"]
+		var catalog := get_tree().get_nodes_in_group("back_dismissible").filter(func(node): return node is ModalPanel).pop_back() as ModalPanel
+		catalog._scroll.ensure_control_visible(event)
+		await _wait(0.2)
 		await _click(event)
 		check(world["cards"] == [id] and run.state["factions"][1]["credits"] == credits - run.manufacture_price(id),
 			"Buying a local event stores that exact card in reserves")
 	await _click(_button(screen, "Back"))
 	await _click(_button(screen, "Back"))
+	await _click(screen._planet_view._header.get_child(0))
+
+
+func _test_commission_fleet(screen: Control, run: ConquestRun) -> void:
+	for world in ["Kamino", "Corellia"]:
+		run.state["worlds"][world]["owner"] = 1
+	run.state["factions"][1]["credits"] = 180
+	Conquest.persist()
+	screen._selected = "Yavin"
+	screen._refresh()
+	await _click(screen._production)
+	var view: Control = screen._planet_view
+	await _click(view._fleets)
+	var modal := get_tree().get_nodes_in_group("back_dismissible").filter(func(node): return node is ModalPanel).pop_back() as ModalPanel
+	if not modal:
+		check(false, "Fleet recruitment opens from the planet view")
+		return
+	var leader: Button
+	for child in modal.find_children("*", "Button", true, false):
+		if child.get_script() == preload("res://ui/kit/conquest_factory_card.gd") and child.card["id"] == "SOR_009":
+			leader = child
+			break
+	check(leader != null and not leader.disabled, "An unlocked Yavin fleet offers Leia for purchase")
+	if leader and not leader.disabled:
+		modal._scroll.ensure_control_visible(leader)
+		await _wait(0.2)
+		await _click(leader)
+		check(run.fleets(1).size() == 2 and run.fleet(1, 1)["leader"] == "SOR_009"
+			and run.fleet(1, 1)["world"] == "Yavin" and run.fleet(1, 1)["cards"].size() == 8
+			and run.available_milestone(1) == 0, "Buying a leader commissions a separate fleet from local reserves")
+	await _click(view._header.get_child(0))
 
 
 func _check_commander_pair(screen: Control, player: UnitToken, opponent: UnitToken) -> void:
@@ -636,33 +678,87 @@ func _check_conquest_layout(screen: Control, stacked: bool) -> void:
 
 func _test_factory_catalog(screen: Control) -> void:
 	await _click(_button(screen, "Planet production"))
-	var barracks := _button(screen, "Build barracks")
+	var view: Control = screen._planet_view
+	var barracks: Button = view._tiles["troopers"]
 	var scroller: Node = barracks.get_parent()
 	while scroller and not scroller is ScrollContainer:
 		scroller = scroller.get_parent()
 	if scroller:
 		scroller.ensure_control_visible(barracks)
 		await _wait(0.2)
-	await _click(barracks)
-	await _click(_button(screen, "Factory catalog"))
+	var run := Conquest.run
+	var starting_balance: int = run.state["factions"][1]["credits"]
+	check(view._treasury.get_node("Amount").text == str(starting_balance)
+		and view._treasury.get_child(0).texture.resource_path.ends_with("/rebels.png")
+		and view._treasury.get_child(2).texture == UIKit.CREDIT_SYMBOL, "Planet header shows the faction emblem, numeric amount and trailing symbol")
+	await _hold_at(barracks)
 	var factory_script := preload("res://ui/kit/conquest_factory_card.gd")
-	var cards := screen.find_children("*", "Button", true, false).filter(func(button):
+	var modal := get_tree().get_nodes_in_group("back_dismissible").filter(func(node): return node is ModalPanel).pop_back() as ModalPanel
+	check(modal != null and run.state["factions"][1]["credits"] == starting_balance
+		and run.construction_seconds("Yavin", "troopers") == 0, "Holding a factory previews its catalog without starting construction")
+	if not modal:
+		return
+	var cards := modal.find_children("*", "Button", true, false).filter(func(button):
 		return button.is_visible_in_tree() and button.get_script() == factory_script)
-	check(not cards.is_empty(), "Factory menu shows manufacture choices as Sabacc cards")
+	check(not cards.is_empty(), "Factory preview shows manufacture choices as Sabacc cards")
 	if cards.is_empty():
 		return
-	var choice: Button = cards[0]
+	await _shot("conquest-factory-preview")
+	await _click(_button(modal, "Back"))
+	await _click(barracks)
+	check(run.construction_seconds("Yavin", "troopers") > 0, "Tapping the same factory starts construction")
+	run.tick(60.0)
+	Conquest.persist()
+	await _click(view._cards_tab)
+	var choice: Button = view._cards.values()[0]
 	var id: String = choice.card["id"]
-	var run := Conquest.run
 	var credits: int = run.state["factions"][1]["credits"]
 	var reserve: Array = run.state["worlds"]["Yavin"]["cards"]
 	var copies := reserve.count(id)
+	await _hold_at(choice, true)
+	var inspectors := get_tree().get_nodes_in_group("back_dismissible").filter(func(node): return node is InspectOverlay)
+	check(not inspectors.is_empty() and inspectors[0]._id == id and reserve.count(id) == copies
+		and int(run.state["factions"][1]["credits"]) == credits, "Holding a horizontal card by touch inspects it without buying")
+	if not inspectors.is_empty():
+		await _click(_button(inspectors[0], "Close"))
 	await _shot("conquest-factory-cards")
 	await _click(choice)
 	check(reserve.count(id) == copies + 1 and int(run.state["factions"][1]["credits"]) == credits - choice.credits,
 		"Tapping a priced factory card adds the exact choice to planetary reserves")
-	await _click(_button(screen, "Back"))
-	await _click(_button(screen, "Back"))
+	for world in ["Mandalore", "Corellia"]:
+		run.state["worlds"][world]["owner"] = 1
+	Conquest.persist()
+	check(run.state["announced_milestones"] == [3] and screen._notice_busy, "Three planets display the new fleet banner")
+	await _shot("conquest-fleet-unlock")
+	await _click(view._fleets)
+	modal = get_tree().get_nodes_in_group("back_dismissible").filter(func(node): return node is ModalPanel).pop_back() as ModalPanel
+	check(modal != null, "The planet view opens a dedicated fleet recruitment window")
+	if modal:
+		var leaders := modal.find_children("*", "Button", true, false).filter(func(button): return button.get_script() == factory_script)
+		check(leaders.any(func(leader): return leader.card["name"] == "Leia Organa")
+			and leaders.all(func(leader): return leader.card["name"] != "Wedge Antilles"),
+			"Yavin offers core Rebel leaders and leaves Wedge on Hoth")
+		await _shot("conquest-fleet-recruitment")
+		await _click(_button(modal, "Back"))
+	for world in ["Mandalore", "Corellia"]:
+		run.state["worlds"][world]["owner"] = -1
+	Conquest.persist()
+	await _click(view._header.get_child(0))
+
+
+func _hold_at(control: Control, touch := false) -> void:
+	var at := control.get_global_transform_with_canvas() * (control.size * Vector2(0.5, 0.32))
+	for down in [true, false]:
+		if touch:
+			_conquest_touch(0, at, down)
+		else:
+			var event := InputEventMouseButton.new()
+			event.button_index = MOUSE_BUTTON_LEFT
+			event.pressed = down
+			event.position = at
+			event.global_position = at
+			get_viewport().push_input(event, true)
+		await _wait(0.58 if down else 0.35)
 
 
 func _test_sabacc_war() -> void:

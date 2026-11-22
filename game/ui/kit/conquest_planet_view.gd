@@ -2,6 +2,8 @@ extends Control
 
 signal dismissed
 signal manage_requested
+signal commanders_requested
+signal factory_preview_requested(id: String)
 signal fleet_requested(index: int)
 signal order_requested
 signal scout_requested
@@ -40,6 +42,7 @@ var _pressed_pointer := -2
 var _start_pointer := Vector2.ZERO
 var _heading: Label
 var _summary: Label
+var _treasury: HBoxContainer
 var _header: HBoxContainer
 var _orbit: OrbitCard
 var _dock: PanelContainer
@@ -53,6 +56,7 @@ var _page_label: Label
 var _build_tab: Button
 var _cards_tab: Button
 var _manage: Button
+var _fleets: Button
 var _orders: Button
 var _scout: Button
 var _battle: Button
@@ -82,6 +86,9 @@ func _build() -> void:
 	var headings := VBoxContainer.new()
 	headings.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_header.add_child(headings)
+	_treasury = UIKit.conquest_treasury(_faction, 0)
+	_treasury.alignment = BoxContainer.ALIGNMENT_BEGIN
+	headings.add_child(_treasury)
 	_heading = UIKit.fit_label(UIKit.title(GALAXY.display_name(world), 28, Sabacc.C_TEXT))
 	headings.add_child(_heading)
 	_summary = UIKit.fit_label(UIKit.label("", 17, Sabacc.C_DIM))
@@ -101,6 +108,7 @@ func _build() -> void:
 	_cards_tab = _button(nav, "Cards", "deck", func(): _show_cards(true))
 	_build_tab.toggle_mode = true
 	_cards_tab.toggle_mode = true
+	_fleets = _button(nav, "Fleets", "orbit", func(): commanders_requested.emit())
 	_manage = _button(nav, "", "sliders", func(): manage_requested.emit())
 	_manage.tooltip_text = "Training, reserves and commanders"
 	_manage.custom_minimum_size.x = 56
@@ -119,6 +127,8 @@ func _build() -> void:
 		tile.glyph = FACILITY_GLYPHS[id]
 		tile.price = run.price(id)
 		tile.pressed.connect(_build_facility.bind(id))
+		if id in ConquestRun.FACTORIES:
+			tile.held.connect(func(): factory_preview_requested.emit(id))
 		_facilities.add_child(tile)
 		_tiles[id] = tile
 	_card_grid = GridContainer.new()
@@ -152,7 +162,7 @@ func _button(parent: Container, label: String, glyph: String, action: Callable) 
 func _layout() -> void:
 	var frame := safe_area if safe_area.has_area() else Rect2(Vector2(14, 14), size - Vector2(28, 28))
 	_header.position = frame.position
-	_header.size = Vector2(frame.size.x, 93)
+	_header.size = Vector2(frame.size.x, 98)
 	_dock.size = Vector2(minf(1100, frame.size.x), 0)
 	var fraction := 0.56 if _cards_open else 0.39
 	_dock.size.y = maxf(232.0, frame.size.y * fraction)
@@ -171,15 +181,18 @@ func refresh() -> void:
 	var funds: int = int(run.state["factions"][_faction]["credits"])
 	var owned := _owner == _faction
 	var visible := run.visible_to(_faction, world)
-	_summary.text = "%s · %d credits" % [identity["name"], funds]
+	_treasury.get_node("Amount").text = str(funds)
+	_summary.text = ""
 	if owned:
-		_summary.text += " · %d/2 slots · %d reserves" % [site["facilities"].size(), site["cards"].size()]
+		_summary.text = "%d/2 slots · %d reserves" % [site["facilities"].size() + site["construction"].size(), site["cards"].size()]
 	elif not visible:
-		_summary.text += " · Reconnaissance needed"
+		_summary.text = "Reconnaissance needed"
 	_manage.visible = owned
+	_fleets.visible = owned
 	for id in _tiles:
 		var tile: FacilityTile = _tiles[id]
-		tile.visible = owned or (visible and id in site["facilities"])
+		tile.seconds = run.construction_seconds(world, id) if visible else 0
+		tile.visible = owned or (visible and (id in site["facilities"] or tile.seconds > 0))
 		tile.built = id in site["facilities"]
 		tile.disabled = not run.can_buy(_faction, world, id) and not (owned and run._factory(world) == id)
 		tile.queue_redraw()
@@ -195,6 +208,8 @@ func set_orders(order_label: String, can_order: bool, can_scout: bool, battle_re
 
 
 func _build_facility(id: String) -> void:
+	if _tiles[id].hold_fired:
+		return
 	if run._factory(world) == id:
 		_show_cards(true)
 	elif run.buy(_faction, world, id):
@@ -268,6 +283,8 @@ func _refresh_catalog() -> void:
 
 
 func _manufacture(id: String) -> void:
+	if _cards[id].hold_fired:
+		return
 	if run.manufacture(_faction, world, id, _local_cards.has(id)):
 		Conquest.persist()
 
@@ -354,18 +371,20 @@ func request_back() -> void:
 	dismissed.emit()
 
 
-class FacilityTile extends Button:
+class FacilityTile extends "res://ui/kit/conquest_hold_button.gd":
 	var title := ""
 	var glyph := ""
 	var price := 0
 	var built := false
+	var seconds := 0
 
 	func _ready() -> void:
+		super._ready()
 		custom_minimum_size = Vector2(132, 106)
 		size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		for style in ["normal", "hover", "pressed", "disabled", "focus"]:
 			add_theme_stylebox_override(style, StyleBoxEmpty.new())
-		tooltip_text = title
+		tooltip_text = title + " · Hold to preview" if held.has_connections() else title
 		var icon := IconGlyph.new()
 		icon.glyph = glyph
 		icon.color = Color("#84D5F2")
@@ -386,8 +405,18 @@ class FacilityTile extends Button:
 		UIKit.draw_fit(self, Sabacc.font_body, Vector2(6, 68), title,
 			HORIZONTAL_ALIGNMENT_CENTER, size.x - 12, 17, Sabacc.C_TEXT)
 		var baseline := Vector2(0, size.y - 10)
-		draw_string(Sabacc.font_body, baseline, "Built" if built else "%d credits" % price,
-			HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, accent)
+		if seconds > 0:
+			draw_rect(Rect2(4, size.y - 4, (size.x - 8) * (1.0 - seconds / ConquestRun.CONSTRUCTION_TIME), 2), Sabacc.C_GOLD)
+			draw_string(Sabacc.font_body, baseline, "%d:%02d" % [seconds / 60, seconds % 60],
+				HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Sabacc.C_GOLD)
+		elif built:
+			draw_string(Sabacc.font_body, baseline, "Built", HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, accent)
+		else:
+			var amount := str(price)
+			var width := Sabacc.font_body.get_string_size(amount, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+			baseline.x = (size.x - width - 20) * 0.5
+			draw_string(Sabacc.font_body, baseline, amount, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Sabacc.C_GOLD)
+			draw_texture_rect(UIKit.CREDIT_SYMBOL, Rect2(baseline + Vector2(width + 4, -13), Vector2(16, 16)), false)
 
 
 class OrbitCard extends Button:

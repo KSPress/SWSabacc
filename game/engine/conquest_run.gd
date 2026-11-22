@@ -29,7 +29,8 @@ const TRAINING := {
 }
 const TRAINING_EQUIPMENT := ["SOR_069", "SEC_070", "SHD_174", "SOR_121"]
 const PRICES := {"garrison": 65, "dockyard": 55, "troops": 25, "ships": 35, "commission": 40}
-const MILESTONES := [4, 8, 12]
+const MILESTONES := [3, 5, 7, 9]
+const CONSTRUCTION_TIME := 60.0
 const FACILITIES := {
 	"vehicles": ["Vehicle Depot", 55], "fighters": ["Hangar Bay", 55], "troopers": ["Barracks", 50],
 	"droids": ["Droid Depot", 50], "frigates": ["Dockyard", 65], "capital": ["Space Station", 80],
@@ -67,11 +68,12 @@ func _init(library: CardLibrary, data: Dictionary) -> void:
 static func start(library: CardLibrary, player: int, size: int, seed_value: int, leader := "") -> ConquestRun:
 	var data := {"player": player, "size": size, "seed": seed_value, "time": 0.0, "next_income": INCOME_PERIOD,
 		"serial": 0, "worlds": {}, "factions": [], "battles": {}, "shipments": [], "probes": [], "intel": [{}, {}, {}], "status": "active",
-		"report": "Select a world and send your fleet along a hyperspace route."}
+		"announced_milestones": [], "report": "Select a world and send your fleet along a hyperspace route."}
 	var run := ConquestRun.new(library, data)
 	for name in GALAXY.worlds_for_size(size):
 		var home := GALAXY.FACTIONS.find_custom(func(faction): return faction["home"] == name)
-		data["worlds"][name] = {"owner": home, "facilities": ["garrison"] if home >= 0 else [], "orbital_cards": [], "probes": 0,
+		data["worlds"][name] = {"owner": home, "facilities": ["garrison"] if home >= 0 else [], "construction": {},
+			"orbital_cards": [], "probes": 0,
 			"cards": run._recruit(name, home, false, 7 if home >= 0 else 6) + run._recruit(name, home, true, 2)}
 	for faction in GALAXY.FACTIONS.size():
 		var home: String = GALAXY.FACTIONS[faction]["home"]
@@ -80,7 +82,7 @@ static func start(library: CardLibrary, player: int, size: int, seed_value: int,
 		var commander: String = GALAXY.FACTIONS[faction]["leader"]
 		if faction == player and leader in GALAXY.leader_variants(library, faction, "", true):
 			commander = leader
-		data["factions"].append({"credits": 120, "next_order": 12.0 + faction * 2.0, "milestones": [],
+		data["factions"].append({"credits": 120, "next_order": 12.0 + faction * 2.0, "milestones": [], "peak_worlds": 1,
 			"fleet": run._new_fleet(home, cards, commander), "extra_fleets": []})
 	return run
 
@@ -105,6 +107,7 @@ func _upgrade_save() -> void:
 			planet["orbital_cards"] = []
 			planet["probes"] = 0
 		planet["cards"] = _official_saved_cards(planet["cards"])
+		planet["construction"] = planet.get("construction", {})
 	for i in state["factions"].size():
 		var side: Dictionary = state["factions"][i]
 		if not side.has("extra_fleets"):
@@ -114,6 +117,10 @@ func _upgrade_save() -> void:
 			side["fleet"]["leader_alive"] = side.get("leader_alive", true)
 		# JSON loads numbers as floats and Array membership is type-sensitive.
 		side["milestones"] = side["milestones"].map(func(value): return int(value))
+		if not side.has("peak_worlds"):
+			var legacy := {4: 3, 8: 5, 12: 7}
+			side["milestones"] = side["milestones"].map(func(value): return legacy.get(value, value))
+			side["peak_worlds"] = maxi(held_worlds(i), int(side["milestones"].max()) if not side["milestones"].is_empty() else 0)
 		side["retired_leaders"] = side.get("retired_leaders", [])
 		if side.has("unassigned_reserves"):
 			side["unassigned_reserves"] = _official_saved_cards(side["unassigned_reserves"])
@@ -157,6 +164,11 @@ func _upgrade_save() -> void:
 					side["unassigned_reserves"].append_array(overflow)
 				else:
 					state["worlds"][home]["cards"].append_array(overflow)
+	var claimed: Array = [] if state["factions"].is_empty() else state["factions"][int(state["player"])]["milestones"]
+	state["announced_milestones"] = state.get("announced_milestones", claimed.duplicate()).map(func(value): return int(value))
+	# Earlier battle reports included a written currency suffix.
+	if str(state["report"]).ends_with(" credits") or " credits · " in str(state["report"]):
+		state["report"] = str(state["report"]).split(" · +")[0]
 	for planet in state["worlds"].values():
 		var old_deck := _official_saved_cards(planet["orbital_cards"])
 		planet["orbital_cards"] = _fitted_cards([], old_deck, ORBITAL_LIMIT)
@@ -393,7 +405,9 @@ func can_buy(faction: int, world: String, item: String) -> bool:
 	if not _can_manage(faction, world) or int(state["factions"][faction]["credits"]) < price(item):
 		return false
 	if item in FACILITIES:
-		return site["facilities"].size() < 2 and not item in site["facilities"] and (not item in FACTORIES or _factory(world).is_empty())
+		var occupied: Array = site["facilities"] + site["construction"].keys()
+		return (occupied.size() < 2 and not item in occupied
+			and (not item in FACTORIES or not occupied.any(func(id): return id in FACTORIES)))
 	if item in GALAXY.native_recruits(world, faction):
 		return site["cards"].size() < RESERVE_LIMIT and not _native_pool(item).is_empty()
 	match item:
@@ -419,11 +433,12 @@ func buy(faction: int, world: String, item: String) -> bool:
 		site["cards"].append_array(_draw_production(_native_pool(item), mini(4, RESERVE_LIMIT - site["cards"].size())))
 	funds["credits"] = int(funds["credits"]) - price(item)
 	if item in FACILITIES:
-		site["facilities"].append(item)
+		site["construction"][item] = float(state["time"]) + CONSTRUCTION_TIME
+		return true
 	match item:
-		"garrison", "troops":
-			site["cards"].append_array(_recruit(world, faction, false, mini(6 if item == "garrison" else 4, RESERVE_LIMIT - site["cards"].size())))
-		"orbital", "repair_orbit":
+		"troops":
+			site["cards"].append_array(_recruit(world, faction, false, mini(4, RESERVE_LIMIT - site["cards"].size())))
+		"repair_orbit":
 			site["orbital_cards"].append_array(_recruit(world, faction, true,
 				mini(8, ORBITAL_LIMIT - site["orbital_cards"].size()), true, site["orbital_cards"]))
 		"probe":
@@ -435,6 +450,29 @@ func buy(faction: int, world: String, item: String) -> bool:
 			funds["fleet"] = _new_fleet(world, cards, commander)
 			site["cards"] = _without_cards(site["cards"], cards)
 	return true
+
+
+func construction_seconds(world: String, item: String) -> int:
+	var pending: Dictionary = state["worlds"][world]["construction"]
+	return maxi(0, ceili(float(pending.get(item, 0.0)) - float(state["time"])))
+
+
+func _finish_construction() -> bool:
+	var changed := false
+	for world in state["worlds"]:
+		var site: Dictionary = state["worlds"][world]
+		for item in site["construction"].keys():
+			if construction_seconds(world, item) > 0:
+				continue
+			site["construction"].erase(item)
+			site["facilities"].append(item)
+			if item == "garrison":
+				site["cards"].append_array(_recruit(world, int(site["owner"]), false, clampi(RESERVE_LIMIT - site["cards"].size(), 0, 6)))
+			elif item == "orbital":
+				site["orbital_cards"].append_array(_recruit(world, int(site["owner"]), true,
+					clampi(ORBITAL_LIMIT - site["orbital_cards"].size(), 0, 8), true, site["orbital_cards"]))
+			changed = true
+	return changed
 
 
 func training_rank(task: Dictionary, perk: String, card_id := "") -> int:
@@ -529,10 +567,16 @@ func _production_choices(faction: int, world: String, local: bool) -> Array:
 	return [] if factory.is_empty() else _factory_cards(world, faction, factory)
 
 
-func factory_catalog(faction: int, world: String, local := false) -> Array:
+func factory_catalog(faction: int, world: String, local := false, preview := "") -> Array:
+	if not preview.is_empty() and (preview not in FACTORIES or not visible_to(faction, world)):
+		return []
+	var owner := int(state["worlds"][world]["owner"])
+	if owner < 0:
+		return []
+	var candidates := _production_choices(faction, world, local) if preview.is_empty() else _factory_cards(world, owner, preview)
 	var seen := {}
 	var cards := []
-	for id in _production_choices(faction, world, local):
+	for id in candidates:
 		var key := _fleet_card_key(id)
 		if not seen.has(key):
 			seen[key] = true
@@ -605,13 +649,24 @@ func _fits_factory(card: Dictionary, factory: String) -> bool:
 	return FACTORY_TRAITS.get(factory, "") in traits
 
 
-func available_milestone(faction: int) -> int:
+func held_worlds(faction: int) -> int:
 	var held := 0
 	for planet in state["worlds"].values():
 		if int(planet["owner"]) == faction:
 			held += 1
-	for milestone in MILESTONES:
-		if held >= milestone and not milestone in state["factions"][faction]["milestones"]:
+	return held
+
+
+func unlocked_milestones(faction: int) -> Array:
+	var side: Dictionary = state["factions"][faction]
+	var peak := maxi(int(side["peak_worlds"]), held_worlds(faction))
+	return MILESTONES.filter(func(milestone): return peak >= milestone)
+
+
+func available_milestone(faction: int) -> int:
+	var claimed: Array = state["factions"][faction]["milestones"]
+	for milestone in unlocked_milestones(faction):
+		if not milestone in claimed:
 			return milestone
 	return 0
 
@@ -668,17 +723,20 @@ func _assign_commander(task: Dictionary, leader: String) -> void:
 	task["recovery"] = 0.0
 
 
+func can_build_commander(faction: int, world: String) -> bool:
+	return (available_milestone(faction) > 0 and _can_manage(faction, world)
+		and int(state["factions"][faction]["credits"]) >= price("commission")
+		and commissioning_cards(world).size() >= MIN_FLEET)
+
+
 func build_commander(faction: int, world: String, leader: String) -> bool:
-	var milestone := available_milestone(faction)
-	var funds: Dictionary = state["factions"][faction]
-	if milestone == 0 or not _can_manage(faction, world) or int(funds["credits"]) < price("commission") or not leader in eligible_commanders(faction, world):
+	if not can_build_commander(faction, world) or not leader in eligible_commanders(faction, world):
 		return false
+	var funds: Dictionary = state["factions"][faction]
 	var site: Dictionary = state["worlds"][world]
 	var cards := commissioning_cards(world)
-	if cards.size() < MIN_FLEET:
-		return false
 	funds["credits"] = int(funds["credits"]) - price("commission")
-	funds["milestones"].append(milestone)
+	funds["milestones"].append(available_milestone(faction))
 	funds["extra_fleets"].append(_new_fleet(world, cards, leader))
 	site["cards"] = _without_cards(site["cards"], cards)
 	return true
@@ -827,7 +885,7 @@ func tick(delta: float) -> bool:
 	if state["status"] != "active":
 		return false
 	state["time"] = float(state["time"]) + delta
-	var changed := false
+	var changed := _finish_construction()
 	while float(state["time"]) >= float(state["next_income"]):
 		state["next_income"] = float(state["next_income"]) + INCOME_PERIOD
 		for world in state["worlds"].values():
@@ -1148,6 +1206,9 @@ func finish_battle(key: String, match_game: Match, human: bool, withdrawal := []
 		state["factions"][attacker].erase("unassigned_reserves")
 		planet["orbital_cards"] = []
 		planet["facilities"] = []
+		planet["construction"].clear()
+		var faction: Dictionary = state["factions"][attacker]
+		faction["peak_worlds"] = maxi(int(faction["peak_worlds"]), held_worlds(attacker))
 		planet["probes"] = 0
 		attacker_fleet["last_world"] = attacker_fleet["world"]
 		attacker_fleet["world"] = world
@@ -1174,7 +1235,7 @@ func finish_battle(key: String, match_game: Match, human: bool, withdrawal := []
 	var reply := {"world": world, "captured": captured, "losses": losses, "leader_lost": leader_lost,
 		"credits": WIN_REWARD if victor == player else 0}
 	if human:
-		state["report"] = "%s · %d cards lost%s" % [world, losses, " · +%d credits" % reply["credits"] if reply["credits"] else ""]
+		state["report"] = "%s · %d cards lost" % [world, losses]
 		if leader_lost:
 			state["report"] += " · Commander lost"
 		if not withdrawal.is_empty():

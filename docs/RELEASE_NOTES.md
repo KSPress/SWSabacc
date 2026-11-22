@@ -1,10 +1,10 @@
-SWU Sabacc 0.7.29
+SWU Sabacc 8.0
 
-- Tap a planet in Galactic Conquest to zoom into its orbital view, construct facilities from visual tiles, and inspect a fleet in orbit.
-- Swipe left on the planet to browse priced Sabacc cards over its hologram. Swipe right to return to construction.
-- Yavin 4, Kamino, Bespin, Jakku, and Geonosis have new map and battle art.
-- Planet catalogs use official SWU cards and include matching units, upgrades, and events. Kamino, Mandalore, Dathomir, and Lothal offer faction-specific commanders.
-- Landscape battles place both commanders in the left column, opening the center for ground and space units.
-- The Android APK uses version code 39 and the existing signing identity. Extract the Windows ZIP and keep the EXE and PCK together.
+- Galactic Conquest shows the player's faction emblem and a numeric balance with the credit symbol.
+- Hold a factory to preview its production catalog. Hold a Sabacc card to inspect its printed rules before purchase.
+- Facilities complete after one minute of campaign time. Construction progress carries through saves.
+- Fleet slots unlock when a faction first holds 3, 5, 7, and 9 planets. Open Fleets in the planet view to recruit a commander and commission a deck from local reserves.
+- Commanders recruit from faction homeworlds and specific regional planets.
+- The Android APK uses version code 40. Extract the Windows ZIP and keep the EXE and PCK together.
 
 Unofficial, non-commercial fan project. Star Wars and Star Wars: Unlimited characters, card text and artwork belong to Lucasfilm Ltd. and Fantasy Flight Games.

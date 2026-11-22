@@ -25,6 +25,7 @@ var hand: HandView
 var enemy_hand_label
 var pass_btn: SabaccButton
 var retreat_btn: SabaccButton
+var _conquest_treasury: HBoxContainer
 var tray: BoxContainer
 var coin: TableTokens.InitiativeCoin
 var force_orbs: Array = []
@@ -110,6 +111,7 @@ func _build() -> void:
 	add_child(ui_layer)
 	for i in 2:
 		var h := SideHud.new(i, i == HUMAN)
+		h.conquest = params.get("mode") == "conquest"
 		ui_layer.add_child(h)
 		h.leader_pressed.connect(_on_leader_pressed)
 		h.base_pressed.connect(_on_base_pressed)
@@ -154,6 +156,17 @@ func _build() -> void:
 		retreat_btn.disabled = true
 		retreat_btn.pressed.connect(_open_retreat)
 		ui_layer.add_child(retreat_btn)
+		if Conquest.run:
+			var run := Conquest.run
+			var faction := int(run.state["player"])
+			_conquest_treasury = UIKit.conquest_treasury(faction, 0)
+			ui_layer.add_child(_conquest_treasury)
+			var refresh := func():
+				_conquest_treasury.get_node("Amount").text = str(int(run.state["factions"][faction]["credits"]))
+				_layout_conquest_treasury()
+			Conquest.changed.connect(refresh)
+			_conquest_treasury.tree_exiting.connect(func(): Conquest.changed.disconnect(refresh))
+			refresh.call()
 	var log_btn := SabaccButton.make("", SabaccButton.Style.GHOST, "log")
 	log_btn.custom_minimum_size = Vector2(56, 56)
 	log_btn.name = "LogBtn"
@@ -222,10 +235,11 @@ func _layout() -> void:
 	var command_w := minf(vs.x * 0.55, 340.0)
 	var arena_area: Rect2
 	if portrait:
-		var top_h := command_h + 16.0 if enemy_commander else vs.y * 0.105
+		var top_inset := 38.0 if _conquest_treasury else 0.0
+		var top_h := (command_h + 16.0 if enemy_commander else vs.y * 0.105) + top_inset
 		var hud_h := command_h if has_commander else vs.y * 0.1
 		var hand_h := vs.y * 0.13
-		hud[1].arrange(Rect2(Vector2(10, 8), Vector2(vs.x - 20, top_h - 8)), true)
+		hud[1].arrange(Rect2(Vector2(10, 8 + top_inset), Vector2(vs.x - 20, top_h - 8 - top_inset)), true)
 		hud[0].arrange(Rect2(Vector2(10, vs.y - hand_h - hud_h), Vector2(vs.x - 20, hud_h - 6)), true)
 		arena_area = Rect2(Vector2(0, top_h + 34), Vector2(vs.x, vs.y - top_h - hud_h - hand_h - 34 - 70))
 		_hand_top = vs.y - hand_h
@@ -240,7 +254,7 @@ func _layout() -> void:
 		tray.position = Vector2(12 + TableTokens.InitiativeCoin.SIZE + 16, row_y + 4)
 		tracker.position = Vector2(0, top_h + 4)
 		tracker.size = Vector2(vs.x, 26)
-		enemy_hand_label.position = Vector2(vs.x * 0.7, 97.0 if enemy_commander else top_h - 26)
+		enemy_hand_label.position = Vector2(vs.x * 0.7, 97.0 + top_inset if enemy_commander else top_h - 26)
 		enemy_hand_label.size = Vector2(vs.x * 0.3 - 10, 24)
 		ui_layer.get_node("LogBtn").position = Vector2(vs.x - 236, row_y + 4)
 		ui_layer.get_node("MenuBtn").position = Vector2(vs.x - 300, row_y + 4)
@@ -269,7 +283,7 @@ func _layout() -> void:
 		tray.position = Vector2(rx, vs.y * 0.5 + (108 if retreat_btn else 50))
 		tracker.position = Vector2(side_w + 30, 12)
 		tracker.size = Vector2(arena_area.size.x, 26)
-		enemy_hand_label.position = Vector2(rx, 20)
+		enemy_hand_label.position = Vector2(rx, 50 if _conquest_treasury else 20)
 		enemy_hand_label.size = Vector2(right_w, 24)
 		ui_layer.get_node("LogBtn").position = Vector2(rx, vs.y - 80)
 		ui_layer.get_node("MenuBtn").position = Vector2(rx + 70, vs.y - 80)
@@ -278,6 +292,7 @@ func _layout() -> void:
 		log_panel.position = Vector2(vs.x * 0.25, vs.y * 0.1)
 		log_panel.size = Vector2(vs.x * 0.5, vs.y * 0.7)
 	var command_x := (vs.x - command_w) * 0.5
+	_layout_conquest_treasury()
 	var slot_size := Vector2(command_w, command_h - 6.0)
 	for p in 2:
 		_command_slots[p] = Rect2()
@@ -287,7 +302,7 @@ func _layout() -> void:
 		if not portrait:
 			_command_slots[p] = side.base_view.get_global_rect()
 			continue
-		_command_slots[p] = Rect2(Vector2(command_x, _hand_top - command_h if p == HUMAN else 12.0), slot_size)
+		_command_slots[p] = Rect2(Vector2(command_x, _hand_top - command_h if p == HUMAN else side.position.y + 4.0), slot_size)
 		var rhs := _command_slots[p].end.x + 6.0 - side.position.x
 		var remaining := side.size.x - rhs
 		side.res_view.position = Vector2(rhs, 2)
@@ -312,6 +327,12 @@ func _layout() -> void:
 	_layout_arenas()
 	_position_tokens(false)
 	hand.layout()
+
+
+func _layout_conquest_treasury() -> void:
+	if _conquest_treasury:
+		_conquest_treasury.reset_size()
+		_conquest_treasury.position = Vector2(get_viewport_rect().size.x - _conquest_treasury.size.x - 14, 5)
 
 
 func _layout_arenas() -> void:
@@ -1601,6 +1622,12 @@ func _game_over() -> void:
 		var result := _withdrawal_result if withdrawn else Conquest.finish_player_battle(params["battle"], m)
 		if not result.is_empty():
 			v.add_child(UIKit.label(Conquest.run.state["report"], 22, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+			var faction := int(Conquest.run.state["player"])
+			var balance := UIKit.conquest_treasury(faction, int(Conquest.run.state["factions"][faction]["credits"]))
+			v.add_child(balance)
+			v.move_child(balance, 0)
+			if int(result.get("credits", 0)) > 0:
+				v.add_child(UIKit.credit_label("+%d" % result["credits"], true, 22))
 		var cont := SabaccButton.make("Return to galaxy", SabaccButton.Style.PRIMARY, "back", true)
 		cont.pressed.connect(func(): Router.go("conquest"))
 		row.add_child(cont)

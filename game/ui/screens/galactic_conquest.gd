@@ -20,6 +20,8 @@ var _leader_picker: OptionButton
 var _fleet_picker: OptionButton
 var _scout: Button
 var _status: Label
+var _treasury: HBoxContainer
+var _notice_busy := false
 var _world_info: Label
 var _report: Label
 var _orders: Button
@@ -38,6 +40,7 @@ var _planet_view: Control
 
 func build() -> void:
 	set_header("Galactic Conquest", "play")
+	_account_credit.hide()
 	var saves := SabaccButton.make("Save / Load", SabaccButton.Style.GHOST)
 	saves.pressed.connect(_show_saves)
 	header.add_child(saves)
@@ -64,12 +67,13 @@ func request_screen_back() -> bool:
 func relayout(in_portrait: bool, rect: Rect2) -> void:
 	_root.position = Vector2.ZERO
 	_root.size = rect.size
-	if is_instance_valid(_map):
+	if is_instance_valid(_map) or is_instance_valid(_setup):
 		var top_padding := header.position.y - safe_rect().position.y
 		header.position.y -= top_padding
 		body.position.y -= top_padding
 		body.size.y += top_padding
 		_root.size = body.size
+	if is_instance_valid(_map):
 		_command_grid.columns = 2 if in_portrait else 1
 		_queue_overlay_layout()
 	if _setup:
@@ -104,6 +108,10 @@ func _layout_overlays() -> void:
 
 func _clear() -> void:
 	_close_planet()
+	if is_instance_valid(_treasury):
+		header.remove_child(_treasury)
+		_treasury.queue_free()
+		_treasury = null
 	for overlay in [_map, _command_panel]:
 		if is_instance_valid(overlay):
 			overlay.get_parent().remove_child(overlay)
@@ -120,7 +128,6 @@ func _clear() -> void:
 
 func _show_setup() -> void:
 	_clear()
-	_account_credit.show()
 	_faction_buttons.clear()
 	_map_buttons.clear()
 	var scroll := ScrollContainer.new()
@@ -135,6 +142,9 @@ func _show_setup() -> void:
 	_setup.add_theme_constant_override("separation", 16)
 	center.add_child(_setup)
 	_setup.add_child(UIKit.title("Choose your faction", 31, Sabacc.C_TEXT))
+	_treasury = UIKit.conquest_treasury(_faction, 120)
+	_treasury.name = "ConquestTreasury"
+	header.add_child(_treasury)
 	var choices := HBoxContainer.new()
 	_setup.add_child(choices)
 	for i in GALAXY.FACTIONS.size():
@@ -191,6 +201,9 @@ func _show_setup() -> void:
 
 
 func _update_setup() -> void:
+	var emblem := _treasury.get_child(0) as TextureRect
+	emblem.texture = load("res://assets/conquest/icons/%s.png" % GALAXY.FACTION_ICONS[_faction])
+	emblem.modulate = GALAXY.FACTIONS[_faction]["color"]
 	for index in _faction_buttons.size():
 		_faction_buttons[index].set_pressed_no_signal(index == _faction)
 	for index in _map_buttons.size():
@@ -218,7 +231,9 @@ func _show_galaxy() -> void:
 		_selected = run.fleet(faction)["world"]
 		if _selected.is_empty():
 			_selected = GALAXY.FACTIONS[faction]["home"]
-	_account_credit.hide()
+	_treasury = UIKit.conquest_treasury(faction, int(run.state["factions"][faction]["credits"]))
+	_treasury.name = "ConquestTreasury"
+	header.add_child(_treasury)
 	_toolbar = HBoxContainer.new()
 	_toolbar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_toolbar.add_theme_constant_override("separation", 10)
@@ -281,7 +296,7 @@ func _show_galaxy() -> void:
 	_orders = _button(_command_grid, "", func():
 		if run.order(faction, _selected, _fleet_index):
 			Conquest.persist())
-	_production = _button(_command_grid, "Planet production", _show_production)
+	_production = _button(_command_grid, "Planet production", _open_planet)
 	_scout = _button(_command_grid, "Send probe", _show_probe_origins)
 	_fleet_deck = _button(_command_grid, "Inspect fleet deck", _show_fleet)
 	_battle = _button(_command_grid, "Enter battle", func(): Conquest.play_battle(run.player_battle()))
@@ -314,6 +329,8 @@ func _open_planet() -> void:
 	view.safe_area = safe_rect()
 	view.dismissed.connect(_close_planet)
 	view.manage_requested.connect(_show_production)
+	view.commanders_requested.connect(func(): _show_commanders(view.world))
+	view.factory_preview_requested.connect(func(id): _show_factory(view.world, 0, false, id))
 	view.fleet_requested.connect(_show_fleet)
 	view.order_requested.connect(func():
 		_orders.pressed.emit()
@@ -357,14 +374,17 @@ func _refresh() -> void:
 	var holder := int(world["owner"])
 	var territory := GALAXY.territory_identity(_selected, holder)
 	var held := sites.values().filter(func(site): return int(site["owner"]) == faction).size()
-	_status.text = "%d credits   ·   %d/%d planets" % [side["credits"], held, sites.size()]
-	_status.tooltip_text = "+%d credits every %ds from held planets" % [held * ConquestRun.INCOME_PER_WORLD, ConquestRun.INCOME_PERIOD]
+	_status.text = "%d/%d planets" % [held, sites.size()]
+	_treasury.get_node("Amount").text = str(int(side["credits"]))
+	_show_fleet_notice(run, faction)
 	var specialty: String = GALAXY.SPECIALTIES.get(_selected, "")
 	var visible := run.visible_to(faction, _selected)
 	var detail := "Reconnaissance needed"
 	if visible:
 		var structures: Array = world["facilities"].map(func(item): return ConquestRun.FACILITIES[item][0])
 		detail = "%d reserve cards%s" % [world["cards"].size(), " · " + ", ".join(structures) if not structures.is_empty() else ""]
+		for item in world["construction"]:
+			detail += "\n%s · %ds" % [ConquestRun.FACILITIES[item][0], run.construction_seconds(_selected, item)]
 		if not world["orbital_cards"].is_empty():
 			detail += "\n%d orbital defenders" % world["orbital_cards"].size()
 	_world_info.text = "%s · %s%s\n%s" % [GALAXY.display_name(_selected), territory["name"],
@@ -410,11 +430,78 @@ func _refresh() -> void:
 		_planet_view.refresh()
 
 
+func _show_fleet_notice(run: ConquestRun, faction: int) -> void:
+	if _notice_busy or run.state["status"] != "active":
+		return
+	var announced: Array = run.state["announced_milestones"]
+	for milestone in run.unlocked_milestones(faction):
+		if milestone in announced:
+			continue
+		announced.append(milestone)
+		_notice_busy = true
+		var layer := CanvasLayer.new()
+		layer.layer = 42
+		add_child(layer)
+		var banner := UIKit.panel(Color("#142b3b"), Sabacc.C_GOLD, 12, 10)
+		banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		banner.add_child(UIKit.label("New fleet available · %d planets" % milestone, 20, Sabacc.C_TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+		layer.add_child(banner)
+		banner.reset_size()
+		var slide := func(progress: float):
+			var frame := safe_rect()
+			var center := frame.get_center().x - banner.size.x * 0.5
+			banner.position = Vector2(center + progress * (frame.size.x + banner.size.x), frame.position.y + 115)
+		slide.call(-1.0)
+		var animation := create_tween()
+		animation.tween_method(slide, -1.0, 0.0, Sabacc.anim(0.4)).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		animation.tween_interval(2.4)
+		animation.tween_method(slide, 0.0, 1.0, Sabacc.anim(0.4)).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+		animation.tween_callback(func():
+			layer.queue_free()
+			_notice_busy = false)
+		break
+
+
+func _conquest_modal(width: float) -> ModalPanel:
+	var modal := ModalPanel.open(self, width, Sabacc.C_GOLD)
+	var run := Conquest.run
+	var faction := int(run.state["player"]) if run else _faction
+	var balance := UIKit.conquest_treasury(faction, 120)
+	modal.add(balance)
+	if run:
+		var refresh := func(): balance.get_node("Amount").text = str(int(run.state["factions"][faction]["credits"]))
+		Conquest.changed.connect(refresh)
+		modal.tree_exiting.connect(func(): Conquest.changed.disconnect(refresh))
+		refresh.call()
+	return modal
+
+
+func _priced_button(parent: Container, title: String, amount: int, action: Callable) -> Button:
+	var button := _button(parent, "%s · %d" % [title, amount], action)
+	button.icon = UIKit.CREDIT_SYMBOL
+	button.alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	button.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	button.add_theme_constant_override("icon_max_width", 20)
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return button
+
+
+func _catalog_grid(modal: ModalPanel) -> GridContainer:
+	var grid := GridContainer.new()
+	modal.add(grid)
+	var layout := func():
+		var width := minf(modal.max_width, modal.size.x * 0.92)
+		grid.columns = clampi(floori((width - 42.0) / 165.0), 1, 3)
+	modal.resized.connect(layout)
+	layout.call()
+	return grid
+
+
 func _show_fleet(index := -1) -> void:
 	var run := Conquest.run
 	var faction := int(run.state["player"])
 	var fleet := run.fleet(faction, _fleet_index if index < 0 else index)
-	var modal := ModalPanel.open(self, 500, Sabacc.C_GOLD)
+	var modal := _conquest_modal(500)
 	modal.text("Fleet deck · %d cards" % fleet["cards"].size(), 26)
 	modal.text("Up to 3 copies per card · 1 for unique cards", 16, Sabacc.C_DIM)
 	var leader := CardDB.card(fleet["leader"])
@@ -442,16 +529,13 @@ func _show_production() -> void:
 	var faction := int(run.state["player"])
 	var world := _selected
 	var planet: Dictionary = run.state["worlds"][world]
-	var modal := ModalPanel.open(self, 550, Sabacc.C_GOLD)
+	var modal := _conquest_modal(550)
 	modal.text(GALAXY.display_name(world) + " · Production", 26)
 	var info := modal.text("", 19)
 	var items := {}
 	var local_recruits := GALAXY.native_recruits(world, faction)
 	for id in local_recruits:
 		items[id] = "Recruit " + str(local_recruits[id])
-	for id in ConquestRun.FACILITIES:
-		if not id in planet["facilities"]:
-			items[id] = "Build " + str(ConquestRun.FACILITIES[id][0]).to_lower()
 	var catalog := _button(modal.box, "Factory catalog", func():
 		modal.close()
 		_show_factory(world))
@@ -466,22 +550,15 @@ func _show_production() -> void:
 	items["probe"] = "Build probe droid"
 	if run.fleet(faction)["world"].is_empty():
 		items["commission"] = "Recommission primary fleet"
-	var replacement := _button(modal.box, "Build replacement commander · %d credits" % run.price("commission"), func():
+	var replacement := _priced_button(modal.box, "Build replacement commander", run.price("commission"), func():
 		modal.close()
 		_show_commanders(world, true))
 	var training := _button(modal.box, "Train selected fleet", func():
 		modal.close()
 		_show_training(world))
-	var milestone := run.available_milestone(faction)
-	if milestone > 0:
-		var hire := _button(modal.box, "%d planets · commission leader" % milestone, func():
-			modal.close()
-			_show_commanders(world))
-		hire.disabled = run.commissioning_cards(world).size() < ConquestRun.MIN_FLEET or int(run.state["factions"][faction]["credits"]) < run.price("commission")
-		modal.text("New fleets require 8 eligible reserve cards and %d credits." % run.price("commission"), 16)
 	var options := {}
 	for item in items:
-		var button := _button(modal.box, "%s · %d credits" % [items[item], run.price(item)], func():
+		var button := _priced_button(modal.box, items[item], run.price(item), func():
 			if run.buy(faction, world, item):
 				Conquest.persist()
 				modal.close()
@@ -499,8 +576,8 @@ func _show_production() -> void:
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		transfer_buttons[id] = button
 	var refresh := func():
-		info.text = "%d credits · %d reserves · %d probes\n%d / 2 building slots · 1 factory maximum" % [
-			run.state["factions"][faction]["credits"], planet["cards"].size(), planet["probes"], planet["facilities"].size()]
+		info.text = "%d reserves · %d probes\n%d / 2 building slots · 1 factory maximum" % [
+			planet["cards"].size(), planet["probes"], planet["facilities"].size() + planet["construction"].size()]
 		for item in options:
 			options[item].disabled = not run.can_buy(faction, world, item)
 		catalog.visible = not run._factory(world).is_empty()
@@ -524,43 +601,37 @@ func _show_production() -> void:
 	modal.add_action(SabaccButton.make("Back", SabaccButton.Style.GHOST)).pressed.connect(modal.close)
 
 
-func _show_factory(world: String, page := 0, local := false) -> void:
+func _show_factory(world: String, page := 0, local := false, preview_factory := "") -> void:
 	var run := Conquest.run
 	var faction := int(run.state["player"])
-	var cards := run.factory_catalog(faction, world, local)
-	var factory := run._factory(world)
-	var modal := ModalPanel.open(self, 650, Sabacc.C_GOLD)
+	var preview_only := not preview_factory.is_empty()
+	var cards := run.factory_catalog(faction, world, local, preview_factory)
+	var factory := preview_factory if preview_only else run._factory(world)
+	var modal := _conquest_modal(650)
 	var factory_name: String = ConquestRun.FACILITIES[factory][0] if not factory.is_empty() else "Factory"
 	if local:
 		factory_name = "Local card catalog"
 	modal.text("%s · %s" % [GALAXY.display_name(world), factory_name], 25)
 	var info := modal.text("", 17)
 	if cards.is_empty():
-		modal.text("No cards available to manufacture.", 17)
+		modal.text("No cards available from this factory.", 17)
 	var buttons := {}
-	var offset := page * 10
-	for count in [2, 3, 2, 3]:
-		if offset >= cards.size():
-			break
-		var row := HBoxContainer.new()
-		row.alignment = BoxContainer.ALIGNMENT_CENTER
-		row.add_theme_constant_override("separation", 8)
-		modal.add(row)
-		for id in cards.slice(offset, offset + count):
-			var preview := FACTORY_CARD.new()
-			preview.card = CardDB.card(id)
-			preview.credits = run.manufacture_price(id)
-			preview.pressed.connect(func():
-				if run.manufacture(faction, world, id, local):
-					Conquest.persist())
-			row.add_child(preview)
-			buttons[id] = preview
-		offset += count
+	var grid := _catalog_grid(modal)
+	for id in cards.slice(page * 10, (page + 1) * 10):
+		var preview := FACTORY_CARD.new()
+		preview.card = CardDB.card(id)
+		preview.credits = run.manufacture_price(id)
+		preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		preview.pressed.connect(func():
+			if not preview.hold_fired and not preview_only and run.manufacture(faction, world, id, local):
+				Conquest.persist())
+		grid.add_child(preview)
+		buttons[id] = preview
 	var refresh := func():
-		info.text = "%d credits · %d/%d reserves · Tap a card to manufacture" % [
-			run.state["factions"][faction]["credits"], run.state["worlds"][world]["cards"].size(), ConquestRun.RESERVE_LIMIT]
+		info.text = "Production preview · Hold a card to inspect" if preview_only else "%d/%d reserves · Tap to buy · Hold to inspect" % [
+			run.state["worlds"][world]["cards"].size(), ConquestRun.RESERVE_LIMIT]
 		for id in buttons:
-			buttons[id].disabled = not run.can_manufacture(faction, world, id, local)
+			buttons[id].disabled = not preview_only and not run.can_manufacture(faction, world, id, local)
 			buttons[id].queue_redraw()
 	Conquest.changed.connect(refresh)
 	modal.tree_exiting.connect(func():
@@ -572,12 +643,13 @@ func _show_factory(world: String, page := 0, local := false) -> void:
 	for delta in [-1, 1]:
 		var button := _button(navigation, "Previous" if delta < 0 else "Next", func():
 			modal.close()
-			_show_factory(world, page + delta, local))
+			_show_factory(world, page + delta, local, preview_factory))
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.disabled = page + delta < 0 or (page + delta) * 10 >= cards.size()
 	var back := _button(navigation, "Back", func():
 		modal.close()
-		_show_production())
+		if not preview_only:
+			_show_production())
 	back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 
@@ -585,19 +657,18 @@ func _show_training(world: String, perk := "", unit_id := "") -> void:
 	var run := Conquest.run
 	var faction := int(run.state["player"])
 	var task := run.fleet(faction, _fleet_index)
-	var modal := ModalPanel.open(self, 550, Sabacc.C_GOLD)
+	var modal := _conquest_modal(550)
 	modal.text("Training Center · " + GALAXY.display_name(world), 26)
-	modal.text("%d credits available" % run.state["factions"][faction]["credits"], 18)
 	if perk.is_empty():
 		for key in ConquestRun.TRAINING:
 			var item: Array = ConquestRun.TRAINING[key]
 			var cost := run.price(key)
 			if key in ["experience", "shield", "opening", "equipment"]:
-				_button(modal.box, "%s · %d credits" % [item[0], cost], func():
+				_priced_button(modal.box, item[0], cost, func():
 					modal.close()
 					_show_training(world, key)).disabled = run.training_rank(task, key) >= int(item[2])
 			else:
-				_button(modal.box, "%s · %d/%d · %d credits" % [item[0], run.training_rank(task, key), item[2], cost], func():
+				_priced_button(modal.box, "%s · %d/%d" % [item[0], run.training_rank(task, key), item[2]], cost, func():
 					if run.train(faction, world, _fleet_index, key):
 						Conquest.persist()
 						modal.close()
@@ -638,14 +709,23 @@ func _show_training(world: String, perk := "", unit_id := "") -> void:
 func _show_commanders(world: String, replacing := false) -> void:
 	var run := Conquest.run
 	var faction := int(run.state["player"])
-	var modal := ModalPanel.open(self, 620, Sabacc.C_GOLD)
+	var modal := _conquest_modal(620)
 	modal.text(("Build a replacement at " if replacing else "Commission a fleet at ") + GALAXY.display_name(world), 26)
-	for id in run.eligible_commanders(faction, world):
-		var leader := CardDB.card(id)
-		var label := "%s · %s" % [leader["name"], leader.get("subtitle", "")]
-		if leader.get("custom", false):
-			label += " (Conquest)"
-		var button := _button(modal.box, label, func():
+	var info := modal.text("", 17)
+	var leaders := run.eligible_commanders(faction, world)
+	if leaders.is_empty():
+		modal.text("No commanders available at this planet.", 18)
+	var grid := _catalog_grid(modal)
+	var cost := run.price("commission")
+	for id in leaders:
+		var preview := FACTORY_CARD.new()
+		preview.card = CardDB.card(id)
+		preview.credits = cost
+		preview.show_variant = true
+		preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		preview.pressed.connect(func():
+			if preview.hold_fired:
+				return
 			var built := run.send_replacement(faction, world, _fleet_index, id) if replacing else run.build_commander(faction, world, id)
 			if built:
 				if not replacing:
@@ -653,7 +733,23 @@ func _show_commanders(world: String, replacing := false) -> void:
 				_map.fleet_index = _fleet_index
 				Conquest.persist()
 				modal.close())
-		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		grid.add_child(preview)
+	var refresh := func():
+		var ready := run.can_send_replacement(faction, world, _fleet_index) if replacing else run.can_build_commander(faction, world)
+		for preview in grid.get_children():
+			preview.disabled = not ready
+			preview.queue_redraw()
+		if replacing:
+			info.text = "Tap a commander to dispatch · Hold to inspect"
+		elif run.available_milestone(faction) > 0:
+			info.text = "%d/%d eligible reserve cards · Hold a commander to inspect" % [
+				run.commissioning_cards(world).size(), ConquestRun.MIN_FLEET]
+		else:
+			var unlocked := run.unlocked_milestones(faction).size()
+			info.text = "Next fleet unlocks at %d planets" % ConquestRun.MILESTONES[unlocked] if unlocked < ConquestRun.MILESTONES.size() else "All fleet unlocks used"
+	Conquest.changed.connect(refresh)
+	modal.tree_exiting.connect(func(): Conquest.changed.disconnect(refresh))
+	refresh.call()
 	modal.add_action(SabaccButton.make("Back", SabaccButton.Style.GHOST)).pressed.connect(modal.close)
 
 
@@ -661,7 +757,7 @@ func _show_probe_origins() -> void:
 	var run := Conquest.run
 	var faction := int(run.state["player"])
 	var goal := _selected
-	var modal := ModalPanel.open(self, 510, Sabacc.C_GOLD)
+	var modal := _conquest_modal(510)
 	modal.text("Reconnaissance · " + GALAXY.display_name(goal), 24)
 	var offered := false
 	for world in run.state["worlds"]:
@@ -679,7 +775,7 @@ func _show_probe_origins() -> void:
 
 
 func _show_saves() -> void:
-	var modal := ModalPanel.open(self, 550, Sabacc.C_GOLD)
+	var modal := _conquest_modal(550)
 	modal.text("Conquest saves", 28)
 	var title := LineEdit.new()
 	title.placeholder_text = "Save name"
@@ -713,7 +809,7 @@ func _show_saves() -> void:
 
 
 func _confirm_new() -> void:
-	var modal := ModalPanel.open(self, 510, Sabacc.C_GOLD)
+	var modal := _conquest_modal(510)
 	modal.text("Start another conquest?", 26)
 	modal.text("Launching a new galaxy replaces this campaign save.", 19)
 	var yes := SabaccButton.make("Choose a new faction", SabaccButton.Style.PRIMARY)

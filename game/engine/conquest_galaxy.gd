@@ -88,17 +88,27 @@ const LOCAL_VARIANTS := {
 }
 const OUT_OF_ERA_UNDERWORLD_LEADERS := ["LAW_004", "TWI_016", "TWI_009", "SEC_018", "TS26_003", "TS26_005", "ASH_012"]
 
-# Additional commanders are curated by printing. Traits alone also include
-# Republic generals, pre-war rulers, and post-Endor remnant commanders.
-const ERA_COMMANDERS := [
-	["SOR_001", "SOR_002", "SOR_006", "SOR_007", "SOR_011", "SOR_016", "LAW_008", "LOF_014",
-		"SEC_006", "SEC_010", "SEC_011", "SEC_014", "JTL_002", "JTL_005", "HMW_004", "SHD_001"],
-	["SOR_008", "SOR_009", "SOR_013", "SOR_014", "SOR_018", "LOF_004", "LAW_001", "LAW_005",
-		"LAW_006", "LAW_009", "LAW_010", "JTL_003", "JTL_008", "JTL_016", "JTL_017", "SEC_012",
-		"SEC_013", "SEC_015", "HMW_009", "IBH_001"],
-	["SOR_003", "SOR_012", "SOR_015", "SOR_017", "LAW_007", "LAW_013", "LAW_014", "LAW_017",
-		"LAW_018", "SHD_005", "SHD_010", "SHD_013", "SHD_015", "SHD_017", "JTL_009", "JTL_015", "SEC_007", "HMW_015"],
-]
+# Planet-specific recruitment supplements each faction's home roster.
+const REGIONAL_COMMANDERS := {
+	"Coruscant": {0: ["SOR_006", "SEC_006", "SEC_014"]},
+	"Yavin": {1: ["SOR_009", "LAW_010", "IBH_001", "SOR_018", "LAW_005"]},
+	"Nal Hutta": {2: ["SOR_012", "SHD_010", "HMW_015"]},
+	"Corellia": {0: ["SOR_002"], 1: ["JTL_017", "SEC_015"], 2: ["SOR_017", "LAW_017", "SHD_013", "JTL_015"]},
+	"Naboo": {0: ["SOR_011", "LOF_014"], 1: ["LAW_006"], 2: ["LAW_014"]},
+	"Mandalore": {0: ["SHD_001"], 1: ["SOR_014"]},
+	"Kuat": {0: ["JTL_005"]},
+	"Kashyyyk": {1: ["HMW_009"], 2: ["SOR_003", "LAW_013"]},
+	"Kessel": {2: ["SEC_007", "SHD_015"]},
+	"Scarif": {0: ["SOR_001", "LAW_008"], 1: ["SOR_013", "SEC_012"]},
+	"Hoth": {1: ["JTL_008"]},
+	"Tatooine": {2: ["SOR_015", "LAW_007", "JTL_009"]},
+	"Lothal": {0: ["SOR_016", "JTL_002", "SEC_011"], 1: ["SOR_008", "LAW_009", "LOF_004"]},
+	"Mon Cala": {1: ["JTL_016"]},
+	"Felucia": {2: ["SHD_005"]},
+	"Alderaan": {1: ["SEC_013"]},
+	"Jedha": {1: ["LAW_001"]},
+	"Fondor": {0: ["SEC_010"]},
+}
 const LOCAL_COMMANDERS := {
 	"Bespin": ["JTL_003", "LAW_018", "SHD_017"],
 }
@@ -173,9 +183,9 @@ static func leader_variants(lib: CardLibrary, faction: int, world := "", starter
 		var card := lib.get_card(id)
 		if card.get("type") != "leader" or card.get("custom", false):
 			continue
-		var eligible: bool = card["name"] == original["name"]
+		var eligible: bool = card["name"] == original["name"] and (starters or world == FACTIONS[faction]["home"])
 		if not starters:
-			eligible = eligible or id in ERA_COMMANDERS[faction] or id in local or id in local_alignment
+			eligible = eligible or id in REGIONAL_COMMANDERS.get(world, {}).get(faction, []) or id in local or id in local_alignment
 			eligible = eligible or (world == "Mandalore" and faction == 2 and "mandalorian" in card["traits"])
 			if not eligible:
 				eligible = rosters.keys().any(func(roster):

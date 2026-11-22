@@ -159,19 +159,38 @@ static func fit_label(l: Label) -> Label:
 	return l
 
 
-static func credit_label(text: String) -> HBoxContainer:
+const CREDIT_SYMBOL := preload("res://ui/kit/credit_symbol.png")
+
+
+static func credit_label(text: String, trailing := false, dimension := 28) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 5)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var icon := TextureRect.new()
-	icon.texture = load("res://ui/kit/credit_symbol.png")
+	icon.texture = CREDIT_SYMBOL
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.custom_minimum_size = Vector2(28, 28)
+	icon.custom_minimum_size = Vector2(dimension, dimension)
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(icon)
 	var amount := label(text, 18, Sabacc.C_GOLD)
 	amount.name = "Amount"
 	row.add_child(amount)
+	if trailing:
+		row.move_child(amount, 0)
+	return row
+
+
+static func conquest_treasury(faction: int, amount: int) -> HBoxContainer:
+	var row := credit_label(str(amount), true, 22)
+	var emblem := TextureRect.new()
+	emblem.texture = load("res://assets/conquest/icons/%s.png" % ConquestGalaxy.FACTION_ICONS[faction])
+	emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	emblem.custom_minimum_size = Vector2(32, 32)
+	emblem.modulate = ConquestGalaxy.FACTIONS[faction]["color"]
+	emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(emblem)
+	row.move_child(emblem, 0)
 	return row

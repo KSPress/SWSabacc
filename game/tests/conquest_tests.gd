@@ -56,7 +56,9 @@ func _init() -> void:
 	check(run.fleet(0)["cards"].count(lost.id) == before - 1 and run.finish_battle(key, m, true).is_empty(),
 		"settlement removes one copy and cannot pay twice")
 	check(int(run.state["factions"][0]["credits"]) == credits + ConquestRun.WIN_REWARD, "win pays conquest wallet")
-	check(run.buy(0, "Corellia", "garrison") and run.state["worlds"]["Corellia"]["cards"].size() == 6, "garrisons add a defensive reserve")
+	check(run.buy(0, "Corellia", "garrison"), "garrisons can start construction after capture")
+	finish_construction(run, "Corellia")
+	check(run.state["worlds"]["Corellia"]["cards"].size() == 6, "completed garrisons add a defensive reserve")
 	var local_cards: Array = run.state["worlds"]["Coruscant"]["cards"]
 	check(run.transfer(0, "Coruscant", [local_cards[0]]) and run.state["shipments"].size() == 1, "remote reserve cards travel by lane")
 	var fleet_size: int = run.fleet(0)["cards"].size()
@@ -71,13 +73,17 @@ func _init() -> void:
 		planet["owner"] = 0
 		planet["cards"] = []
 		run.state["factions"][0]["credits"] = 200
-		check(run.buy(0, world, "garrison") and run.buy(0, world, "troops"), world + " can recruit local troops")
+		check(run.buy(0, world, "garrison"), world + " can construct a garrison")
+		finish_construction(run, world)
+		check(run.buy(0, world, "troops"), world + " can recruit local troops")
 		var local: String = ConquestRun.GALAXY.SPECIALTIES[world]
 		check(planet["cards"].all(func(id):
 			var card := lib.get_card(id)
 			return local in card["traits"] or (world == "Kamino" and ConquestGalaxy.native_match(card, "native_republic_vehicle"))
 		), world + " uses the lore card pool")
-	check(run.buy(0, "Mandalore", "frigates") and run.buy(0, "Mandalore", "produce"), "dockyard builds a space reinforcement pack")
+	check(run.buy(0, "Mandalore", "frigates"), "dockyard can start construction")
+	finish_construction(run, "Mandalore")
+	check(run.buy(0, "Mandalore", "produce"), "dockyard builds a space reinforcement pack")
 	check(run.state["worlds"]["Mandalore"]["cards"].slice(-4).all(func(id): return lib.get_card(id)["arena"] == "space"), "dockyard builds space units")
 	check(not run.can_buy(0, "Mandalore", "satellite"), "two occupied slots block construction")
 	run.state["factions"][0]["credits"] = 250
@@ -106,6 +112,7 @@ func _init() -> void:
 			AiBot.choose(m)
 	check(m.winner >= 0 and not run.finish_battle(ai_key, m, false).is_empty(), "a bot-only invasion plays to a result in the card engine")
 	test_expanded_conquest()
+	test_construction_timer()
 	test_era_production()
 	test_fleet_copy_limits()
 	test_factory_catalog()
@@ -130,9 +137,12 @@ func test_expanded_conquest() -> void:
 	var worlds: Dictionary = run.state["worlds"]
 	for name in ["Corellia", "Mandalore", "Geonosis"]:
 		worlds[name]["owner"] = 0
-	check(run.available_milestone(0) == 4 and run.eligible_commanders(0, "Mandalore").has("SHD_007"), "Imperial Mandalore unlocks Gideon")
-	check(run.eligible_commanders(0, "Geonosis") == run.eligible_commanders(0, "Coruscant"),
-		"Geonosis uses the faction's official commander pool")
+	check(run.available_milestone(0) == 3 and run.eligible_commanders(0, "Mandalore").has("SHD_007"), "Imperial Mandalore unlocks Gideon")
+	check("SOR_006" in run.eligible_commanders(0, "Coruscant") and not "SOR_006" in run.eligible_commanders(0, "Geonosis"),
+		"Palpatine recruits from the Imperial homeworld")
+	check("SOR_009" in run.eligible_commanders(1, "Yavin") and not "SOR_009" in run.eligible_commanders(1, "Hoth")
+		and "JTL_008" in run.eligible_commanders(1, "Hoth") and not "JTL_008" in run.eligible_commanders(1, "Yavin"),
+		"Rebel leaders are split between their homeworld and regional worlds")
 	check(run.build_commander(0, "Mandalore", "SHD_007") and run.available_milestone(0) == 0,
 		"milestone builds one independent fleet from local reserves")
 	run = ConquestRun.new(lib, JSON.parse_string(JSON.stringify(run.state)))
@@ -142,12 +152,18 @@ func test_expanded_conquest() -> void:
 	check(run.fleet(0, 1)["leader"] == "SHD_007" and run.order(0, "Dathomir", 1), "second fleet accepts independent orders")
 	for name in ["Kamino", "Naboo", "Kuat", "Kashyyyk"]:
 		worlds[name]["owner"] = 0
-	check(run.available_milestone(0) == 8, "second milestone unlocks at eight")
+	check(run.available_milestone(0) == 5, "second milestone unlocks at five")
 	worlds["Kamino"]["cards"] = ["TWI_240", "TWI_205", "TWI_241", "TWI_242", "TWI_207", "TWI_229", "TWI_230", "TWI_243"]
 	check(run.build_commander(0, "Kamino", "HMW_003"), "second milestone commissions Hemlock on Imperial Kamino")
 	for name in ["Tatooine", "Hoth", "Endor", "Scarif"]:
 		worlds[name]["owner"] = 0
-	check(run.available_milestone(0) == 12, "third milestone unlocks at twelve")
+	check(run.available_milestone(0) == 7 and run.unlocked_milestones(0) == [3, 5, 7, 9],
+		"the third and fourth milestones unlock at seven and nine")
+	run.state["factions"][0].erase("peak_worlds")
+	run.state["factions"][0]["milestones"] = [4, 8]
+	run = ConquestRun.new(lib, JSON.parse_string(JSON.stringify(run.state)))
+	check(run.state["factions"][0]["milestones"] == [3, 5] and run.available_milestone(0) == 7,
+		"earlier saves keep already commissioned fleets without awarding their slots twice")
 
 	run = ConquestRun.start(lib, 0, 8, 119)
 	check(not run.visible_to(0, "Yavin") and run.buy(0, "Coruscant", "probe"), "enemy locations begin concealed and probes cost credits")
@@ -157,18 +173,52 @@ func test_expanded_conquest() -> void:
 	run.tick(40)
 	check(run.visible_to(0, "Yavin") and run.state["probes"].is_empty(), "enemy fleet intercepts the scout after a brief reveal")
 	run.tick(16)
-	check(not run.visible_to(0, "Yavin") and run.buy(0, "Coruscant", "satellite") and run.visible_to(0, "Yavin"),
-		"probe intelligence expires and satellite intelligence covers connected worlds")
+	check(not run.visible_to(0, "Yavin") and run.buy(0, "Coruscant", "satellite") and not run.visible_to(0, "Yavin"),
+		"probe intelligence expires and pending satellites provide no intel")
+	finish_construction(run, "Coruscant")
+	check(run.visible_to(0, "Yavin"), "completed satellite intelligence covers connected worlds")
 
 	run = ConquestRun.start(lib, 0, 8, 85)
 	run.state["factions"][1]["credits"] = 300
-	check(run.buy(1, "Yavin", "orbital") and run.order(1, "Mandalore") and run.order(0, "Yavin"),
+	check(run.buy(1, "Yavin", "orbital"), "build an orbital defense fleet")
+	finish_construction(run, "Yavin")
+	check(run.order(1, "Mandalore") and run.order(0, "Yavin"),
 		"orbital defenses remain when a fleet departs")
 	run.tick(40)
 	var key := run.player_battle()
 	var cfg := run.battle_config(key, true)
 	check(cfg["rules"].arenas == ["space"] and cfg["players"][1]["deck"].size() == 8,
 		"defense fleet fights with its persistent space-only roster")
+
+
+func test_construction_timer() -> void:
+	var run := ConquestRun.start(lib, 1, 8, 74)
+	for side in run.state["factions"]:
+		side["next_order"] = 9999
+	var home := "Yavin"
+	var price := run.price("troopers")
+	var catalog := run.factory_catalog(1, home, false, "troopers")
+	check(not catalog.is_empty() and run.factory_catalog(1, home).is_empty(), "preview catalog is available before construction")
+	check(run.buy(1, home, "troopers") and run.state["factions"][1]["credits"] == 120 - price
+		and run.construction_seconds(home, "troopers") == 60, "construction charges once and starts at one minute")
+	check(not run.can_buy(1, home, "droids") and not run.can_buy(1, home, "satellite")
+		and not run.manufacture(1, home, catalog[0]), "pending factory reserves the slot and cannot produce")
+	run.tick(35)
+	run = ConquestRun.new(lib, JSON.parse_string(JSON.stringify(run.state)))
+	check(run.construction_seconds(home, "troopers") == 25, "construction countdown survives a save")
+	run.tick(24)
+	check(run._factory(home).is_empty() and run.construction_seconds(home, "troopers") == 1,
+		"factory is still inactive with one second remaining")
+	run.tick(1)
+	check(run.construction_seconds(home, "troopers") == 0 and run.factory_catalog(1, home) == catalog
+		and run.manufacture(1, home, catalog[0]), "factory produces its previewed cards at exactly one minute")
+
+
+func finish_construction(run: ConquestRun, world: String) -> void:
+	var pending: Dictionary = run.state["worlds"][world]["construction"]
+	for item in pending:
+		pending[item] = run.state["time"]
+	run._finish_construction()
 
 
 func check(value: bool, description: String) -> void:
@@ -217,6 +267,7 @@ func test_factory_catalog() -> void:
 	check(run.factory_catalog(0, home).is_empty() and not run.manufacture(0, home, "SOR_128"),
 		"Manufacturing requires a factory")
 	check(run.buy(0, home, "troopers"), "Build a barracks for direct manufacturing")
+	finish_construction(run, home)
 	var catalog := run.factory_catalog(0, home)
 	check(not catalog.is_empty() and catalog.all(func(id): return run._fits_factory(lib.get_card(id), "troopers")),
 		"The catalog contains the factory's actual products")
@@ -305,6 +356,7 @@ func test_command_training() -> void:
 	run.state["factions"][0]["credits"] = 1000
 	check(not run.can_train(0, home, 0, "health") and run.buy(0, home, "training"), "a Training Center is required")
 	check(not run.can_buy(0, home, "armory"), "the Training Center occupies a normal building slot")
+	finish_construction(run, home)
 	for perk in ["health", "resources"]:
 		check(run.train(0, home, 0, perk) and run.train(0, home, 0, perk)
 			and not run.train(0, home, 0, perk), perk + " purchases respect their caps")
@@ -422,7 +474,9 @@ func test_era_production() -> void:
 		worlds[world]["cards"] = []
 		funds["credits"] = 200
 		var price := campaign.price(factory) + campaign.price("produce")
-		check(campaign.buy(0, world, factory) and campaign.buy(0, world, "produce"), "new factories take credits and produce reserves")
+		check(campaign.buy(0, world, factory), "new factories take credits")
+		finish_construction(campaign, world)
+		check(campaign.buy(0, world, "produce"), "completed factories produce reserves")
 		var cards: Array = worlds[world]["cards"]
 		check(cards.size() == 4 and funds["credits"] == 200 - price and cards.all(func(id): return campaign._fits_factory(lib.get_card(id), factory)),
 			"%s produces only its category" % factory)
@@ -693,7 +747,8 @@ func test_official_conquest_save() -> void:
 func test_final_capture() -> void:
 	var run := ConquestRun.start(lib, 0, 8, 67)
 	for name in run.state["worlds"]:
-		run.state["worlds"][name]["owner"] = 0 if name != "Corellia" else -1
+		run.state["worlds"][name]["owner"] = 0 if name != "Corellia" else 1
+	check(run.buy(1, "Corellia", "satellite"), "the defender starts construction on the last world")
 	run._begin_battle(1, "Mandalore")
 	run._begin_battle(0, "Corellia")
 	var keys: Array = run.state["battles"].keys()
@@ -705,5 +760,7 @@ func test_final_capture() -> void:
 	final_attack.set_winner(0, "Last planet captured")
 	run.finish_battle(keys[1], final_attack, true)
 	check(run.state["status"] == "won" and run.player_battle().is_empty(), "final capture closes the battle queue")
+	check(run.state["worlds"]["Corellia"]["construction"].is_empty()
+		and "satellite" not in run.state["worlds"]["Corellia"]["facilities"], "capture clears the old owner's pending construction")
 	check(run.finish_battle(keys[0], incoming, true).is_empty() and run.state["worlds"]["Mandalore"]["owner"] == 0,
 		"a queued invasion cannot alter ownership after the final capture")

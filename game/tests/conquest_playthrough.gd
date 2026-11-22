@@ -147,6 +147,8 @@ func give_orders(run: ConquestRun, player: int) -> void:
 			run.train(player, origin, index, "resources")
 			if int(fleet["command_damage"]) >= 10:
 				continue
+			if planets.size() == 1 and run.construction_seconds(origin, "training") > 0:
+				continue
 		if origin in threatened:
 			continue
 		var reinforce := false

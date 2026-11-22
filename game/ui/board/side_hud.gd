@@ -13,10 +13,12 @@ signal inspect(id: String, rect: Rect2, inst: CardInst)
 
 var player_idx := 0
 var friendly := true
+var conquest := false
 var base_view: BaseView
 var leader_view: LeaderView
 var res_view: ResourceView
 var info: Label
+var _credit_tokens: HBoxContainer
 var _ps: PlayerState
 var deck_back: TextureRect
 var profile_badge: ProfileBadge
@@ -60,6 +62,9 @@ func _ready() -> void:
 	add_child(res_view)
 	info = UIKit.fit_label(UIKit.label("", 16, Sabacc.C_DIM))
 	add_child(info)
+	if conquest:
+		_credit_tokens = UIKit.credit_label("", true, 16)
+		add_child(_credit_tokens)
 	deck_back = TextureRect.new()
 	deck_back.texture = Cosmetics.texture("cardback") if friendly else Art.card_back
 	deck_back.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -103,7 +108,11 @@ func refresh() -> void:
 	res_view.ready_n = _ps.ready_resources()
 	res_view.total = _ps.resources.size()
 	res_view.queue_redraw()
-	info.text = "Deck %d   Hand %d   Discard %d%s" % [_ps.deck.size(), _ps.hand.size(), _ps.discard.size(), ("   Credits %d" % _ps.credits) if _ps.credits > 0 else ""]
+	info.text = "Deck %d   Hand %d   Discard %d%s" % [_ps.deck.size(), _ps.hand.size(), _ps.discard.size(),
+		"   Credits %d" % _ps.credits if not conquest and _ps.credits > 0 else ""]
+	if _credit_tokens:
+		_credit_tokens.visible = _ps.credits > 0
+		_credit_tokens.get_node("Amount").text = str(_ps.credits)
 
 
 func arrange(r: Rect2, horizontal: bool) -> void:
@@ -144,6 +153,9 @@ func arrange(r: Rect2, horizontal: bool) -> void:
 		# The deployed commander occupies one slot, using the space of both old tiles.
 		base_view.position = Vector2.ZERO
 		base_view.size = Vector2(res_view.position.x - 16.0, r.size.y - 22.0) if horizontal else Vector2(r.size.x, r.size.y * 0.70)
+	if _credit_tokens:
+		_credit_tokens.position = res_view.position - Vector2(0, 20) if not horizontal else info.position + Vector2(0, 25)
+		_credit_tokens.position = _credit_tokens.position.max(Vector2.ZERO)
 	leader_view.queue_redraw()
 	base_view.queue_redraw()
 
