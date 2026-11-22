@@ -42,7 +42,7 @@ const PORTRAIT_UNITS_PER_ROW := 4
 var arena_bands: Dictionary = {}     # "ground" -> Rect2
 var _arena_labels: Dictionary = {}
 var _hand_top := 0.0
-var _command_slot := Rect2()
+var _command_slots: Array[Rect2] = [Rect2(), Rect2()]
 var _withdrawal_result := {}
 
 var _selected: UnitToken
@@ -217,12 +217,15 @@ func _layout() -> void:
 	var vs := get_viewport_rect().size
 	portrait = vs.y >= vs.x
 	var has_commander: bool = m.players[HUMAN].base.is_commander()
-	var command_h := clampf(vs.y * (0.17 if portrait else 0.30), 70, 212) if has_commander else 0.0
+	var enemy_commander: bool = m.players[1].base.is_commander()
+	var command_h := clampf(vs.y * (0.17 if portrait else (0.24 if has_commander and enemy_commander else 0.30)), 70, 212)
+	var player_h := command_h if has_commander else 0.0
+	var enemy_h := command_h if enemy_commander else 0.0
 	var command_w := minf(vs.x * (0.55 if portrait else 0.31), 340.0)
 	var arena_area: Rect2
 	if portrait:
-		var top_h := vs.y * 0.105
-		var hud_h := command_h if has_commander else vs.y * 0.1
+		var top_h := enemy_h + 16.0 if enemy_commander else vs.y * 0.105
+		var hud_h := player_h if has_commander else vs.y * 0.1
 		var hand_h := vs.y * 0.13
 		hud[1].arrange(Rect2(Vector2(10, 8), Vector2(vs.x - 20, top_h - 8)), true)
 		hud[0].arrange(Rect2(Vector2(10, vs.y - hand_h - hud_h), Vector2(vs.x - 20, hud_h - 6)), true)
@@ -239,7 +242,7 @@ func _layout() -> void:
 		tray.position = Vector2(12 + TableTokens.InitiativeCoin.SIZE + 16, row_y + 4)
 		tracker.position = Vector2(0, top_h + 4)
 		tracker.size = Vector2(vs.x, 26)
-		enemy_hand_label.position = Vector2(vs.x * 0.7, top_h - 26)
+		enemy_hand_label.position = Vector2(vs.x * 0.7, 97.0 if enemy_commander else top_h - 26)
 		enemy_hand_label.size = Vector2(vs.x * 0.3 - 10, 24)
 		ui_layer.get_node("LogBtn").position = Vector2(vs.x - 236, row_y + 4)
 		ui_layer.get_node("MenuBtn").position = Vector2(vs.x - 300, row_y + 4)
@@ -254,7 +257,8 @@ func _layout() -> void:
 		var hand_h := vs.y * 0.2
 		hud[1].arrange(Rect2(Vector2(12, 12), Vector2(side_w, vs.y * 0.45)), false)
 		hud[0].arrange(Rect2(Vector2(12, vs.y * 0.52), Vector2(side_w, vs.y * 0.45)), false)
-		arena_area = Rect2(Vector2(side_w + 30, 50), Vector2(vs.x - side_w - right_w - 60, vs.y - hand_h - 60 - command_h))
+		arena_area = Rect2(Vector2(side_w + 30, 50 + enemy_h),
+			Vector2(vs.x - side_w - right_w - 60, vs.y - hand_h - 60 - player_h - enemy_h))
 		_hand_top = vs.y - hand_h
 		hand.card_scale = clampf(hand_h * 1.25 / CardView.PORTRAIT.y, 0.4, 1.0)
 		hand.position = Vector2(side_w + 30, vs.y - hand_h)
@@ -271,20 +275,27 @@ func _layout() -> void:
 		enemy_hand_label.size = Vector2(right_w, 24)
 		ui_layer.get_node("LogBtn").position = Vector2(rx, vs.y - 80)
 		ui_layer.get_node("MenuBtn").position = Vector2(rx + 70, vs.y - 80)
-		prompt_bar.position = Vector2(side_w + 30, 44)
+		prompt_bar.position = Vector2(side_w + 30, 44 + enemy_h)
 		prompt_bar.size = Vector2(arena_area.size.x, 70)
 		log_panel.position = Vector2(vs.x * 0.25, vs.y * 0.1)
 		log_panel.size = Vector2(vs.x * 0.5, vs.y * 0.7)
-	_command_slot = Rect2(Vector2((vs.x - command_w) * 0.5, _hand_top - command_h), Vector2(command_w, command_h - 6))
-	if has_commander and portrait:
-		var rhs: float = _command_slot.end.x + 6.0 - hud[0].position.x
-		var remaining: float = hud[0].size.x - rhs
-		hud[0].res_view.position = Vector2(rhs, 2)
-		hud[0].res_view.size = Vector2(remaining, minf(48, command_h * 0.34))
-		hud[0].info.position = Vector2(rhs, hud[0].res_view.size.y + 4)
-		hud[0].info.size.x = remaining
+	var command_x := (vs.x - command_w) * 0.5
+	var slot_size := Vector2(command_w, command_h - 6.0)
+	_command_slots[0] = Rect2(Vector2(command_x, _hand_top - command_h), slot_size) if has_commander else Rect2()
+	_command_slots[1] = Rect2(Vector2(command_x, 12.0 if portrait else 42.0), slot_size) if enemy_commander else Rect2()
+	if portrait:
+		for p in 2:
+			if not _command_slots[p].has_area():
+				continue
+			var side: SideHud = hud[p]
+			var rhs := _command_slots[p].end.x + 6.0 - side.position.x
+			var remaining := side.size.x - rhs
+			side.res_view.position = Vector2(rhs, 2)
+			side.res_view.size = Vector2(remaining, minf(48, command_h * 0.34))
+			side.info.position = Vector2(rhs, side.res_view.size.y + 4)
+			side.info.size.x = remaining
 	if retreat_btn:
-		var width := minf(_command_slot.position.x - 20, 150.0) if portrait else pass_btn.size.x
+		var width := minf(command_x - 20, 150.0) if portrait else pass_btn.size.x
 		retreat_btn.custom_minimum_size = Vector2(width, 44)
 		retreat_btn.size = Vector2(width, 44)
 		retreat_btn.position = Vector2(10, _hand_top - maxf(command_h * 0.68, 45)) if portrait else Vector2(pass_btn.position.x, pass_btn.position.y + 84)
@@ -295,8 +306,9 @@ func _layout() -> void:
 		var br: Rect2 = hud[i].base_view.get_rect()
 		var orb: Control = force_orbs[i]
 		orb.position = hud[i].position + br.position + Vector2(br.size.x - orb.size.x - 4, -orb.size.y * 0.35 if i == 0 else br.size.y * 0.3)
-		if i == HUMAN and has_commander:
-			orb.position = Vector2(_command_slot.end.x - orb.size.x, _command_slot.position.y)
+		if _command_slots[i].has_area():
+			var slot := _command_slots[i]
+			orb.position = Vector2(slot.end.x - orb.size.x, slot.position.y if i == HUMAN else slot.end.y - orb.size.y)
 	_layout_arenas()
 	_position_tokens(false)
 	hand.layout()
@@ -400,7 +412,7 @@ func _position_tokens(animate := true) -> void:
 	for p in 2:
 		var commander: UnitToken = tokens.get(m.players[p].base.uid)
 		if commander and commander.inst.is_commander():
-			var slot: Rect2 = _command_slot if p == HUMAN else hud[p].base_view.get_global_rect()
+			var slot := _command_slots[p]
 			var layers := commander.inst.upgrades.any(func(upgrade): return not upgrade.is_token)
 			var token_height := UnitToken.SIZE.y if layers else UnitToken.FACE.end.y + 8.0
 			var scale_factor := minf((slot.size.x - 6.0) / UnitToken.SIZE.x, (slot.size.y - 2.0) / token_height)
@@ -430,11 +442,7 @@ func _position_tokens(animate := true) -> void:
 				var row_size := mini(columns, n - row * columns)
 				var x := r.position.x + (r.size.x - step.x * row_size + 8.0) / 2.0
 				tok.scale = Vector2(sc, sc) if not tok._dying else tok.scale
-				tok.home_pos = Vector2(x + (i % columns) * step.x, y + row * step.y) - tok.pivot_offset * (1.0 - sc)
-				if animate:
-					tok.create_tween().tween_property(tok, "position", tok.home_pos, Sabacc.anim(0.3)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-				else:
-					tok.position = tok.home_pos
+				tok.place(Vector2(x + (i % columns) * step.x, y + row * step.y) - tok.pivot_offset * (1.0 - sc), animate)
 
 
 # ================================================================ main loop
@@ -1639,6 +1647,8 @@ func coin_pos(p: int) -> Vector2:
 	if portrait:
 		if p == HUMAN:
 			return Vector2(12, hud[0].position.y - c - 42)
+		if _command_slots[1].has_area():
+			return Vector2(12, _command_slots[1].position.y + 19)
 		return Vector2(12, hud[1].position.y + hud[1].size.y + 34)
 	# landscape: right-hand column, enemy's near the top, yours just above PASS
 	var x: float = pass_btn.position.x + (pass_btn.size.x - c) / 2.0

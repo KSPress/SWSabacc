@@ -13,6 +13,7 @@ const ZOOM_MIN := 0.5
 const ZOOM_MAX := 3.6
 const DRAG_THRESHOLD := 7.0
 const MARKER_TEXTURE_SIZE := 128
+const PLANET_ICON_SIZE := 30.0
 const FLEET_FACE_SCALE := 0.45
 const MAP_BACKGROUND := Color("#07111e")
 const MAP_IMAGE_INSET := 6.0
@@ -32,6 +33,7 @@ var _touches := {}
 var _leaders := {}
 var _planet_art := {}
 var _symbols := {}
+var _planet_icon_centers := {}
 var _marker := UnitEffects.new()
 
 
@@ -58,6 +60,34 @@ func _ready() -> void:
 				sprite.resize(dimensions.x, dimensions.y, Image.INTERPOLATE_LANCZOS)
 			sprite.generate_mipmaps()
 			_planet_art[world] = ImageTexture.create_from_image(sprite)
+	_arrange_planet_icons()
+
+
+func _arrange_planet_icons() -> void:
+	var occupied: Array[Rect2] = []
+	for world in run.state["worlds"]:
+		var at: Vector2 = GALAXY.WORLDS[world]
+		var radius := _planet_radius(world)
+		occupied.append(Rect2(at - Vector2.ONE * radius, Vector2.ONE * radius * 2.0).grow(2))
+		occupied.append(_world_label_rect(world).grow(2))
+	for world in run.state["worlds"]:
+		if GALAXY.planet_icon(world, -1).is_empty():
+			continue
+		var at: Vector2 = GALAXY.WORLDS[world]
+		var center := at - Vector2(0, _planet_radius(world) + 7.0 + PLANET_ICON_SIZE / 2.0)
+		var border := Vector2.ONE * (PLANET_ICON_SIZE + 6.0)
+		var badge := Rect2(center - border / 2.0, border)
+		for offset in [0.0, 24.0, -24.0, 42.0, -42.0]:
+			badge.position.x = center.x + offset - border.x / 2.0
+			if not occupied.any(func(rect): return rect.intersects(badge)):
+				break
+		_planet_icon_centers[world] = badge.get_center()
+		occupied.append(badge)
+		_world_bounds = _world_bounds.merge(badge)
+
+
+func _planet_radius(world: String) -> float:
+	return 14.0 if _planet_art.has(world) else 6.0
 
 
 func _process(delta: float) -> void:
@@ -111,6 +141,18 @@ func _draw() -> void:
 				draw_polyline(points, Color(tint, 0.52), 1.5, true)
 	for name in worlds:
 		_draw_world(name, worlds[name])
+	for name in _planet_icon_centers:
+		var owner := int(worlds[name]["owner"])
+		var identity := GALAXY.territory_identity(name, owner)
+		var center: Vector2 = _planet_icon_centers[name]
+		var planet: Vector2 = GALAXY.WORLDS[name]
+		var direction := planet.direction_to(center)
+		var tint: Color = identity["color"]
+		var border := PLANET_ICON_SIZE / 2.0 + 2.0
+		draw_line(planet + direction * (_planet_radius(name) + 2), center - direction * border, Color(tint, 0.7), 1.5, true)
+		draw_circle(center, border, Color("#091723"), true, -1.0, true)
+		draw_arc(center, border, 0, TAU, 32, Color(tint, 0.5), 1.0, true)
+		_draw_symbol(GALAXY.planet_icon(name, owner), center, tint, _icon_phase(planet), PLANET_ICON_SIZE)
 	for owner in GALAXY.FACTIONS.size():
 		for index in run.fleets(owner).size():
 			var task := run.fleet(owner, index)
@@ -146,7 +188,7 @@ func _draw_world(name: String, world: Dictionary) -> void:
 	var identity := GALAXY.territory_identity(name, owner)
 	var tint: Color = identity["color"]
 	var art: Texture2D = _planet_art.get(name)
-	var radius := 14.0 if art else 6.0
+	var radius := _planet_radius(name)
 	draw_circle(at, radius + 4, Color(tint, 0.24 if selected == name else 0.11), true, -1.0, true)
 	if art:
 		var dimensions := art.get_size() * (radius * 2.0 / maxf(art.get_width(), art.get_height()))
@@ -156,24 +198,29 @@ func _draw_world(name: String, world: Dictionary) -> void:
 		draw_circle(at, 2.5, Color("#edfaff"))
 	draw_arc(at, radius + 1.0, 0, TAU, 28, tint, 1.4, true)
 	var symbol_id := GALAXY.territory_icon(name, owner)
-	if symbol_id.is_empty():
+	if symbol_id.is_empty() or _planet_icon_centers.has(name):
 		return
-	var phase := at.x * 0.05 + (0.0 if Sabacc.perf() else _clock * 0.86)
+	var phase := _icon_phase(at)
 	var orbit_radius := radius + 8.0
 	var orbit := at + Vector2.from_angle(phase) * orbit_radius
 	draw_arc(at, orbit_radius, 0, TAU, 28, Color(tint, 0.32), 1.0, true)
 	draw_circle(orbit, 10, Color("#091723"))
+	_draw_symbol(symbol_id, orbit, tint, phase, 16.0)
+
+
+func _icon_phase(at: Vector2) -> float:
+	return at.x * 0.05 + (0.0 if Sabacc.perf() else _clock * 0.86)
+
+
+func _draw_symbol(symbol_id: String, center: Vector2, tint: Color, phase: float, extent: float) -> void:
 	if not _symbols.has(symbol_id):
 		var asset := "res://assets/conquest/icons/%s.png" % symbol_id
 		_symbols[symbol_id] = load(asset) as Texture2D
 	var symbol: Texture2D = _symbols[symbol_id]
-	if symbol:
-		_draw_symbol(symbol, orbit, tint, phase)
-
-
-func _draw_symbol(symbol: Texture2D, center: Vector2, tint: Color, phase: float) -> void:
+	if not symbol:
+		return
 	var image_size := symbol.get_size()
-	var dimensions := image_size * (16.0 / maxf(image_size.x, image_size.y))
+	var dimensions := image_size * (extent / maxf(image_size.x, image_size.y))
 	var rect := Rect2(center - dimensions * 0.5, dimensions)
 	var light := 0.86 if Sabacc.perf() else 0.83 + 0.12 * sin(phase * 19.0)
 	draw_texture_rect(symbol, rect, false, Color(tint, light))
@@ -187,15 +234,17 @@ func _draw_symbol(symbol: Texture2D, center: Vector2, tint: Color, phase: float)
 	draw_texture_rect_region(symbol, overlay, source, Color(tint.lerp(Color.WHITE, 0.5), 0.58))
 
 
-func _draw_world_label(world: String) -> void:
-	var font := Sabacc.font_body
+func _world_label_rect(world: String) -> Rect2:
 	var label := GALAXY.display_name(world)
-	var label_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-	var margin := 17.0 if _planet_art.has(world) else 9.0
-	var rect := Rect2(GALAXY.WORLDS[world] + Vector2(-label_width * 0.5 - 4, margin), Vector2(label_width + 8, 16))
+	var label_width := Sabacc.font_body.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	return Rect2(GALAXY.WORLDS[world] + Vector2(-label_width * 0.5 - 4, _planet_radius(world) + 3), Vector2(label_width + 8, 16))
+
+
+func _draw_world_label(world: String) -> void:
+	var rect := _world_label_rect(world)
 	var identity := GALAXY.territory_identity(world, int(run.state["worlds"][world]["owner"]))
 	draw_rect(rect, Color(0.03, 0.07, 0.12, 0.9))
-	draw_string(font, rect.position + Vector2(4, 12), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, identity["color"])
+	draw_string(Sabacc.font_body, rect.position + Vector2(4, 12), GALAXY.display_name(world), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, identity["color"])
 
 
 func _traveler_at(task: Dictionary) -> Vector2:

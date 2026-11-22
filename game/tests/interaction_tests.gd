@@ -40,8 +40,12 @@ func _run() -> void:
 	Save.data = Save.default_data()
 	Sabacc.settings["anim_speed"] = 1.0
 	Sabacc.settings["perf_mode"] = false
-	if only == "conquest":
-		await _test_conquest()
+	if only in ["conquest", "conquest-duel"]:
+		if only == "conquest":
+			await _test_conquest()
+		else:
+			await _size(390, 844)
+			await _test_conquest_duel()
 		print("CONQUEST INPUT: %d checks, %d failed" % [checks, failures])
 		if failures:
 			get_tree().quit(1)
@@ -338,7 +342,7 @@ func _test_conquest() -> void:
 	var token: UnitToken = match_screen.tokens.get(commander.uid)
 	check(token != null and token.inst == match_screen.m.players[0].leader and commander.deployed
 		and not match_screen.hud[0].leader_view.visible and not match_screen.hud[0].base_view.visible
-		and match_screen._command_slot.has_point(token.center_global()),
+		and match_screen._command_slots[0].has_point(token.center_global()),
 		"One deployed Sabacc commander occupies the command slot")
 	_check_commander_slot(match_screen, token)
 	await _size(1280, 720)
@@ -424,6 +428,77 @@ func _test_conquest() -> void:
 	Conquest.run.state["worlds"]["Mandalore"]["owner"] = -1
 	check(Conquest.load_slot(1) and Conquest.run.state["worlds"]["Mandalore"]["owner"] == 1,
 		"Loading restores the saved map and overwrites only the autosave")
+	await _test_conquest_duel()
+
+
+func _test_conquest_duel() -> void:
+	Conquest.start(1, 32, "JTL_012")
+	var run := Conquest.run
+	for side in run.state["factions"]:
+		side["next_order"] = 9999
+	await _go("conquest")
+	var map: Control = get_tree().current_scene._map
+	var positions: Dictionary = map._planet_icon_centers
+	check(positions.size() == 10, "All ten special worlds reserve a spot above their planet")
+	var markers_clear := true
+	for world in positions:
+		var center: Vector2 = positions[world]
+		var planet: Vector2 = ConquestGalaxy.WORLDS[world]
+		var marker := Rect2(center - Vector2.ONE * 17.0, Vector2.ONE * 34.0)
+		markers_clear = markers_clear and marker.end.y < planet.y - map._planet_radius(world)
+		for neighbor in run.state["worlds"]:
+			var radius: float = map._planet_radius(neighbor)
+			var point: Vector2 = ConquestGalaxy.WORLDS[neighbor]
+			var body := Rect2(point - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
+			markers_clear = markers_clear and not marker.intersects(body) and not marker.intersects(map._world_label_rect(neighbor))
+	check(markers_clear, "The enlarged special badges clear other planets and their names")
+	map.center_on("Geonosis")
+	await _shot("conquest-world-insignia")
+	run._begin_battle(0, "Yavin")
+	Conquest.persist()
+	Conquest.play_battle(run.player_battle())
+	await _wait(0.8)
+	var battle := get_tree().current_scene
+	check(battle.get("m") is Match, "A fleet battle opens the live match board")
+	if not battle.get("m") is Match:
+		return
+	await _wait_for_conquest_turn(battle)
+	var enemy = battle.m.players[1].base
+	var opponent: UnitToken = battle.tokens.get(enemy.uid)
+	var player: UnitToken = battle.tokens.get(battle.m.players[0].base.uid)
+	check(opponent != null and opponent.inst == battle.m.players[1].leader and enemy.deployed
+		and enemy.max_hp() == 30 and not battle.hud[1].base_view.visible and not battle.hud[1].leader_view.visible,
+		"The opposing leader uses the same deployed commander token and replaces the base")
+	if not player or not opponent:
+		return
+	_check_commander_pair(battle, player, opponent)
+	await _shot("conquest-commanders-portrait")
+	await _size(1280, 720)
+	_check_commander_pair(battle, player, opponent)
+	await _shot("conquest-commanders-landscape")
+	await _click(player, UnitToken.FACE_CENTER / player.size)
+	if battle.menu_popup:
+		await _click(_button(battle.menu_popup, "Attack"))
+	var before: int = enemy.damage
+	await _click(opponent, UnitToken.FACE_CENTER / opponent.size)
+	check(enemy.damage > before, "The opposing horizontal commander accepts combat input")
+
+
+func _check_commander_pair(screen: Control, player: UnitToken, opponent: UnitToken) -> void:
+	_check_commander_slot(screen, player)
+	var arena: Rect2 = screen._arena_area
+	var rect := opponent.get_global_rect()
+	check(is_equal_approx(opponent.scale.x, player.scale.x)
+		and absf(opponent.center_global().x - player.center_global().x) < 2.0,
+		"Both commander cards share a scale and centerline")
+	check(rect.end.y <= arena.position.y and get_viewport().get_visible_rect().encloses(rect)
+		and not rect.intersects(screen.tracker.get_global_rect()),
+		"The opposing card fits above the arena and clears the objective")
+	check(screen.tokens.values().all(func(token: UnitToken):
+		if token.inst.is_commander():
+			return true
+		var lane: Rect2 = screen.arena_rects[token.inst.zone + "_" + str(token.inst.controller)]
+		return lane.has_point(token.center_global())), "Deployed units stay in their lanes after rotation")
 
 
 func _wait_for_conquest_turn(screen: Control) -> void:

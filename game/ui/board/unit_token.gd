@@ -24,6 +24,7 @@ var highlight := Hi.NONE:
 		highlight = v
 		queue_redraw()
 var home_pos := Vector2.ZERO
+var _placement: Tween
 var _tex: Texture2D
 var _t := 0.0
 var _flash := 0.0
@@ -48,6 +49,18 @@ static func create(p_inst: CardInst) -> UnitToken:
 	var t := UnitToken.new()
 	t.inst = p_inst
 	return t
+
+
+func place(at: Vector2, animate: bool) -> void:
+	home_pos = at
+	if _placement:
+		_placement.kill()
+		_placement = null
+	if animate:
+		_placement = create_tween()
+		_placement.tween_property(self, "position", home_pos, Sabacc.anim(0.3)).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	else:
+		position = home_pos
 
 
 func _ready() -> void:

@@ -118,14 +118,19 @@ static func territory_identity(world: String, owner: int) -> Dictionary:
 	return FACTIONS[owner] if owner >= 0 else LOCAL_CONTROL.get(world, NEUTRAL)
 
 
-static func territory_icon(world: String, owner: int) -> String:
+static func planet_icon(world: String, owner: int) -> String:
 	match world:
 		"Endor", "Lothal":
 			return world.to_lower() + ("-empire" if owner == 0 else "-rebels")
 		"Mandalore":
 			if owner == 2:
 				return "shadow-collective"
-	return PLANET_ICONS.get(world, FACTION_ICONS[owner] if owner >= 0 else "")
+	return PLANET_ICONS.get(world, "")
+
+
+static func territory_icon(world: String, owner: int) -> String:
+	var local := planet_icon(world, owner)
+	return local if not local.is_empty() else (FACTION_ICONS[owner] if owner >= 0 else "")
 
 
 static func worlds_for_size(count: int) -> Array:
