@@ -13,6 +13,8 @@ func _ready() -> void:
 	for key in ["normal", "hover", "pressed", "disabled", "focus"]:
 		add_theme_stylebox_override(key, StyleBoxEmpty.new())
 	tooltip_text = "%s · %d credits to build · %d resources to play" % [card["name"], credits, card["cost"]]
+	if card.get("implemented") in ["partial", "manual"]:
+		tooltip_text += "\nSome printed abilities are pending implementation."
 	_art = Art.request(card.get("art", card["id"]), func(texture):
 		_art = texture
 		queue_redraw())

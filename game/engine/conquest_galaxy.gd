@@ -60,14 +60,33 @@ const FACTION_RECRUITS := {
 	},
 }
 const LOCAL_UNIT_PRINTS := {
-	"native_lothal_imperial": ["IC27_024", "SEC_136", "SOR_180", "KYB_007"],
+	"native_lothal_imperial": ["IC27_024", "SEC_136", "SOR_180", "JTL_163"],
 	"native_death_star": ["SOR_128", "SOR_083", "SHD_085", "SOR_084", "ASH_143", "JTL_107", "SOR_232"],
 	"native_bespin": ["SOR_063", "LAW_108"],
 }
-const LOCAL_VARIANTS := {
-	"Lothal": {0: ["ASH_004", "SEC_011", "LAW_003"], 1: ["SOR_008", "LAW_009", "SOR_014", "LOF_004", "ASH_013"]},
-	"Endor": {0: ["SOR_007", "HMW_004"], 1: ["HMW_014"]},
+const LOCAL_CATALOG_TRAITS := {
+	"native_bounty_hunter": ["underworld"], "native_nightsister": ["night", "nightsister"],
+	"native_spectre": ["spectre"], "native_wookiee": ["wookiee"],
+	"native_jawa": ["jawa"], "native_tusken": ["tusken"], "native_ewok": ["ewok"],
 }
+const LOCAL_SUPPORT_PRINTS := {
+	"native_bespin": ["LAW_111", "SOR_214", "SHD_123", "SHD_228", "LAW_169"],
+	"native_nightsister": ["ASH_104"],
+	"native_spectre": ["ASH_114"],
+	"native_lothal_imperial": ["LAW_003", "SEC_011", "SOR_115", "LAW_076", "JTL_163"],
+	"native_death_star": ["JTL_260", "HMW_206"],
+	"native_ewok": ["HMW_193"],
+	"native_wookiee": ["HMW_127", "SHD_205"],
+	"native_tusken": ["HMW_240"],
+	"native_clone": ["TWI_051", "TWI_102", "TWI_129", "TWI_169", "TWI_200", "TWI_251", "TS26_069"],
+}
+const LOCAL_VARIANTS := {
+	"Dathomir": {0: ["LOF_005"], 1: ["HMW_001"]},
+	"Endor": {0: ["SOR_007", "HMW_004"], 1: ["HMW_014"]},
+	"Kamino": {0: ["HMW_003"], 1: ["SHD_009", "TS26_006", "HMW_006"]},
+	"Mandalore": {0: ["SHD_001", "SHD_007", "ASH_008"], 1: ["SHD_018", "ASH_014", "SOR_014", "ASH_006", "SHD_012", "ASH_010"]},
+}
+const OUT_OF_ERA_UNDERWORLD_LEADERS := ["LAW_004", "TWI_016", "TWI_009", "SEC_018", "TS26_003", "TS26_005", "ASH_012"]
 
 # Additional commanders are curated by printing. Traits alone also include
 # Republic generals, pre-war rulers, and post-Endor remnant commanders.
@@ -81,9 +100,7 @@ const ERA_COMMANDERS := [
 		"LAW_018", "SHD_005", "SHD_010", "SHD_013", "SHD_015", "SHD_017", "JTL_009", "JTL_015", "SEC_007", "HMW_015"],
 ]
 const LOCAL_COMMANDERS := {
-	"Tatooine": ["HMW_018", "KYB_006"], "Kashyyyk": ["HMW_009", "SOR_003", "LAW_013", "HMW_010"],
-	"Mandalore": ["SOR_014", "SHD_001", "ASH_010"], "Geonosis": ["KYB_005"], "Kamino": ["TS26_006"],
-	"Dathomir": ["KYB_008"], "Bespin": ["JTL_003", "LAW_018", "SHD_017"],
+	"Bespin": ["JTL_003", "LAW_018", "SHD_017"],
 }
 const LATER_OR_EARLIER_TRAITS := ["first order", "resistance", "new republic", "high republic", "old republic", "sith eternal"]
 const ERA_NAMED_UNITS := [
@@ -150,14 +167,19 @@ static func leader_variants(lib: CardLibrary, faction: int, world := "", starter
 	var original := lib.get_card(FACTIONS[faction]["leader"])
 	var local: Array = LOCAL_COMMANDERS.get(world, [])
 	var local_alignment: Array = LOCAL_VARIANTS.get(world, {}).get(faction, [])
+	var rosters := native_recruits(world, faction)
 	var found := []
 	for id in lib.cards:
 		var card := lib.get_card(id)
-		if card.get("type") != "leader":
+		if card.get("type") != "leader" or card.get("custom", false):
 			continue
-		var eligible: bool = not card.get("custom", false) and card["name"] == original["name"]
+		var eligible: bool = card["name"] == original["name"]
 		if not starters:
 			eligible = eligible or id in ERA_COMMANDERS[faction] or id in local or id in local_alignment
+			eligible = eligible or (world == "Mandalore" and faction == 2 and "mandalorian" in card["traits"])
+			if not eligible:
+				eligible = rosters.keys().any(func(roster):
+					return not roster in ["native_nightsister", "native_clone", "native_mandalorian"] and local_catalog_match(card, roster))
 		if eligible:
 			found.append(id)
 	found.sort_custom(func(a, b):
@@ -180,6 +202,22 @@ static func era_unit(card: Dictionary) -> bool:
 
 static func native_recruits(world: String, faction: int) -> Dictionary:
 	return FACTION_RECRUITS.get(world, {}).get(faction, NATIVE_RECRUITS.get(world, {}))
+
+
+static func local_catalog_match(card: Dictionary, roster: String) -> bool:
+	var id: String = card["id"]
+	if roster == "native_lothal_imperial" and card["name"] == "Grand Admiral Thrawn":
+		return true
+	if id in LOCAL_SUPPORT_PRINTS.get(roster, []):
+		return true
+	var traits: Array = card["traits"]
+	if id in ERA_EXCLUDED_PRINTS or traits.any(func(tag): return tag in LATER_OR_EARLIER_TRAITS):
+		return false
+	if roster == "native_clone":
+		return "clone" in traits and not "imperial" in traits
+	if roster == "native_bounty_hunter" and card["type"] == "leader":
+		return "underworld" in traits and not id in OUT_OF_ERA_UNDERWORLD_LEADERS
+	return LOCAL_CATALOG_TRAITS.get(roster, []).any(func(tag): return tag in traits)
 
 
 static func native_match(card: Dictionary, roster: String) -> bool:

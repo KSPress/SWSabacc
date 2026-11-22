@@ -80,6 +80,8 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		return _campaign_zone_reveal(m, e, ctx)
 	if op in ["return_resources", "defeat_owned_resource"]:
 		return _return_resources(m, e, ctx)
+	if op == "hunter_resource":
+		return _hunter_resource(m, e, ctx)
 	if op == "transfer_attacked_upgrade":
 		return _transfer_attacked_upgrade(m, e, ctx)
 	if op == "name_enemy_trait":
@@ -182,7 +184,8 @@ static func _exec(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 			m.pay(ctl, n)
 		"discount_next":
 			m.players[ctl].next_play_discounts.append({"phase": m.phase_serial,
-				"filter": e["filter"], "n": n, "uses": e.get("uses", 1), "plot_only": e.get("plot_only", false)})
+				"filter": e["filter"], "n": n, "uses": e.get("uses", 1), "plot_only": e.get("plot_only", false),
+				"shared_unit_keyword": e.get("shared_unit_keyword", false)})
 		"repeat_next_when_played":
 			var player: PlayerState = m.players[ctl]
 			if player.repeat_when_played_phase != m.phase_serial:
@@ -868,6 +871,9 @@ static func matches(m: Match, c: CardInst, t: Dictionary, ctx: Dictionary) -> bo
 		return false
 	if t.get("played_this_phase", false) and not m.played_this_phase[ctl].has(c):
 		return false
+	if t.has("attacked_keyword_discount"):
+		if not c.uid in m.attacked_with[ctl] or not has_hand_play(m, ctl, {"kind": "unit", "discount": t["attacked_keyword_discount"]}, 0, c):
+			return false
 	if t.get("played_by_either", false) and not m.played_this_phase.any(func(cards): return c in cards):
 		return false
 	if t.get("idle_this_phase", false) and (c.entered_phase == m.phase_serial or m.attacked_with.any(func(attackers): return c.uid in attackers)):
@@ -1480,6 +1486,8 @@ static func _attack_with(m: Match, e: Dictionary, ctx: Dictionary, attackers: Ar
 			ctx["it"] = a.uid
 			ctx["attack_defender"] = tgt.uid
 			a.mods.append_array(modifiers)
+			if e.get("swap_raid_restore", false):
+				a.mods.append({"swap_raid_restore": true, "dur": "attack"})
 			for pre in e.get("pre", []):
 				if not condition(m, pre.get("if", {}), ctx):
 					continue
@@ -2143,13 +2151,14 @@ static func _effect_play_pool(m: Match, p: int, effect: Dictionary) -> Array:
 	return ps.hand
 
 
-static func has_hand_play(m: Match, p: int, effect: Dictionary, reserved_resources := 0) -> bool:
+static func has_hand_play(m: Match, p: int, effect: Dictionary, reserved_resources := 0, share_with: CardInst = null) -> bool:
 	var opts := _hand_play_options(effect)
 	opts["reserved_resources"] = reserved_resources
 	if effect.get("discount_by_leaders", false):
 		opts["discount"] = m.players[p].units.filter(func(u): return u.is_leader_unit()).size()
 	var pool := _effect_play_pool(m, p, effect)
-	return pool.any(func(c): return not _hand_play_modes(m, p, c, effect, opts).is_empty())
+	return pool.any(func(c):
+		return (not share_with or c.shares_keyword(share_with)) and not _hand_play_modes(m, p, c, effect, opts).is_empty())
 
 
 static func _play_from_hand(m: Match, e: Dictionary, ctx: Dictionary) -> int:
@@ -2207,8 +2216,11 @@ static func _play_from_hand(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 		m._play_card(p, selected, e.get("smuggle", false), opts)
 		return DONE
 	var cands: Array = []
+	var share_with := m.card(ctx.get("it", 0)) if e.get("shares_selected_keyword", false) else null
 	for c in _effect_play_pool(m, p, e):
 		if e.get("only_selected", false) and c.uid != ctx.get("it", 0):
+			continue
+		if e.get("shares_selected_keyword", false) and (not share_with or not c.shares_keyword(share_with)):
 			continue
 		if not _hand_play_modes(m, p, c, e, opts).is_empty():
 			cands.append(c.uid)
@@ -2292,6 +2304,28 @@ static func _return_resources(m: Match, e: Dictionary, ctx: Dictionary) -> int:
 	_ask(m, ctx, "resource", "Choose a resource to defeat" if defeat else "Choose up to two resources to return",
 		resources.map(func(card): return card.uid), 1 if defeat else 0, 1 if defeat else mini(2, resources.size()), e)
 	return SUSPEND
+
+
+static func _hunter_resource(m: Match, e: Dictionary, ctx: Dictionary) -> int:
+	var player: int = ctx["ctl"]
+	var side: PlayerState = m.players[player]
+	if not ctx.has("_choice"):
+		if side.resources.is_empty():
+			return DONE
+		_ask(m, ctx, "resource", "Choose a resource to reveal", side.resources.map(func(card): return card.uid),
+			0 if e.get("optional_reveal", false) else 1, 1, e)
+		return SUSPEND
+	var picked: Array = ctx["_choice"]
+	ctx.erase("_choice")
+	if picked.is_empty():
+		return DONE
+	var revealed := m.card(picked[0])
+	m.events.append({"t": "reveal_top", "uid": revealed.uid, "p": player})
+	if side.units.any(func(unit): return "cunning" in unit.aspects() and unit.name() == revealed.name()):
+		m.return_to_hand(revealed)
+		if not side.deck.is_empty():
+			m.move_to_resources(player, side.deck[0], true)
+	return DONE
 
 
 static func _campaign_zone_reveal(m: Match, e: Dictionary, ctx: Dictionary) -> int:

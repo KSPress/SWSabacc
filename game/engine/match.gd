@@ -363,6 +363,8 @@ func _play_discount(p: int, c: CardInst, aspects: Array, opts: Dictionary) -> in
 			total += int(rule["n"])
 	for rule in ps.next_play_discounts:
 		if rule["phase"] == phase_serial and (not rule.get("plot_only", false) or opts.get("plot", false)) and _matches_play(record, rule["filter"]):
+			if rule.get("shared_unit_keyword", false) and not ps.units.any(func(unit): return c != unit and c.shares_keyword(unit)):
+				continue
 			total += int(rule["n"])
 	for source in trigger_sources():
 		if source.controller == p:
@@ -552,6 +554,8 @@ func _can_pay_action(p: int, c: CardInst, ab: Dictionary) -> bool:
 		return false
 	var required: Dictionary = effects[0]
 	if required.get("op") == "attack_with" and required.get("t", {}).get("can_attack", false) and not required.has("if"):
+		return not Effects.candidates(self, required["t"], {"ctl": p, "src": c.uid}).is_empty()
+	if required.get("t", {}).has("attacked_keyword_discount"):
 		return not Effects.candidates(self, required["t"], {"ctl": p, "src": c.uid}).is_empty()
 	if required.get("op") == "play_from_hand" and not required.get("optional", false) and not required.has("if"):
 		return Effects.has_hand_play(self, p, required, resources)

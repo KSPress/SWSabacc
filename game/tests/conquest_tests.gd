@@ -114,6 +114,9 @@ func _init() -> void:
 	test_command_retreat()
 	test_voluntary_withdrawal()
 	test_local_catalogs()
+	test_dathomir_commanders()
+	test_kamino_commanders()
+	test_official_conquest_save()
 	test_final_capture()
 	print("CONQUEST: %d checks, %d failed" % [checks, failures])
 	quit(1 if failures else 0)
@@ -127,20 +130,21 @@ func test_expanded_conquest() -> void:
 	var worlds: Dictionary = run.state["worlds"]
 	for name in ["Corellia", "Mandalore", "Geonosis"]:
 		worlds[name]["owner"] = 0
-	check(run.available_milestone(0) == 4 and run.eligible_commanders(0, "Mandalore").has("SOR_014"), "Mandalorian leaders unlock on Mandalore")
-	check(run.eligible_commanders(0, "Geonosis").has("KYB_005") and not run.eligible_commanders(0, "Geonosis").has("TWI_015"),
-		"Geonosis unlocks the remnant droid commander and excludes Grievous")
-	check(run.build_commander(0, "Mandalore", "SOR_014") and run.available_milestone(0) == 0,
+	check(run.available_milestone(0) == 4 and run.eligible_commanders(0, "Mandalore").has("SHD_007"), "Imperial Mandalore unlocks Gideon")
+	check(run.eligible_commanders(0, "Geonosis") == run.eligible_commanders(0, "Coruscant"),
+		"Geonosis uses the faction's official commander pool")
+	check(run.build_commander(0, "Mandalore", "SHD_007") and run.available_milestone(0) == 0,
 		"milestone builds one independent fleet from local reserves")
 	run = ConquestRun.new(lib, JSON.parse_string(JSON.stringify(run.state)))
 	worlds = run.state["worlds"]
 	check(run.available_milestone(0) == 0 and run.fleets(0).size() == 2,
 		"reloading a JSON save does not unlock the same milestone a second time")
-	check(run.fleet(0, 1)["leader"] == "SOR_014" and run.order(0, "Dathomir", 1), "second fleet accepts independent orders")
+	check(run.fleet(0, 1)["leader"] == "SHD_007" and run.order(0, "Dathomir", 1), "second fleet accepts independent orders")
 	for name in ["Kamino", "Naboo", "Kuat", "Kashyyyk"]:
 		worlds[name]["owner"] = 0
 	check(run.available_milestone(0) == 8, "second milestone unlocks at eight")
-	check(run.build_commander(0, "Geonosis", "KYB_005"), "second milestone commissions the Geonosis leader")
+	worlds["Kamino"]["cards"] = ["TWI_240", "TWI_205", "TWI_241", "TWI_242", "TWI_207", "TWI_229", "TWI_230", "TWI_243"]
+	check(run.build_commander(0, "Kamino", "HMW_003"), "second milestone commissions Hemlock on Imperial Kamino")
 	for name in ["Tatooine", "Hoth", "Endor", "Scarif"]:
 		worlds[name]["owner"] = 0
 	check(run.available_milestone(0) == 12, "third milestone unlocks at twelve")
@@ -438,36 +442,13 @@ func test_era_production() -> void:
 			var cards: Array = worlds[world]["cards"]
 			check(cards.size() == 4 and cards.all(func(id): return ConquestGalaxy.native_match(lib.get_card(id), entry)), entry + " recruits its own units")
 	for faction in 3:
-		check(campaign.eligible_commanders(faction, "Kamino").has("TS26_006"), "Kamino recruits Rex for any occupier")
 		check(campaign.eligible_commanders(faction, "Tatooine").has("HMW_018"), "Tatooine recruits the Tusken leader")
 		check(campaign.eligible_commanders(faction, "Kashyyyk").has("HMW_009"), "Kashyyyk recruits Chewbacca")
 		var geonosis := campaign.eligible_commanders(faction, "Geonosis")
-		check(geonosis.has("KYB_005") and not geonosis.has("TWI_005") and not geonosis.has("HMW_008"),
-			"local droid commander replaces dead Clone Wars leaders")
+		check(not geonosis.has("KYB_005") and not geonosis.has("TWI_005") and not geonosis.has("HMW_008"),
+			"Geonosis excludes the retired custom leader and dead Clone Wars leaders")
 	check(not ConquestGalaxy.era_unit(lib.get_card("TWI_034")) and not ConquestGalaxy.era_unit(lib.get_card("LOF_130")),
 		"dead Clone Wars characters and ancient characters are outside the recruitment roster")
-
-	var cfg := {
-		"rules": RuleSet.campaign(),
-		"first": 0,
-		"players": [
-			{"leader": "KYB_005", "base": "SOR_023", "deck": ["TWI_228", "TWI_228", "TWI_228", "TWI_228", "TWI_228", "TWI_228"], "ai": false,
-				"preplaced": [{"id": "TWI_228", "arena": "space"}, {"id": "SOR_095", "arena": "ground"}]},
-			{"leader": "", "base": "SOR_025", "deck": ["SOR_095", "SOR_095", "SOR_095", "SOR_095", "SOR_095", "SOR_095"], "ai": true}
-		]
-	}
-	cfg["rules"].allow_mulligan = false
-	var battle := Match.new()
-	battle.setup(lib, cfg)
-	var droid: CardInst = battle.players[0].units[0]
-	var trooper: CardInst = battle.players[0].units[1]
-	battle.submit_choice(battle.pending["options"].slice(0, 2))
-	AiBot.choose(battle)
-	var leader: CardInst = battle.players[0].leader
-	check(battle.do_action({"a": "ability", "uid": leader.uid, "idx": 0}) and battle.pending["options"] == [droid.uid]
-		and not battle.submit_choice([trooper.uid]) and battle.submit_choice([droid.uid]) and droid.upgrades.size() == 1,
-		"Kalani can give Experience to a Droid in the real battle engine")
-
 
 func test_voluntary_withdrawal() -> void:
 	var run := ConquestRun.start(lib, 0, 8, 81)
@@ -528,17 +509,18 @@ func test_local_catalogs() -> void:
 	var run := ConquestRun.start(lib, 0, 32, 94)
 	var worlds: Dictionary = run.state["worlds"]
 	for item in [
-		[0, "Lothal", ["SOR_180", "SEC_136", "IC27_024", "KYB_007"]],
-		[1, "Lothal", ["SOR_050", "SOR_188", "SEC_155"]],
-		[0, "Endor", ["SOR_128", "SOR_084", "ASH_143"]],
-		[1, "Endor", ["ASH_166", "ASH_034"]],
+		[0, "Lothal", ["JTL_163", "SOR_180", "SEC_136", "IC27_024", "SEC_193", "ASH_033", "LAW_076"]],
+		[1, "Lothal", ["SOR_151", "SOR_050", "SOR_188", "SEC_155", "LAW_256", "ASH_114"]],
+		[0, "Endor", ["JTL_260", "SOR_128", "SOR_084", "ASH_143"]],
+		[1, "Endor", ["ASH_166", "ASH_034", "HMW_045"]],
 		[2, "Naboo", ["LOF_192", "SEC_120", "LOF_247"]],
-		[2, "Dathomir", ["LOF_059", "LOF_160", "ASH_050"]],
-		[2, "Bespin", ["LAW_108", "SOR_063"]],
+		[2, "Dathomir", ["ASH_055", "LOF_059", "LOF_160", "ASH_050", "ASH_104"]],
+		[2, "Bespin", ["SHD_229", "LAW_108", "SOR_063", "LAW_111", "LAW_169"]],
+		[2, "Kashyyyk", ["HMW_127", "TWI_044", "SHD_205"]],
 		[2, "Mandalore", ["SHD_258"]],
-		[2, "Tatooine", ["HMW_221", "HMW_224"]],
+		[2, "Tatooine", ["HMW_240", "HMW_221", "HMW_224"]],
 		[2, "Geonosis", ["TWI_081", "TWI_230"]],
-		[2, "Kamino", ["TWI_241", "TWI_111"]],
+		[2, "Kamino", ["TWI_129", "TWI_241", "TWI_111", "TWI_051", "TWI_169"]],
 	]:
 		var faction: int = item[0]
 		var world: String = item[1]
@@ -546,6 +528,7 @@ func test_local_catalogs() -> void:
 		worlds[world]["cards"] = []
 		run.state["factions"][faction]["credits"] = 500
 		var catalog := run.factory_catalog(faction, world, true)
+		check(not catalog.any(func(id): return lib.get_card(id).get("custom", false)), "Local catalog contains only official cards")
 		var missing: Array = item[2].filter(func(id): return not id in catalog)
 		check(missing.is_empty(), "%s offers the appropriate local printings (missing %s)" % [world, str(missing)])
 		var id: String = item[2][0]
@@ -554,10 +537,157 @@ func test_local_catalogs() -> void:
 	check("LAW_003" in run.eligible_commanders(0, "Lothal")
 		and not "LAW_003" in run.eligible_commanders(1, "Lothal")
 		and "HMW_014" in run.eligible_commanders(1, "Endor"), "faction-specific commanders follow the roster")
-	check("KYB_006" in run.eligible_commanders(2, "Tatooine") and "KYB_008" in run.eligible_commanders(2, "Dathomir"),
-		"local Jawa and Nightsister commanders are commissionable")
+	var lothal := run.eligible_commanders(0, "Lothal")
+	check(["SOR_016", "JTL_002", "ASH_004", "SEC_011", "LAW_003"].all(func(id): return id in lothal)
+		and "ASH_006" in run.eligible_commanders(1, "Lothal"), "Lothal unlocks every Thrawn leader and Spectre leader for the matching factions")
+	check("SHD_002" in run.eligible_commanders(0, "Bespin") and "TWI_016" not in run.eligible_commanders(0, "Bespin"),
+		"Bespin adds Underworld leaders while excluding earlier-era commanders")
+	check("KYB_006" not in run.eligible_commanders(2, "Tatooine"), "Tatooine excludes the custom Jawa leader")
+	for faction in 3:
+		var kamino := run.eligible_commanders(faction, "Kamino")
+		check(["SHD_009", "TS26_006", "HMW_006"].all(func(id): return (id in kamino) == (faction == 1))
+			and ("HMW_003" in kamino) == (faction == 0) and not "TWI_007" in kamino,
+			"Kamino offers the three exact Rebel prints and the Imperial Hemlock")
+	var imperial_mandalore := run.eligible_commanders(0, "Mandalore")
+	check(["SHD_001", "SHD_007", "ASH_008"].all(func(id): return id in imperial_mandalore)
+		and not "SHD_018" in imperial_mandalore, "Imperial Mandalore offers Gar Saxon and Gideon")
+	var rebel_mandalore := run.eligible_commanders(1, "Mandalore")
+	check(["SHD_018", "ASH_014", "SOR_014", "ASH_006", "SHD_012", "ASH_010"].all(func(id): return id in rebel_mandalore)
+		and not "SHD_001" in rebel_mandalore and not "SHD_007" in rebel_mandalore, "Rebel Mandalore offers Mando, Sabine, and Bo-Katan")
+	var hutt_mandalore := run.eligible_commanders(2, "Mandalore")
+	check(lib.cards.values().filter(func(card): return card["type"] == "leader" and "mandalorian" in card["traits"])
+		.all(func(card): return card["id"] in hutt_mandalore), "The Hutts can commission every official Mandalorian leader on Mandalore")
+	for faction in 3:
+		var leaders := run.eligible_commanders(faction, "Dathomir")
+		check(("LOF_005" in leaders) == (faction == 0) and ("HMW_001" in leaders) == (faction == 1)
+			and "KYB_008" not in leaders, "Dathomir offers the requested official leader only to the matching faction")
+	worlds["Lothal"]["owner"] = 1
+	worlds["Endor"]["owner"] = 2
+	check(not run.can_manufacture(1, "Lothal", "JTL_163", true)
+		and run.factory_catalog(2, "Endor", true).is_empty()
+		and not run.can_manufacture(0, "Lothal", "JTL_163", true), "local catalogs enforce faction and ownership")
 	check(ConquestGalaxy.territory_icon("Endor", 0) == "endor-empire"
 		and ConquestGalaxy.territory_icon("Lothal", 1) == "lothal-rebels", "planet insignia follow the occupier")
+
+
+func test_dathomir_commanders() -> void:
+	var m := _commander_match("HMW_001")
+	var asajj: CardInst = m.players[0].leader
+	var raider := m._new_inst("SOR_128", 0)
+	m._put_in_play(raider, "ground", false)
+	raider.mods.append({"kw": "raid", "v": 2, "dur": "phase"})
+	var raid := raider.kw("raid")
+	asajj.damage = 7
+	var target: CardInst = m.players[1].base
+	check(asajj.abilities_with("action").size() == 1
+		and m.do_action({"a": "ability", "uid": asajj.uid, "idx": 0})
+		and m.submit_choice([raider.uid]) and m.submit_choice([target.uid])
+		and asajj.damage == 7 - raid and target.damage == raider.printed_power()
+		and raider.kw("raid") == raid and not raider.has_kw("restore"), "Asajj converts Raid to healing for exactly one attack")
+
+	m = _commander_match("HMW_001")
+	asajj = m.players[0].leader
+	target = m.players[1].base
+	asajj.damage = 7
+	check(m.do_action({"a": "ability", "uid": asajj.uid, "idx": 0})
+		and m.submit_choice([asajj.uid]) and m.submit_choice([target.uid])
+		and asajj.damage == 7 and target.damage == asajj.printed_power() + 2
+		and asajj.kw("restore") == 2, "Asajj converts her Restore to Raid for the selected attack")
+
+	m = _commander_match("LOF_005")
+	var morgan: CardInst = m.players[0].leader
+	raider = m._new_inst("SOR_128", 0)
+	m._put_in_play(raider, "ground", false)
+	raider.mods.append({"kw": "raid", "v": 2, "dur": "phase"})
+	var recruit := m._new_inst("SOR_128", 0)
+	recruit.zone = "hand"
+	recruit.mods.append({"kw": "raid", "v": 1, "dur": "phase"})
+	m.players[0].hand = [recruit]
+	var action := {"a": "ability", "uid": morgan.uid, "idx": 0}
+	check(action not in m.legal_actions(0), "Morgan needs a qualifying unit that has attacked")
+	var payment: int = m.players[0].available()
+	m.attacked_with[0].append(raider.uid)
+	check(m.do_action(action) and m.pending.get("options") == [raider.uid] and m.submit_choice([raider.uid])
+		and m.pending.get("options") == [recruit.uid] and m.submit_choice([recruit.uid])
+		and recruit.in_play() and morgan.exhausted and m.players[0].available() == payment - maxi(0, recruit.cost() - 1),
+		"Morgan plays a unit sharing an attacked ally's keyword at a discount")
+
+	m = _commander_match("LOF_005")
+	morgan = m.players[0].leader
+	raider = m._new_inst("SOR_128", 0)
+	m._put_in_play(raider, "ground", false)
+	raider.mods.append({"kw": "raid", "v": 2, "dur": "phase"})
+	recruit = m._new_inst("SOR_128", 0)
+	recruit.mods.append({"kw": "raid", "v": 1, "dur": "phase"})
+	recruit.zone = "hand"
+	m.players[0].hand = [recruit]
+	var cost := m.play_cost(0, recruit)
+	check(m.do_action({"a": "attack", "uid": morgan.uid, "target": m.players[1].base.uid})
+		and m.play_cost(0, recruit) == cost - 1, "Morgan's attack grants the matching-keyword discount")
+	m._play_card(0, recruit, false)
+	check(m.players[0].next_play_discounts.is_empty(), "Playing a unit consumes Morgan's discount")
+
+
+func _commander_match(leader: String) -> Match:
+	var run := ConquestRun.start(lib, 0, 8, 306)
+	run.fleet(0)["leader"] = leader
+	run._begin_battle(0, "Corellia")
+	var m := Match.new()
+	m.setup(lib, run.battle_config(run.player_battle(), true))
+	_ready_to_act(m)
+	return m
+
+
+func test_kamino_commanders() -> void:
+	var m := _commander_match("SHD_009")
+	var hunter: CardInst = m.players[0].leader
+	var scout := m._new_inst("SOR_205", 0)
+	m._put_in_play(scout, "ground", false)
+	var resource := m._new_inst("SOR_205", 0)
+	m.move_to_resources(0, resource)
+	var top: CardInst = m.players[0].deck[0]
+	check(m.do_action({"a": "ability", "uid": hunter.uid, "idx": 0})
+		and m.submit_choice([resource.uid]) and resource.zone == "hand"
+		and top in m.players[0].resources and top.exhausted, "Hunter exchanges the resource that matches a friendly Cunning unit")
+	m = _commander_match("HMW_003")
+	var hemlock: CardInst = m.players[0].leader
+	var enemy := m._new_inst("SOR_046", 1)
+	m._put_in_play(enemy, "ground", false)
+	var tagged := m._new_inst("SOR_128", 1)
+	m._put_in_play(tagged, "ground", false)
+	m.attach_token(tagged, "weakness")
+	check(m.do_action({"a": "ability", "uid": hemlock.uid, "idx": 0})
+		and not tagged.uid in m.pending.get("options", []) and m.submit_choice([enemy.uid])
+		and enemy.upgrades.any(func(upgrade): return upgrade.name() == "Weakness"),
+		"Hemlock gives Weakness to a unit that does not already have it")
+
+
+func test_official_conquest_save() -> void:
+	var run := ConquestRun.start(lib, 0, 16, 77)
+	var world: Dictionary = run.state["worlds"]["Coruscant"]
+	world["cards"] = ["KYB_007", "KYB_002", "SOR_128"]
+	var task := run.fleet(0)
+	task["cards"] = ["KYB_007", "SOR_128"]
+	task["leader"] = "KYB_008"
+	task["training"] = {"opening": "KYB_007", "units": {"KYB_007": {"experience": 1}}}
+	var hutt := run.fleet(2)
+	hutt["leader"] = "KYB_006"
+	var survivors: Array = hutt["cards"].duplicate()
+	run.state["shipments"].append({"faction": 2, "leader": "KYB_005", "fleet": 0, "world": "Nal Hutta"})
+	run.state["shipments"].append({"faction": 0, "cards": ["KYB_007"], "fleet": 0, "world": "Coruscant"})
+	var credits: int = run.state["factions"][2]["credits"]
+	run = ConquestRun.new(lib, JSON.parse_string(JSON.stringify(run.state)))
+	task = run.fleet(0)
+	hutt = run.fleet(2)
+	var shipments: Array = run.state["shipments"]
+	check(task["leader"] == "LOF_005" and task["cards"] == ["JTL_163", "SOR_128"]
+		and run.state["worlds"]["Coruscant"]["cards"] == ["JTL_163", "SOR_128"]
+		and task["training"]["opening"] == "JTL_163" and "JTL_163" in task["training"]["units"],
+		"Loading replaces old Morgan and walkers with their official cards and preserves training")
+	check(hutt["leader"].is_empty() and not hutt["leader_alive"] and hutt["cards"] == survivors
+		and shipments.size() == 1 and shipments[0]["cards"] == ["JTL_163"]
+		and run.state["factions"][2]["credits"] == credits + run.price("commission"),
+		"Retiring old custom leaders preserves surviving fleet cards and refunds an unfinished commission")
 
 
 func test_final_capture() -> void:

@@ -50,6 +50,7 @@ const ARMORY_EXCLUDED := [
 	"Ahsoka's Padawan Lightsaber", "Master's Lightsaber", "Mace Windu's Lightsaber",
 ]
 const PROBE_PRICE := 20
+const OFFICIAL_REPLACEMENTS := {"KYB_007": "JTL_163", "KYB_008": "LOF_005"}
 
 var state: Dictionary
 var lib: CardLibrary
@@ -103,6 +104,7 @@ func _upgrade_save() -> void:
 				planet["facilities"].append("frigates")
 			planet["orbital_cards"] = []
 			planet["probes"] = 0
+		planet["cards"] = _official_saved_cards(planet["cards"])
 	for i in state["factions"].size():
 		var side: Dictionary = state["factions"][i]
 		if not side.has("extra_fleets"):
@@ -113,12 +115,37 @@ func _upgrade_save() -> void:
 		# JSON loads numbers as floats and Array membership is type-sensitive.
 		side["milestones"] = side["milestones"].map(func(value): return int(value))
 		side["retired_leaders"] = side.get("retired_leaders", [])
+		if side.has("unassigned_reserves"):
+			side["unassigned_reserves"] = _official_saved_cards(side["unassigned_reserves"])
 		for task in fleets(i):
 			task.merge({"retreating": false, "command_damage": 0, "recovery": 0.0, "training": {}})
+			var leader := _official_saved_leader(i, task["leader"])
+			if leader != task["leader"]:
+				task["leader"] = leader
+				if leader.is_empty():
+					task["leader_alive"] = false
+					task["command_damage"] = 0
+					if not task["retreating"]:
+						task["route"] = []
 			if not task["leader_alive"]:
 				_retire_leader(i, task["leader"])
-			var old_deck: Array = task["cards"]
+			var old_deck := _official_saved_cards(task["cards"])
 			task["cards"] = _fitted_cards([], old_deck)
+			var training: Dictionary = task["training"]
+			if training.has("opening"):
+				var opening := _official_saved_card(training["opening"])
+				if opening in task["cards"]:
+					training["opening"] = opening
+				else:
+					training.erase("opening")
+			for field in ["units", "equipment"]:
+				var trained: Dictionary = training.get(field, {})
+				for id in trained.keys():
+					var replacement := _official_saved_card(id)
+					if replacement != id:
+						if not replacement.is_empty() and not trained.has(replacement):
+							trained[replacement] = trained[id]
+						trained.erase(id)
 			var overflow := _without_cards(old_deck, task["cards"])
 			if not overflow.is_empty():
 				var home: String = task["world"]
@@ -131,9 +158,34 @@ func _upgrade_save() -> void:
 				else:
 					state["worlds"][home]["cards"].append_array(overflow)
 	for planet in state["worlds"].values():
-		var old_deck: Array = planet["orbital_cards"]
+		var old_deck := _official_saved_cards(planet["orbital_cards"])
 		planet["orbital_cards"] = _fitted_cards([], old_deck, ORBITAL_LIMIT)
 		planet["cards"].append_array(_without_cards(old_deck, planet["orbital_cards"]))
+	for shipment in state["shipments"].duplicate():
+		if shipment.has("leader"):
+			var faction := int(shipment["faction"])
+			shipment["leader"] = _official_saved_leader(faction, shipment["leader"])
+			if shipment["leader"].is_empty():
+				state["factions"][faction]["credits"] += price("commission")
+				state["shipments"].erase(shipment)
+		else:
+			shipment["cards"] = _official_saved_cards(shipment["cards"])
+			if shipment["cards"].is_empty():
+				state["shipments"].erase(shipment)
+
+
+func _official_saved_card(id: String) -> String:
+	if OFFICIAL_REPLACEMENTS.has(id):
+		return OFFICIAL_REPLACEMENTS[id]
+	return "" if lib.get_card(id).get("custom", false) or id.begins_with("KYB_") else id
+
+
+func _official_saved_cards(cards: Array) -> Array:
+	return cards.map(_official_saved_card).filter(func(id): return not id.is_empty())
+
+
+func _official_saved_leader(faction: int, id: String) -> String:
+	return "" if id == "KYB_008" and faction != 0 else _official_saved_card(id)
 
 
 func _next_seed() -> int:
@@ -170,7 +222,7 @@ func _local_match(card: Dictionary, world: String, faction: int, specialty: Stri
 
 
 func _production_card(card: Dictionary, local := false) -> bool:
-	if local and card["id"] in ["IC27_024", "KYB_007"]:
+	if local and card["id"] == "IC27_024":
 		return true
 	return (not card.get("custom", false) and card.get("set") in CardLibrary.BOOSTER_SETS
 		and card.get("implemented") in ["full", "vanilla"])
@@ -459,10 +511,20 @@ func _production_choices(faction: int, world: String, local: bool) -> Array:
 	if int(state["worlds"][world]["owner"]) != faction:
 		return []
 	if local:
-		var cards := []
-		for roster in GALAXY.native_recruits(world, faction):
-			cards.append_array(_native_pool(roster))
-		return cards
+		var key := "catalog/%d/%s" % [faction, world]
+		if not _pools.has(key):
+			var rosters := GALAXY.native_recruits(world, faction).keys()
+			var cards := []
+			for roster in rosters:
+				cards.append_array(_native_pool(roster))
+			if not rosters.is_empty():
+				for id in lib.cards:
+					var card := lib.get_card(id)
+					if not card.get("custom", false) and card.get("type") in ["unit", "event", "upgrade"] \
+						and rosters.any(func(roster): return GALAXY.local_catalog_match(card, roster)):
+						cards.append(id)
+			_pools[key] = cards
+		return _pools[key]
 	var factory := _factory(world)
 	return [] if factory.is_empty() else _factory_cards(world, faction, factory)
 

@@ -1,4 +1,82 @@
 {
+  "SHD_009": {
+    "implemented": "full",
+    "unparsed": [],
+    "text": "Action [C=1, Exhaust]: Reveal a resource you control. If it shares a name with a friendly Cunning unit, return that resource to its owner's hand and resource the top card of your deck.",
+    "abilities": [{
+      "trigger": "action", "cost": {"exhaust": true, "resources": 1},
+      "text": "Reveal a resource. If it shares a name with a friendly Cunning unit, return it to hand and resource the top card of your deck.",
+      "effects": [{"op": "hunter_resource"}]
+    }],
+    "leader_unit": {
+      "arena": "ground", "power": 5, "hp": 8,
+      "text": "Overwhelm\nOn Attack: You may reveal a resource. If it shares a name with a friendly Cunning unit, return it to hand and resource the top card of your deck.",
+      "keywords": [{"k": "overwhelm"}],
+      "abilities": [{"trigger": "on_attack", "effects": [{"op": "hunter_resource", "optional_reveal": true}]}]
+    }
+  },
+  "HMW_003": {
+    "implemented": "full",
+    "unparsed": [],
+    "abilities": [{
+      "trigger": "action", "cost": {"exhaust": true, "resources": 1},
+      "text": "Give a Weakness token to a unit without one.",
+      "effects": [{"op": "weakness", "t": {"s": "choose", "kind": "unit", "without_token": "weakness"}}]
+    }],
+    "leader_unit": {
+      "arena": "ground", "power": 3, "hp": 6,
+      "text": "On Attack: You may give a Weakness token to a unit.",
+      "keywords": [],
+      "abilities": [{
+        "trigger": "on_attack", "text": "You may give a Weakness token to a unit.",
+        "effects": [{"op": "weakness", "t": {"s": "choose", "kind": "unit", "opt": true}, "optional": true}]
+      }]
+    }
+  },
+  "HMW_001": {
+    "implemented": "full",
+    "unparsed": [],
+    "abilities": [{
+      "trigger": "action",
+      "cost": {"exhaust": true},
+      "text": "Action [Exhaust]: Attack with a unit. For this attack, swap its Raid and Restore.",
+      "effects": [{"op": "attack_with", "swap_raid_restore": true, "t": {"s": "choose", "kind": "unit", "side": "friendly", "ready": true, "can_attack": true}}]
+    }],
+    "leader_unit": {
+      "arena": "ground", "power": 3, "hp": 6,
+      "text": "Restore 2\nAction: Attack with a unit. For this attack, replace any Raid it has or gains with Restore, or vice versa.",
+      "keywords": [{"k": "restore", "v": 2}],
+      "replace_command_action": true,
+      "abilities": [{
+        "trigger": "action",
+        "text": "Attack with a unit and swap its Raid and Restore for the attack.",
+        "effects": [{"op": "attack_with", "swap_raid_restore": true, "t": {"s": "choose", "kind": "unit", "side": "friendly", "ready": true, "can_attack": true}}]
+      }]
+    }
+  },
+  "LOF_005": {
+    "implemented": "full",
+    "unparsed": [],
+    "abilities": [{
+      "trigger": "action",
+      "cost": {"exhaust": true},
+      "text": "Action [Exhaust]: Choose a friendly unit that attacked this phase. Play a unit from your hand that shares a keyword with it for 1 less.",
+      "effects": [
+        {"op": "select", "t": {"s": "choose", "kind": "unit", "side": "friendly", "attacked_keyword_discount": 1}},
+        {"op": "play_from_hand", "kind": "unit", "discount": 1, "shares_selected_keyword": true}
+      ]
+    }],
+    "leader_unit": {
+      "arena": "ground", "power": 3, "hp": 6,
+      "text": "On Attack: The next unit you play this phase costs 1 less if it shares a Keyword with a friendly unit.",
+      "keywords": [],
+      "abilities": [{
+        "trigger": "on_attack",
+        "text": "On Attack: The next unit you play this phase costs 1 less if it shares a keyword with a friendly unit.",
+        "effects": [{"op": "discount_next", "n": 1, "filter": {"kind": "unit"}, "shared_unit_keyword": true}]
+      }]
+    }
+  },
   "ASH_043": {
     "abilities": [
       {

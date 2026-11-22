@@ -212,7 +212,7 @@ func abilities() -> Array:
 	for a in src:
 		if not a.get("granted", false):
 			out.append(a)
-	if is_commander() and deployed:
+	if is_commander() and deployed and not data.get("leader_unit", {}).get("replace_command_action", false):
 		for a in data.get("abilities", []):
 			if a.get("trigger") == "action" and not a.get("granted", false) and not a in out:
 				out.append(a)
@@ -249,6 +249,8 @@ func _printed_keywords() -> Array:
 func kw(k: String) -> int:
 	if mods.any(func(modifier): return modifier.get("blank_abilities", false)):
 		return 0
+	if k in ["raid", "restore"] and mods.any(func(modifier): return modifier.get("swap_raid_restore", false)):
+		k = "restore" if k == "raid" else "raid"
 	var match_game: Match = battle.get_ref() if battle else null
 	if match_game and in_play() and match_game.keyword_suppressed(self, k):
 		return 0
@@ -294,6 +296,10 @@ func keyword_list() -> Array:
 		if v > 0:
 			out.append({"k": k, "v": v})
 	return out
+
+
+func shares_keyword(other: CardInst) -> bool:
+	return other.keyword_list().any(func(entry): return has_kw(entry["k"]))
 
 
 func shield_count() -> int:

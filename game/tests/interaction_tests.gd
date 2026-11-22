@@ -277,6 +277,10 @@ func _test_conquest() -> void:
 	_conquest_touch(0, target, true)
 	_conquest_touch(0, target, false)
 	check(screen._selected == "Mandalore" and not screen._orders.disabled, "Tap a neighbor to select the marked planet")
+	check(is_instance_valid(screen._planet_view) and screen._planet_view.world == "Mandalore",
+		"A map tap opens the planet's dedicated view")
+	if screen._planet_view:
+		screen._planet_view.request_back()
 	await _size(1280, 720)
 	_check_conquest_layout(screen, false)
 	for edge in ["Dathomir", "Hoth", "Kamino"]:
@@ -454,6 +458,9 @@ func _test_conquest_duel() -> void:
 	check(markers_clear, "The enlarged special badges clear other planets and their names")
 	map.center_on("Geonosis")
 	await _shot("conquest-world-insignia")
+	await _test_planet_focus(get_tree().current_scene, run)
+	await _test_local_card_purchase(get_tree().current_scene, run)
+	run.fleet(0)["cards"] = ["SOR_128", "SOR_128", "SOR_128", "ASH_143", "ASH_143", "ASH_143", "SOR_046", "SOR_046", "SOR_046"]
 	run._begin_battle(0, "Yavin")
 	Conquest.persist()
 	Conquest.play_battle(run.player_battle())
@@ -463,6 +470,7 @@ func _test_conquest_duel() -> void:
 	if not battle.get("m") is Match:
 		return
 	await _wait_for_conquest_turn(battle)
+	await _wait(0.55)
 	var enemy = battle.m.players[1].base
 	var opponent: UnitToken = battle.tokens.get(enemy.uid)
 	var player: UnitToken = battle.tokens.get(battle.m.players[0].base.uid)
@@ -484,16 +492,86 @@ func _test_conquest_duel() -> void:
 	check(enemy.damage > before, "The opposing horizontal commander accepts combat input")
 
 
+func _test_planet_focus(screen: Control, run: ConquestRun) -> void:
+	screen._map.center_on("Yavin")
+	var at: Vector2 = screen._map.world_position("Yavin")
+	await _click(screen._map, at / screen._map.size)
+	var view: Control = screen._planet_view
+	check(is_instance_valid(view), "Clicking the Rebel homeworld opens the visual planet view")
+	if not is_instance_valid(view):
+		return
+	check(view.art == ConquestGalaxy.supplied_planet("Yavin") and view._focus > 0.99 and view._orbit.visible
+		and view._orbit.tooltip_text.begins_with("Luke Skywalker"), "The focused planet shows its cutout and orbiting leader")
+	var site: Dictionary = run.state["worlds"]["Yavin"]
+	var credits: int = run.state["factions"][1]["credits"]
+	await _click(view._tiles["troopers"])
+	check("troopers" in site["facilities"] and run.state["factions"][1]["credits"] == credits - run.price("troopers")
+		and view._tiles["troopers"].built, "Touching a visual facility tile constructs that facility")
+	await _shot("conquest-planet-construction")
+	var planet_center := get_viewport().get_visible_rect().get_center()
+	var start := planet_center + Vector2(100, 0)
+	var finish := planet_center - Vector2(100, 0)
+	_conquest_touch(0, start, true)
+	var drag := InputEventScreenDrag.new()
+	drag.index = 0
+	drag.position = finish
+	drag.relative = finish - start
+	get_viewport().push_input(drag, true)
+	_conquest_touch(0, finish, false)
+	await _wait(0.45)
+	check(view._cards_open and view._hologram > 0.99 and view._focus > 0.99 and not view._cards.is_empty(),
+		"Swiping the centered world reveals cards and fades the planet to a hologram")
+	if not view._cards.is_empty():
+		var id: String = view._cards.keys()[0]
+		var card: Button = view._cards[id]
+		var copies: int = site["cards"].count(id)
+		credits = run.state["factions"][1]["credits"]
+		await _click(card)
+		check(site["cards"].count(id) == copies + 1 and run.state["factions"][1]["credits"] == credits - run.manufacture_price(id),
+			"Purchasing directly from the planet adds the exact card to its reserves")
+	await _size(1280, 720)
+	check(get_viewport().get_visible_rect().encloses(view._dock.get_global_rect()) and view._cards_open,
+		"The visual catalog fits in landscape and preserves its active tab")
+	await _shot("conquest-planet-cards")
+	planet_center = get_viewport().get_visible_rect().get_center()
+	await _drag(planet_center - Vector2(100, 0), planet_center + Vector2(100, 0))
+	await _wait(0.35)
+	check(not view._cards_open and view._hologram < 0.01, "Dragging back restores the centered construction view")
+	await _click(view._header.get_child(0))
+	check(not is_instance_valid(screen._planet_view), "Back returns to the galaxy map")
+	await _size(390, 844)
+
+
+func _test_local_card_purchase(screen: Control, run: ConquestRun) -> void:
+	var world: Dictionary = run.state["worlds"]["Lothal"]
+	world["owner"] = 1
+	world["cards"] = []
+	screen._selected = "Lothal"
+	screen._refresh()
+	await _click(_button(screen, "Planet production"))
+	await _click(_button(screen, "Local card catalog"))
+	var event: Button
+	for button in screen.find_children("*", "Button", true, false):
+		if button.is_visible_in_tree() and button.get_script() == preload("res://ui/kit/conquest_factory_card.gd") and button.card["type"] == "event":
+			event = button
+			break
+	check(event != null, "The Rebel Lothal catalog shows an event as a purchasable card")
+	if event:
+		var id: String = event.card["id"]
+		var credits: int = run.state["factions"][1]["credits"]
+		await _click(event)
+		check(world["cards"] == [id] and run.state["factions"][1]["credits"] == credits - run.manufacture_price(id),
+			"Buying a local event stores that exact card in reserves")
+	await _click(_button(screen, "Back"))
+	await _click(_button(screen, "Back"))
+
+
 func _check_commander_pair(screen: Control, player: UnitToken, opponent: UnitToken) -> void:
 	_check_commander_slot(screen, player)
-	var arena: Rect2 = screen._arena_area
-	var rect := opponent.get_global_rect()
+	_check_commander_slot(screen, opponent)
 	check(is_equal_approx(opponent.scale.x, player.scale.x)
 		and absf(opponent.center_global().x - player.center_global().x) < 2.0,
 		"Both commander cards share a scale and centerline")
-	check(rect.end.y <= arena.position.y and get_viewport().get_visible_rect().encloses(rect)
-		and not rect.intersects(screen.tracker.get_global_rect()),
-		"The opposing card fits above the arena and clears the objective")
 	check(screen.tokens.values().all(func(token: UnitToken):
 		if token.inst.is_commander():
 			return true
@@ -511,13 +589,28 @@ func _wait_for_conquest_turn(screen: Control) -> void:
 
 
 func _check_commander_slot(screen: Control, token: UnitToken) -> void:
-	var rect := token.get_global_rect()
+	# The slot reserves the card at rest. Exhaustion tilts the face about its pivot.
+	var rect := Rect2(token.home_pos + token.pivot_offset * (Vector2.ONE - token.scale), token.size * token.scale)
+	var arena: Rect2 = screen._arena_area
+	if not screen.portrait:
+		var side: SideHud = screen.hud[token.inst.controller]
+		check(side.get_global_rect().encloses(rect) and rect.end.x < arena.position.x
+			and not rect.intersects(side.res_view.get_global_rect()),
+			"The horizontal commander fits beside the arenas and clears the resources")
+		check(is_equal_approx(arena.position.y, 50.0) and is_equal_approx(arena.end.y, screen._hand_top - 10.0),
+			"The landscape arenas use the full height between the objective and hand")
+		return
 	var center := get_viewport().get_visible_rect().get_center().x
 	check(absf(token.center_global().x - center) < 2.0 and token.scale.x > 1.25,
 		"The enlarged horizontal commander is centered (position %s, scale %s)" % [token.center_global(), token.scale])
-	check(rect.position.y >= screen._arena_area.end.y and rect.end.y <= screen._hand_top
-		and not rect.intersects(screen.retreat_btn.get_global_rect()),
-		"The commander fits between the arena and hand without covering Retreat")
+	if token.inst.controller == 0:
+		check(rect.position.y >= arena.end.y and rect.end.y <= screen._hand_top
+			and not rect.intersects(screen.retreat_btn.get_global_rect()),
+			"The commander fits between the arena and hand without covering Retreat")
+	else:
+		check(rect.end.y <= arena.position.y and get_viewport().get_visible_rect().encloses(rect)
+			and not rect.intersects(screen.tracker.get_global_rect()),
+			"The opposing card fits above the arena and clears the objective")
 
 
 func _conquest_touch(index: int, at: Vector2, down: bool) -> void:

@@ -3,6 +3,7 @@ extends ScreenBase
 const GALAXY := preload("res://engine/conquest_galaxy.gd")
 const MAP_VIEW := preload("res://ui/kit/conquest_map.gd")
 const FACTORY_CARD := preload("res://ui/kit/conquest_factory_card.gd")
+const PLANET_VIEW := preload("res://ui/kit/conquest_planet_view.gd")
 
 var _faction := 0
 var _map_size := 8
@@ -32,6 +33,7 @@ var _command_scroll: ScrollContainer
 var _commands: VBoxContainer
 var _command_grid: GridContainer
 var _overlay_layout_queued := false
+var _planet_view: Control
 
 
 func build() -> void:
@@ -72,6 +74,9 @@ func relayout(in_portrait: bool, rect: Rect2) -> void:
 		_queue_overlay_layout()
 	if _setup:
 		_setup.custom_minimum_size.x = minf(590, rect.size.x)
+	if is_instance_valid(_planet_view):
+		_planet_view.safe_area = safe_rect()
+		_planet_view._layout()
 
 
 func _queue_overlay_layout() -> void:
@@ -98,6 +103,7 @@ func _layout_overlays() -> void:
 
 
 func _clear() -> void:
+	_close_planet()
 	for overlay in [_map, _command_panel]:
 		if is_instance_valid(overlay):
 			overlay.get_parent().remove_child(overlay)
@@ -242,7 +248,7 @@ func _show_galaxy() -> void:
 	_map.world_selected.connect(func(world: String):
 		_selected = world
 		_map.selected = world
-		_refresh())
+		_open_planet())
 	add_child(_map)
 	move_child(_map, body.get_index())
 	UIKit.fill_rect(_map)
@@ -289,6 +295,46 @@ func _show_galaxy() -> void:
 	await get_tree().process_frame
 	_layout_overlays()
 	_map.center_on(_selected)
+
+
+func _open_planet() -> void:
+	_close_planet()
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	add_child(layer)
+	var view := PLANET_VIEW.new()
+	_planet_view = view
+	view.run = Conquest.run
+	view.world = _selected
+	view.art = GALAXY.supplied_planet(_selected)
+	if not view.art:
+		view.art = _map._planet_art.get(_selected)
+	view.map_position = _map.get_global_transform() * _map.world_position(_selected)
+	view.map_diameter = 28.0 * _map.zoom if view.art else 12.0 * _map.zoom
+	view.safe_area = safe_rect()
+	view.dismissed.connect(_close_planet)
+	view.manage_requested.connect(_show_production)
+	view.fleet_requested.connect(_show_fleet)
+	view.order_requested.connect(func():
+		_orders.pressed.emit()
+		_close_planet())
+	view.scout_requested.connect(_show_probe_origins)
+	view.battle_requested.connect(func(): _battle.pressed.emit())
+	layer.add_child(view)
+	UIKit.fill_rect(view)
+	header.hide()
+	body.hide()
+	_refresh()
+
+
+func _close_planet() -> void:
+	if is_instance_valid(_planet_view):
+		_planet_view.hide()
+		_planet_view.set_process_input(false)
+		_planet_view.get_parent().queue_free()
+		header.show()
+		body.show()
+	_planet_view = null
 
 
 func _button(parent: Container, text: String, call: Callable) -> Button:
@@ -359,12 +405,15 @@ func _refresh() -> void:
 	if not active:
 		report = "The galaxy is yours." if run.state["status"] == "won" else "Your faction has been defeated."
 	_report.text = report
+	if is_instance_valid(_planet_view):
+		_planet_view.set_orders(_orders.text, not _orders.disabled, _scout.visible, _battle.visible)
+		_planet_view.refresh()
 
 
-func _show_fleet() -> void:
+func _show_fleet(index := -1) -> void:
 	var run := Conquest.run
 	var faction := int(run.state["player"])
-	var fleet := run.fleet(faction, _fleet_index)
+	var fleet := run.fleet(faction, _fleet_index if index < 0 else index)
 	var modal := ModalPanel.open(self, 500, Sabacc.C_GOLD)
 	modal.text("Fleet deck · %d cards" % fleet["cards"].size(), 26)
 	modal.text("Up to 3 copies per card · 1 for unique cards", 16, Sabacc.C_DIM)
@@ -483,7 +532,7 @@ func _show_factory(world: String, page := 0, local := false) -> void:
 	var modal := ModalPanel.open(self, 650, Sabacc.C_GOLD)
 	var factory_name: String = ConquestRun.FACILITIES[factory][0] if not factory.is_empty() else "Factory"
 	if local:
-		factory_name = "Local recruits"
+		factory_name = "Local card catalog"
 	modal.text("%s · %s" % [GALAXY.display_name(world), factory_name], 25)
 	var info := modal.text("", 17)
 	if cards.is_empty():
