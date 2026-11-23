@@ -2,10 +2,10 @@
 // Core files are cached per build: a new deploy changes VERSION, the new
 // worker downloads the new build in the background and takes over next launch.
 // Card art lives in its own cache that survives updates.
-const VERSION = '786a5af4db28';
+const VERSION = 'b151b23420d1';
 const CORE = 'sabacc-core-' + VERSION;
 const ART = 'sabacc-art-v1';
-const FILES = ["index.html", "index.js", "index.wasm.gz.bin", "index.manifest.json", "index.offline.html", "index.audio.worklet.js", "index.audio.position.worklet.js", "index.icon.png", "index.apple-touch-icon.png", "index.png", "index.144x144.png", "index.180x180.png", "index.512x512.png", "index.pck.part00.bin", "index.pck.part01.bin", "index.pck.part02.bin", "index.pck.part03.bin"];
+const FILES = ["index.html", "index.js", "index.wasm.gz.bin", "index.manifest.json", "index.offline.html", "index.audio.worklet.js", "index.audio.position.worklet.js", "index.icon.png", "index.apple-touch-icon.png", "index.png", "index.144x144.png", "index.180x180.png", "index.512x512.png", "index.pck.part00.bin", "index.pck.part01.bin", "index.pck.part02.bin", "index.pck.part03.bin", "index.pck.part04.bin", "index.pck.part05.bin", "index.pck.part06.bin", "index.pck.part07.bin", "index.pck.part08.bin"];
 
 self.addEventListener('install', (e) => {
 	e.waitUntil(caches.open(CORE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

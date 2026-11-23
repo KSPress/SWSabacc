@@ -1,5 +1,3 @@
-# SWU Sabacc - web app build
+# SWU Sabacc
 
-Built site for GitHub Pages. Source: the `main` branch.
-
-Unofficial, non-commercial fan project. Not affiliated with Disney, Lucasfilm or Fantasy Flight Games. Star Wars characters, cards, logos and art are property of Disney and/or Fantasy Flight Games.
+Browser build 8.0 from source commit d5c82c3. Unofficial, non-commercial fan project.
